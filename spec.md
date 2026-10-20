@@ -139,7 +139,10 @@ Option `--json` prints the same data as JSON for scripting.
 
 Searches for recordings in a directory and prints one row per recording.
 
-- Arguments: `[DIR]` (default `.`), `-r/--recursive`, `--filter <REGEX>` (on file name).
+- Arguments: `[DIR]` (default `.`), `--no-recursive`, `--filter <REGEX>` (on file name).
+- Subdirectories are searched recursively by default; `--no-recursive` limits the
+  search to `DIR`. Hidden directories and symbolic links to directories are skipped
+  (no endless loops on link cycles). File names are shown relative to `DIR`.
 - A recording is identified by its `.cfg` (or `.cff`). A `.cfg` without a `.dat` is
   listed with a warning marker.
 - Columns: file name, station, revision, start time, duration, sample rate,
@@ -147,6 +150,7 @@ Searches for recordings in a directory and prints one row per recording.
 - Only the `.cfg` is parsed (fast). The `.dat` is not read.
 - Sorted by start time; `--sort name|time|size` to change it.
 - Files that fail to parse are listed with an error column instead of being dropped.
+- Recursive search in children directories is enabled by default.
 
 ### `view` command
 

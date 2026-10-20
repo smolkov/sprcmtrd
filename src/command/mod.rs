@@ -39,10 +39,10 @@ impl Command {
             } => info::run(&file, json, no_extra),
             Self::List {
                 dir,
-                recursive,
+                no_recursive,
                 filter,
                 sort,
-            } => list::run(&dir, recursive, filter.as_deref(), sort),
+            } => list::run(&dir, !no_recursive, filter.as_deref(), sort),
             Self::View {
                 file,
                 channels,

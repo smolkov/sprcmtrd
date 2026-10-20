@@ -81,9 +81,9 @@ pub enum Command {
         /// Directory to search.
         #[arg(default_value = ".")]
         dir: PathBuf,
-        /// Search subdirectories too.
-        #[arg(short, long)]
-        recursive: bool,
+        /// Only search DIR itself, not its subdirectories.
+        #[arg(long)]
+        no_recursive: bool,
         /// Only show recordings whose file name matches this regular expression.
         #[arg(long)]
         filter: Option<String>,

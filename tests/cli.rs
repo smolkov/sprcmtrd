@@ -60,6 +60,34 @@ fn list_shows_recordings_and_errors() {
 }
 
 #[test]
+fn list_searches_subdirectories_by_default() {
+    let dir = tempfile::tempdir().unwrap();
+    let nested = dir.path().join("station/2024");
+    std::fs::create_dir_all(&nested).unwrap();
+    let data = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
+    for f in ["fault_1999.cfg", "fault_1999.dat"] {
+        std::fs::copy(format!("{data}/{f}"), nested.join(f)).unwrap();
+    }
+    std::fs::copy(format!("{data}/old_1991.cfg"), dir.path().join("old_1991.cfg")).unwrap();
+    std::fs::copy(format!("{data}/old_1991.dat"), dir.path().join("old_1991.dat")).unwrap();
+
+    cmd()
+        .arg("list")
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("station/2024/fault_1999.cfg"))
+        .stdout(predicate::str::contains("old_1991.cfg"));
+    cmd()
+        .args(["list", "--no-recursive"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("fault_1999").not())
+        .stdout(predicate::str::contains("old_1991.cfg"));
+}
+
+#[test]
 fn list_filter() {
     cmd()
         .args(["list", "tests/data", "--filter", "^fault"])

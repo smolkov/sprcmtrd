@@ -16,7 +16,7 @@ struct Row {
     size: Option<u64>,
 }
 
-/// Runs the `list` command.
+/// Runs the `list` command. Subdirectories are searched when `recursive`.
 pub fn run(dir: &Path, recursive: bool, filter: Option<&str>, sort: SortKey) -> anyhow::Result<()> {
     let filter = filter
         .map(Regex::new)

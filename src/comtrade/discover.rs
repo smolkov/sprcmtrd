@@ -144,6 +144,9 @@ impl RecordingPath {
 
 /// Calls `f` for every recording found in `dir` (and subdirectories when
 /// `recursive`). Recordings are identified by a `.cfg` or `.cff` file.
+///
+/// Recursion skips hidden directories (`.git`, ...) and does not follow
+/// symbolic links to directories, so link cycles cannot loop forever.
 pub fn for_each_recording(
     dir: &Path,
     recursive: bool,
@@ -155,7 +158,9 @@ pub fn for_each_recording(
     for entry in entries.flatten() {
         let p = entry.path();
         if p.is_dir() {
-            if recursive {
+            let real_dir = entry.file_type().is_ok_and(|t| t.is_dir());
+            let hidden = entry.file_name().to_string_lossy().starts_with('.');
+            if recursive && real_dir && !hidden {
                 subdirs.push(p);
             }
             continue;
@@ -207,6 +212,13 @@ mod tests {
 
         let names: Vec<_> = find_recordings(d, false).unwrap().iter().map(|r| r.name()).collect();
         assert_eq!(names, ["a.CFG", "b.cfg"]);
+        assert_eq!(find_recordings(d, true).unwrap().len(), 3);
+
+        // Hidden directories and directory symlinks are not searched.
+        fs::create_dir(d.join(".hidden")).unwrap();
+        fs::write(d.join(".hidden/h.cfg"), "").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(d, d.join("sub/loop")).unwrap();
         assert_eq!(find_recordings(d, true).unwrap().len(), 3);
 
         assert!(matches!(
