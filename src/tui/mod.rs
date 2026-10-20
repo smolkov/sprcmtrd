@@ -30,9 +30,38 @@ pub async fn run(path: Option<PathBuf>, ctx: &Context) -> anyhow::Result<()> {
     // `try_init` enables raw mode and the alternate screen and installs a
     // panic hook that restores the terminal.
     let mut terminal = ratatui::try_init()?;
+    let enhanced = enable_key_disambiguation();
     let result = event_loop(&mut terminal, &mut app, Events::new(rx)).await;
+    if enhanced {
+        disable_key_disambiguation();
+    }
     ratatui::restore();
     result
+}
+
+/// Asks the terminal to report keys like `Ctrl+,` that the legacy encoding
+/// cannot express (kitty keyboard protocol). Only terminals that support
+/// the protocol are asked; others still use the fallback keys. Returns
+/// `true` when enabled. The panic hook also turns it off again.
+fn enable_key_disambiguation() -> bool {
+    use crossterm::event::{KeyboardEnhancementFlags, PushKeyboardEnhancementFlags};
+    if !crossterm::terminal::supports_keyboard_enhancement().unwrap_or(false) {
+        return false;
+    }
+    let flags = KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES;
+    if crossterm::execute!(std::io::stdout(), PushKeyboardEnhancementFlags(flags)).is_err() {
+        return false;
+    }
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        disable_key_disambiguation();
+        previous(info);
+    }));
+    true
+}
+
+fn disable_key_disambiguation() {
+    let _ = crossterm::execute!(std::io::stdout(), crossterm::event::PopKeyboardEnhancementFlags);
 }
 
 async fn event_loop(terminal: &mut DefaultTerminal, app: &mut App, mut events: Events) -> anyhow::Result<()> {

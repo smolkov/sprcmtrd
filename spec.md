@@ -351,6 +351,7 @@ runs the event loop and always restores the terminal, also on panic
 | `t`                 | Jump cursor to trigger                   |
 | `p`                 | Toggle primary / secondary values        |
 | `T`                 | Toggle dark / light theme                |
+| `Ctrl+,`, `c`       | Open configuration overlay               |
 | `Esc`               | Close overlay                            |
 
 Note: `Ctrl+Shift+P` is not used because most terminals cannot tell it apart from
@@ -374,6 +375,51 @@ help overlay are generated from it.
 - Directory scan runs in the background; results appear as they arrive. Changing
   directory, toggling `Ctrl+r` or closing the picker cancels a running scan.
 - Recursive search in subdirectories.
+
+### Configuration overlay
+
+- Opens with `Ctrl+,`; shows current configuration for theme and key bindings.
+- `Esc` closes the overlay.
+- Changes take effect immediately and are saved to the configuration file.
+- Configuration file is located at `~/.config/sprcmtrd/config.toml`.
+- If configuration file does not exist, it will be created with default values.
+
+Settings: 
+
+* Theme: dark or light
+* Key bindings: every action from the key binding table
+
+Layout (centered, 75 % × 85 %, title shows the configuration file path):
+
+```
+┌ Configuration · ~/.config/sprcmtrd/config.toml ─────────────────────────┐
+│Appearance                                                               │
+│  Theme           ◀ dark ▶            dark or light background           │
+│                                                                         │
+│Key bindings                                                             │
+│  quit            q, Ctrl+c           Quit (closes an open overlay first)│
+│▌ zoom_in         press a key…        Zoom in (time)                    ▐│
+│  ...                                                                    │
+│                                                                         │
+│saved to ~/.config/sprcmtrd/config.toml                                  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+- `↑`/`↓` (`k`/`j`) select a row; the list scrolls with the selection.
+- Theme row: `Enter`, `Space`, `←`/`→` switch dark / light.
+- Binding row: `Enter` waits for the new key (`Esc` cancels) and replaces the
+  action's keys with it; a key already used by another action is refused with a
+  message. `Backspace` / `Delete` restores the default keys.
+- The bottom line shows the result of the last change (saved, conflict, error) or
+  a hint for the selected row.
+- The file is rewritten with all settings (theme and every binding); comments in
+  it are not kept. `--theme` and `--no-color` still override the saved theme.
+- Without a configuration directory, changes apply for the session and the
+  overlay says they are not saved.
+- `Ctrl+,` cannot be sent by most terminals with the legacy key encoding. The TUI
+  enables the kitty keyboard protocol (disambiguate escape codes) when the
+  terminal supports it (kitty, WezTerm, foot, Ghostty, recent Alacritty) and
+  turns it off again on exit and on panic. `c` opens the overlay in all terminals.
 
 ### Theme
 

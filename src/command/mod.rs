@@ -14,6 +14,8 @@ pub struct Context {
     pub global: GlobalOpts,
     /// Configuration file settings.
     pub config: AppConfig,
+    /// Where the configuration overlay saves settings (`None`: no config directory).
+    pub config_path: Option<std::path::PathBuf>,
 }
 
 /// Runs the subcommand given on the command line, or the TUI when there is none.
@@ -21,6 +23,7 @@ pub async fn run(cli: Cli, config: AppConfig) -> anyhow::Result<()> {
     let ctx = Context {
         global: cli.global,
         config,
+        config_path: AppConfig::default_path(),
     };
     match cli.command {
         Some(cmd) => cmd.run(&ctx).await,

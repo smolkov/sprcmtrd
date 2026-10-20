@@ -35,6 +35,11 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
 
     let hints: Vec<Span> = match &app.overlay {
         Some(Overlay::Picker(_)) => picker_hints(app),
+        Some(Overlay::Config(state)) if state.capturing => key_hint(app, "Esc", "cancel").to_vec(),
+        Some(Overlay::Config(_)) => [("↑↓", "select"), ("Enter", "change"), ("Backspace", "default"), ("Esc", "close")]
+            .iter()
+            .flat_map(|(k, l)| key_hint(app, k, l))
+            .collect(),
         Some(_) => key_hint(app, "Esc", "close")
             .into_iter()
             .chain(key_hint(app, "↑↓", "scroll"))

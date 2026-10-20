@@ -50,7 +50,7 @@ impl GlobalOpts {
 }
 
 /// Theme selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ThemeChoice {
     /// Dark background.

@@ -1,6 +1,7 @@
 //! Rendering of the TUI layout and overlays.
 
 mod channels;
+mod config;
 mod filepicker;
 mod footer;
 mod header;
@@ -63,6 +64,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Some(Overlay::Help { scroll }) => help::render(f, area, app, *scroll),
         Some(Overlay::Info { scroll }) => info::render(f, area, app, *scroll),
         Some(Overlay::Picker(p)) => filepicker::render(f, area, app, p),
+        Some(Overlay::Config(state)) => config::render(f, area, app, state),
         None => {}
     }
 }
@@ -117,9 +119,15 @@ mod tests {
     use crate::comtrade::Comtrade;
 
     fn app() -> App {
+        app_with_config(None)
+    }
+
+    /// Test app; `config_path` is where the configuration overlay saves.
+    fn app_with_config(config_path: Option<std::path::PathBuf>) -> App {
         let ctx = Context {
             global: GlobalOpts { theme: Some(ThemeChoice::Dark), secondary: false, no_color: true, verbose: 0 },
             config: Default::default(),
+            config_path,
         };
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
         let mut app = App::new(&ctx, tx).unwrap();
@@ -197,6 +205,74 @@ mod tests {
             app.on_key(KeyEvent::new(KeyCode::Char('+'), KeyModifiers::NONE));
         }
         assert!(axis_row(&render(&app, 80, 24)).contains("139.5 ms ▲"));
+    }
+
+    fn press(app: &mut App, code: KeyCode, mods: KeyModifiers) {
+        app.on_key(KeyEvent::new(code, mods));
+    }
+
+    #[test]
+    fn config_overlay_creates_file_and_saves_changes() {
+        use crate::config::AppConfig;
+        use crate::tui::app::{Action, BINDINGS, Overlay};
+        use crate::tui::theme::ThemeKind;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sprcmtrd/config.toml");
+        let mut app = app_with_config(Some(path.clone()));
+
+        // Ctrl+, opens it (terminals with the kitty keyboard protocol);
+        // the missing file is created with the current settings.
+        press(&mut app, KeyCode::Char(','), KeyModifiers::CONTROL);
+        assert!(matches!(app.overlay, Some(Overlay::Config(_))));
+        let saved = AppConfig::load_from(&path).unwrap();
+        assert_eq!(saved.theme, Some(ThemeChoice::Dark));
+        assert_eq!(saved.keys["quit"], ["q", "ctrl+c"]);
+        let screen = render(&app, 100, 30);
+        assert!(screen.contains("Configuration"));
+        assert!(screen.contains("◀ dark ▶"));
+        assert!(screen.contains("zoom_in"));
+
+        // Theme row: Enter switches and saves.
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(app.theme_kind, ThemeKind::Light);
+        assert_eq!(AppConfig::load_from(&path).unwrap().theme, Some(ThemeChoice::Light));
+
+        // Rebind zoom_in to z.
+        let row = 1 + BINDINGS.iter().position(|b| b.name == "zoom_in").unwrap();
+        for _ in 0..row {
+            press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        }
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        assert!(render(&app, 100, 30).contains("press a key"));
+        press(&mut app, KeyCode::Char('z'), KeyModifiers::NONE);
+        let z = KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE);
+        assert_eq!(app.keymap.action(&z), Some(Action::ZoomIn));
+        assert_eq!(AppConfig::load_from(&path).unwrap().keys["zoom_in"], ["z"]);
+
+        // A key used by another action is refused.
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        press(&mut app, KeyCode::Char('q'), KeyModifiers::NONE);
+        assert!(render(&app, 100, 30).contains("already used by 'quit'"));
+        assert_eq!(app.keymap.action(&z), Some(Action::ZoomIn));
+
+        // Backspace restores the default.
+        press(&mut app, KeyCode::Backspace, KeyModifiers::NONE);
+        assert_eq!(AppConfig::load_from(&path).unwrap().keys["zoom_in"], ["+", "="]);
+
+        // Esc closes; the saved file loads on the next start.
+        press(&mut app, KeyCode::Esc, KeyModifiers::NONE);
+        assert!(app.overlay.is_none());
+        let saved = AppConfig::load_from(&path).unwrap();
+        crate::tui::app::KeyMap::new(&saved.keys).unwrap();
+    }
+
+    #[test]
+    fn config_overlay_fallback_key_without_config_dir() {
+        let mut app = app();
+        press(&mut app, KeyCode::Char('c'), KeyModifiers::NONE);
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        assert!(render(&app, 100, 30).contains("changes are not saved"));
     }
 
     #[test]

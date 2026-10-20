@@ -17,6 +17,7 @@ use super::event::Message;
 use super::theme::{Theme, ThemeKind};
 use crate::args::ThemeChoice;
 use crate::command::{self, Context};
+use crate::config::AppConfig;
 use crate::comtrade::discover::{self, Visit};
 use crate::comtrade::{Comtrade, RecordingPath, Side};
 
@@ -44,6 +45,7 @@ pub enum Action {
     TimeMode,
     Sidebar,
     Theme,
+    Config,
     Close,
 }
 
@@ -85,6 +87,7 @@ pub const BINDINGS: &[Binding] = &[
     Binding { action: Action::TimeMode, name: "time_mode", keys: &["m"], help: "Toggle relative / absolute time", hint: None },
     Binding { action: Action::Sidebar, name: "sidebar", keys: &["s"], help: "Show / hide channel sidebar", hint: None },
     Binding { action: Action::Theme, name: "theme", keys: &["T"], help: "Toggle dark / light theme", hint: None },
+    Binding { action: Action::Config, name: "config", keys: &["ctrl+,", "c"], help: "Configuration (theme, key bindings)", hint: Some("config") },
     Binding { action: Action::Close, name: "close", keys: &["esc"], help: "Close overlay", hint: None },
 ];
 
@@ -154,6 +157,66 @@ impl KeySpec {
             }
             code => key.code == code && key.modifiers & relevant == self.mods,
         }
+    }
+}
+
+impl KeySpec {
+    /// The key of a key event, `None` for keys that cannot be configured
+    /// (function keys, media keys, ...).
+    pub fn from_event(key: &KeyEvent) -> Option<Self> {
+        let mut mods = key.modifiers & (KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SHIFT);
+        match key.code {
+            // Shift is part of the character (`T`, `?`).
+            KeyCode::Char(_) => mods -= KeyModifiers::SHIFT,
+            KeyCode::Tab
+            | KeyCode::BackTab
+            | KeyCode::Enter
+            | KeyCode::Esc
+            | KeyCode::Backspace
+            | KeyCode::Up
+            | KeyCode::Down
+            | KeyCode::Left
+            | KeyCode::Right
+            | KeyCode::Home
+            | KeyCode::End
+            | KeyCode::PageUp
+            | KeyCode::PageDown => {}
+            _ => return None,
+        }
+        Some(Self { code: key.code, mods })
+    }
+
+    /// The key as written in the configuration file (inverse of [`KeySpec::parse`]).
+    pub fn config_name(&self) -> String {
+        let mut s = String::new();
+        for (m, name) in [
+            (KeyModifiers::CONTROL, "ctrl+"),
+            (KeyModifiers::ALT, "alt+"),
+            (KeyModifiers::SHIFT, "shift+"),
+        ] {
+            if self.mods.contains(m) {
+                s.push_str(name);
+            }
+        }
+        match self.code {
+            KeyCode::Char(' ') => s.push_str("space"),
+            KeyCode::Char(c) => s.push(c),
+            KeyCode::Tab => s.push_str("tab"),
+            KeyCode::BackTab => s.push_str("backtab"),
+            KeyCode::Enter => s.push_str("enter"),
+            KeyCode::Esc => s.push_str("esc"),
+            KeyCode::Backspace => s.push_str("backspace"),
+            KeyCode::Up => s.push_str("up"),
+            KeyCode::Down => s.push_str("down"),
+            KeyCode::Left => s.push_str("left"),
+            KeyCode::Right => s.push_str("right"),
+            KeyCode::Home => s.push_str("home"),
+            KeyCode::End => s.push_str("end"),
+            KeyCode::PageUp => s.push_str("pageup"),
+            KeyCode::PageDown => s.push_str("pagedown"),
+            _ => s.push('?'),
+        }
+        s
     }
 }
 
@@ -236,6 +299,30 @@ impl KeyMap {
     /// First key bound to `action` as text.
     pub fn label(&self, action: Action) -> String {
         self.keys(action).first().map_or_else(|| "-".into(), ToString::to_string)
+    }
+
+    /// Replaces the keys of `action`.
+    pub fn set(&mut self, action: Action, keys: Vec<KeySpec>) {
+        self.keys.insert(action, keys);
+    }
+
+    /// Restores the default keys of `action`.
+    pub fn reset(&mut self, action: Action) {
+        if let Some(b) = BINDINGS.iter().find(|b| b.action == action) {
+            let specs = b.keys.iter().filter_map(|k| KeySpec::parse(k).ok()).collect();
+            self.keys.insert(action, specs);
+        }
+    }
+
+    /// All bindings in configuration file form (action name to key names).
+    pub fn to_config(&self) -> BTreeMap<String, Vec<String>> {
+        BINDINGS
+            .iter()
+            .map(|b| {
+                let keys = self.keys(b.action).iter().map(KeySpec::config_name).collect();
+                (b.name.to_owned(), keys)
+            })
+            .collect()
     }
 }
 
@@ -560,6 +647,31 @@ pub enum Overlay {
     },
     /// File picker.
     Picker(Picker),
+    /// Configuration (theme and key bindings).
+    Config(ConfigState),
+}
+
+/// Configuration overlay state.
+///
+/// Rows: 0 is the theme, row `i + 1` is `BINDINGS[i]`.
+#[derive(Debug, Clone, Default)]
+pub struct ConfigState {
+    /// Selected row.
+    pub selected: usize,
+    /// Waiting for the new key of the selected binding.
+    pub capturing: bool,
+    /// Result of the last change (saved, conflict, error).
+    pub message: Option<(String, StatusKind)>,
+}
+
+impl ConfigState {
+    /// Number of rows.
+    pub const ROWS: usize = BINDINGS.len() + 1;
+
+    /// Binding of the selected row, `None` on the theme row.
+    pub fn binding(&self) -> Option<&'static Binding> {
+        self.selected.checked_sub(1).and_then(|i| BINDINGS.get(i))
+    }
 }
 
 /// The whole TUI state.
@@ -568,7 +680,10 @@ pub struct App {
     pub keymap: KeyMap,
     /// Current theme colors.
     pub theme: Theme,
-    theme_kind: ThemeKind,
+    /// Dark or light.
+    pub theme_kind: ThemeKind,
+    /// Where configuration changes are saved.
+    pub config_path: Option<PathBuf>,
     /// Loaded recording.
     pub recording: Option<Recording>,
     /// File currently loading in the background.
@@ -611,6 +726,7 @@ impl App {
             keymap,
             theme: Theme::new(theme_kind, ctx.global.colors_disabled()),
             theme_kind,
+            config_path: ctx.config_path.clone(),
             recording: None,
             loading: None,
             status: None,
@@ -747,6 +863,10 @@ impl App {
             self.picker_key(key);
             return;
         }
+        if matches!(self.overlay, Some(Overlay::Config(_))) {
+            self.config_key(key);
+            return;
+        }
         let Some(action) = self.keymap.action(&key) else {
             return;
         };
@@ -771,6 +891,7 @@ impl App {
             Action::Help => self.overlay = Some(Overlay::Help { scroll: 0 }),
             Action::Info => self.overlay = Some(Overlay::Info { scroll: 0 }),
             Action::Open => self.open_picker(self.picker_dir()),
+            Action::Config => self.open_config(),
             _ => {}
         }
     }
@@ -788,6 +909,7 @@ impl App {
                 }
             }
             Action::Close => {}
+            Action::Config => self.open_config(),
             Action::Focus => {
                 self.focus = match self.focus {
                     Focus::Sidebar => Focus::Plot,
@@ -865,6 +987,113 @@ impl App {
     fn no_recording(&mut self) {
         let key = self.keymap.label(Action::Open);
         self.set_status(format!("no recording loaded, press {key} to open one"), StatusKind::Info);
+    }
+
+    /// Opens the configuration overlay. A missing configuration file is
+    /// created with the current (default) settings.
+    pub fn open_config(&mut self) {
+        let mut state = ConfigState::default();
+        if let Some(path) = self.config_path.as_ref().filter(|p| !p.exists()) {
+            state.message = Some(match self.save_config() {
+                Ok(()) => (format!("created {}", path.display()), StatusKind::Info),
+                Err(e) => (e, StatusKind::Error),
+            });
+        }
+        self.overlay = Some(Overlay::Config(state));
+    }
+
+    /// Writes theme and key bindings to the configuration file.
+    fn save_config(&self) -> Result<(), String> {
+        let path = self
+            .config_path
+            .as_ref()
+            .ok_or("no configuration directory, changes are not saved")?;
+        let config = AppConfig {
+            theme: Some(match self.theme_kind {
+                ThemeKind::Dark => ThemeChoice::Dark,
+                ThemeKind::Light => ThemeChoice::Light,
+            }),
+            keys: self.keymap.to_config(),
+        };
+        config.save_to(path).map_err(|e| format!("{e:#}"))
+    }
+
+    fn config_key(&mut self, key: KeyEvent) {
+        let Some(Overlay::Config(state)) = &mut self.overlay else {
+            return;
+        };
+        let mut state = std::mem::take(state);
+        let mut changed = false;
+
+        if state.capturing {
+            state.capturing = false;
+            let binding = state.binding().expect("capturing only on binding rows");
+            state.message = if key.code == KeyCode::Esc {
+                None
+            } else if let Some(spec) = KeySpec::from_event(&key) {
+                match self.keymap.action(&key).filter(|&a| a != binding.action) {
+                    Some(other) => {
+                        let name = BINDINGS.iter().find(|b| b.action == other).map_or("?", |b| b.name);
+                        Some((format!("{spec} is already used by '{name}'"), StatusKind::Error))
+                    }
+                    None => {
+                        self.keymap.set(binding.action, vec![spec]);
+                        changed = true;
+                        None
+                    }
+                }
+            } else {
+                Some(("this key cannot be used".into(), StatusKind::Error))
+            };
+        } else {
+            match key.code {
+                KeyCode::Esc => {
+                    self.overlay = None;
+                    return;
+                }
+                KeyCode::Up | KeyCode::Char('k') => state.selected = state.selected.saturating_sub(1),
+                KeyCode::Down | KeyCode::Char('j') => {
+                    state.selected = (state.selected + 1).min(ConfigState::ROWS - 1);
+                }
+                KeyCode::Home => state.selected = 0,
+                KeyCode::End => state.selected = ConfigState::ROWS - 1,
+                KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Left | KeyCode::Right if state.selected == 0 => {
+                    self.theme_kind = self.theme_kind.toggled();
+                    self.theme = Theme::new(self.theme_kind, self.theme.plain);
+                    changed = true;
+                }
+                KeyCode::Enter => {
+                    state.capturing = true;
+                    state.message = None;
+                }
+                KeyCode::Backspace | KeyCode::Delete => {
+                    if let Some(b) = state.binding() {
+                        self.keymap.reset(b.action);
+                        changed = true;
+                    }
+                }
+                _ => {
+                    if self.keymap.action(&key) == Some(Action::Config) {
+                        self.overlay = None;
+                        return;
+                    }
+                }
+            }
+        }
+
+        if changed {
+            state.message = Some(match self.save_config() {
+                Ok(()) if self.theme.plain && state.selected == 0 => {
+                    ("saved; colors are disabled (--no-color / NO_COLOR)".into(), StatusKind::Info)
+                }
+                Ok(()) => (
+                    format!("saved to {}", self.config_path.as_ref().expect("saved").display()),
+                    StatusKind::Info,
+                ),
+                Err(e) => (e, StatusKind::Error),
+            });
+        }
+        self.overlay = Some(Overlay::Config(state));
     }
 
     fn picker_key(&mut self, key: KeyEvent) {
@@ -1001,6 +1230,16 @@ mod tests {
         assert!(!sl.matches(&key(KeyCode::Left, KeyModifiers::NONE)));
         assert_eq!(sl.to_string(), "Shift+←");
         assert!(KeySpec::parse("nope").is_err());
+    }
+
+    #[test]
+    fn key_specs_round_trip_through_config_names() {
+        for s in ["q", "T", "?", "ctrl+,", "ctrl+p", "shift+left", "space", "esc", "alt+x", "pagedown"] {
+            assert_eq!(KeySpec::parse(s).unwrap().config_name(), s);
+        }
+        let shifted = KeyEvent::new(KeyCode::Char('T'), KeyModifiers::SHIFT);
+        assert_eq!(KeySpec::from_event(&shifted).unwrap().config_name(), "T");
+        assert!(KeySpec::from_event(&KeyEvent::new(KeyCode::F(5), KeyModifiers::NONE)).is_none());
     }
 
     #[test]
