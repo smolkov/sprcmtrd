@@ -1,148 +1,437 @@
-# sprcmtrd - specification
+# sprcmtrd — specification
 
-## Overview 
+## Overview
 
-The `sprcmtrd` project is a Rust-based implementation of COMTRADE file viewer.
-Terminal command line application with tui (text user interface) based on ratatui.
+`sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
+faces:
 
-COMTRADE (Common Format for Transient Data Exchange for Power Systems) is an IEEE standard (IEEE Std C37.111) file format used to store oscillography and status data from power system disturbances, faults, and simulation tests.
+- **CLI commands** (`info`, `list`, `view`) that print to stdout and can be used in scripts.
+- **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
+  analog and binary channels as plots.
 
-- **Binary name:** `clai`
-- **Language / runtime:** Rust 2021, async via Tokio
+COMTRADE (Common Format for Transient Data Exchange for Power Systems, IEEE Std
+C37.111 / IEC 60255-24) is the standard format for oscillography and status data
+recorded during power system disturbances, faults and simulation tests.
+
+| Item              | Value                                   |
+|-------------------|-----------------------------------------|
+| Crate name        | `sprcmtrd`                              |
+| Binary name       | `sprcmtrd`                              |
+| Rust edition      | 2024 (matches `Cargo.toml`)             |
+| Async runtime     | Tokio (used for TUI event loop only)    |
+| Target platforms  | Linux, macOS, Windows terminals         |
+
+### Goals
+
+- Open and display COMTRADE recordings quickly, also large ones (≥ 100 MB `.dat`).
+- Give a readable summary of a recording without leaving the terminal.
+- Plot analog channels and binary channel states with zoom and pan.
+- Work over SSH and in plain terminals (no GUI dependencies).
+
+### Non-goals (for v1)
+
+- Editing or writing COMTRADE files.
+- Signal analysis (RMS, phasors, harmonics, FFT). May come later.
+- Comparing several recordings side by side.
+- Mouse-first interaction (keyboard is primary; mouse is optional).
+
+## COMTRADE support
+
+### Standard revisions
+
+| Revision | Support | Notes                                                                 |
+|----------|---------|-----------------------------------------------------------------------|
+| 1991     | Yes     | No revision year in `.cfg` line 1; shorter analog/digital lines.      |
+| 1999     | Yes     | Main target.                                                          |
+| 2013     | Yes     | Adds time code / leap second lines, UTF-8, `.cff` single-file format. |
+
+The revision is detected from line 1 of the `.cfg`. If the year is missing, assume 1991.
+
+### File types
+
+| Extension | Content                      | Required | v1 support                     |
+|-----------|------------------------------|----------|--------------------------------|
+| `.cfg`    | Configuration (text)         | Yes      | Full parse                     |
+| `.dat`    | Sample data                  | Yes      | Full parse                     |
+| `.hdr`    | Free-text header             | No       | Show as raw text in `info`     |
+| `.inf`    | Extra information (INI-like) | No       | Show as raw text in `info`     |
+| `.cff`    | 2013 combined file           | No       | Split into sections, then same as above |
+
+File extensions are matched case-insensitively (`.CFG` and `.cfg` both work).
+Given any one file of a recording (for example `fault.dat`), the matching
+siblings are found by replacing the extension.
+
+### Data file formats
+
+| `ft` in `.cfg` | Analog sample type | Notes                                |
+|----------------|--------------------|--------------------------------------|
+| `ASCII`        | parsed to `i32`/`f64` | comma separated, one row per sample |
+| `BINARY`       | `i16`              | little endian                        |
+| `BINARY32`     | `i32`              | little endian (2013)                 |
+| `FLOAT32`      | `f32`              | little endian (2013)                 |
+
+Binary record layout: `u32` sample number, `u32` timestamp, analog values,
+then binary channels packed in 16-bit words (LSB = first channel).
+
+### Values and time
+
+- **Scaling:** engineering value = `a * raw + b`. Primary/secondary conversion
+  uses the `primary`, `secondary` and `PS` fields of each analog channel.
+  The user can toggle primary/secondary view.
+- **Missing values:** `0x8000` for `BINARY`, `0x80000000` for `BINARY32`, empty
+  field for `ASCII`. Missing samples are shown as gaps, not as zero.
+- **Timestamps:** when the sample rate in `.cfg` is non-zero, time is computed
+  from sample number and rate(s). When it is `0`, the timestamp column
+  × `timemult` (µs) is used. A missing timestamp (`0xFFFFFFFF`) falls back to the rate.
+- **Multiple sample rates** (`nrates > 1`) must be supported.
+- **Time axis** is shown relative to the trigger time (t = 0 at trigger) by
+  default, with an option for absolute time.
+
+## Command line interface
+
+Argument parsing uses [clap] (derive API).
+
+```
+sprcmtrd                       # start TUI in current directory
+sprcmtrd [PATH]                # start TUI with PATH (file or directory) opened
+sprcmtrd info <FILE>           # print summary of a recording
+sprcmtrd list [DIR]            # list recordings in DIR (default: .)
+sprcmtrd view <FILE>           # print summary and terminal plots to stdout
+```
+
+Global options:
+
+| Option              | Meaning                                         |
+|---------------------|-------------------------------------------------|
+| `--theme <dark|light|auto>` | TUI theme (default `auto`)              |
+| `--secondary`       | Show values in secondary instead of primary     |
+| `--no-color`        | Disable colors (also honors `NO_COLOR` env var) |
+| `-v`, `--verbose`   | More log output (to stderr / log file)          |
+| `-h`, `--help`, `-V`, `--version` | standard                          |
+
+`<FILE>` may be any file of a recording (`.cfg`, `.dat`, `.cff`, …); see §2.2.
+
+### Exit codes
+
+| Code | Meaning                                  |
+|------|------------------------------------------|
+| 0    | Success                                  |
+| 1    | Generic error                            |
+| 2    | Invalid command line arguments (clap)    |
+| 3    | File not found / not readable            |
+| 4    | Invalid or unsupported COMTRADE content  |
+
+### `info` command
+
+Prints a summary of one recording:
+
+- Station name, device id, revision, file format (`ft`)
+- Start time, trigger time, duration
+- Line frequency, sample rate(s), total number of samples
+- Number of analog and binary channels
+- Table of analog channels: index, id, phase, circuit, unit, a, b, primary/secondary, min/max
+- Table of binary channels: index, id, phase, circuit, normal state
+- Content of `.hdr` / `.inf` if present (can be skipped with `--no-extra`)
+
+Option `--json` prints the same data as JSON for scripting.
+
+### `list` command
+
+Searches for recordings in a directory and prints one row per recording.
+
+- Arguments: `[DIR]` (default `.`), `-r/--recursive`, `--filter <REGEX>` (on file name).
+- A recording is identified by its `.cfg` (or `.cff`). A `.cfg` without a `.dat` is
+  listed with a warning marker.
+- Columns: file name, station, revision, start time, duration, sample rate,
+  #analog, #binary, `.dat` size.
+- Only the `.cfg` is parsed (fast). The `.dat` is not read.
+- Sorted by start time; `--sort name|time|size` to change it.
+- Files that fail to parse are listed with an error column instead of being dropped.
+
+### `view` command
+
+Non-interactive view printed to stdout (useful for logs and reports).
+
+- Arguments: `<FILE>`, `--channels <LIST>` (indices or ids, default all),
+  `--from <t>` / `--to <t>` (time window in ms relative to trigger),
+  `--width <cols>` / `--height <rows>` (default: terminal size).
+- Output: short summary (like `info`, without channel tables), then one line plot
+  per selected analog channel and one status strip per binary channel.
+- Plots are rendered with textplots (no extra plotting crate).
 
 ## Architecture
 
-main.rs - entry point of the application.
-   lib.rs - library root of the application.
-   args.rs - module handling the command line arguments parsing.
-   comtrade/
-      mod.rs - module handling the COMTRADE file parsing and processing.
-	  reader.rs - module handling the reading of COMTRADE files.
-	  parser.rs - module handling the parsing of COMTRADE files.
-   command/
-      mod.rs - module handling the commands part of the application.
-	  info.rs - info command handling module.
-	  list.rs - list command handling module.
-	  view.rs - view command handling module.
-   tui/
-      mod.rs - module handling the TUI components of the application. Start point for the TUI functionality.
-	  app.rs - module handling tui state and key handle events.
-	  comtrade.rs - layout for displaying COMTRADE file details.
-	  filepicker.rs - overlay layout for COMTRADE file search.
-	  theme.rs - module handling the TUI theme and styling.
-	  
+```
+src/
+  main.rs            entry point: parse args, set up logging, dispatch
+  lib.rs             library root, re-exports public API
+  args.rs            clap definitions (Cli, Command, global options)
+  error.rs           error types (thiserror)
+  config.rs          application configuration (parsing, loading, defaults)
+  logging.rs          logging setup (env_logger, log levels)
+  comtrade/
+    mod.rs           Comtrade, AnalogChannel, BinaryChannel, public API
+    cfg.rs           .cfg parser (all revisions)
+    dat.rs           .dat reader (ASCII, BINARY, BINARY32, FLOAT32)
+    cff.rs           .cff splitter (2013)
+    discover.rs      find sibling files / recordings in a directory
+  command/
+    mod.rs           Command::run dispatch
+    info.rs
+    list.rs
+    view.rs
+  tui/
+    mod.rs           run(): terminal setup/teardown, event loop
+    app.rs           App state, actions, key handling
+    event.rs         event stream (keys, resize, tick, background load results)
+    theme.rs         dark / light theme
+    widgets/
+      header.rs
+      channels.rs    channel list sidebar
+      plot.rs        analog line plot + binary status strip
+      footer.rs
+      filepicker.rs  overlay
+      info.rs        recording info overlay
+      help.rs        key help overlay
+tests/
+  data/              sample COMTRADE files (each revision and format)
+  cli.rs             integration tests for commands
+```
 
-## Modules 
+Layering rule: `comtrade` knows nothing about `command` or `tui`. It is a plain,
+synchronous library and could be published as its own crate later.
 
-### Comtrade module
+## Comtrade module
 
-comtrade/mod.rs
-comtrade/reader.rs
-comtrade/parser.rs
+### Data model
 
-Comtrade object: 
-* Configuration data parsed from the COMTRADE configuration file (.cfg).
-* Analog channels iterator
-* Binary channels iterator
-* Methods:
-  * from_cfg - method to create a Comtrade object from the configuration file (.cfg).
-  * from_files - method to create a Comtrade object from both the configuration file (.cfg) and the sample file (.dat).
+```rust
+pub struct Comtrade {
+    pub config: Config,              // parsed .cfg
+    pub header: Option<String>,      // .hdr text
+    pub info: Option<String>,        // .inf text
+    analog: Vec<AnalogChannel>,
+    binary: Vec<BinaryChannel>,
+    time: Vec<f64>,                  // seconds relative to trigger
+}
 
-Analog object:
-  * Analog channel metadata from the COMTRADE configuration file (.cfg).
-  * Sample data for the analog channels in generic types int16, int32, or float32.
+pub struct Config {
+    pub station_name: String,
+    pub device_id: String,
+    pub revision: Revision,          // Rev1991 | Rev1999 | Rev2013
+    pub line_frequency: f64,
+    pub sample_rates: Vec<SampleRate>,  // (rate_hz, last_sample)
+    pub start_time: NaiveDateTime,
+    pub trigger_time: NaiveDateTime,
+    pub data_format: DataFormat,     // Ascii | Binary | Binary32 | Float32
+    pub time_mult: f64,
+    pub time_code: Option<String>,   // 2013
+    pub local_code: Option<String>,  // 2013
+    pub analog: Vec<AnalogInfo>,
+    pub binary: Vec<BinaryInfo>,
+}
 
-Binary object:
-  * Binary channel metadata from the COMTRADE configuration file (.cfg).
-  * Sample data for the binary channels.
+pub struct AnalogChannel {
+    pub info: AnalogInfo,            // id, phase, circuit, unit, a, b, skew, min, max, primary, secondary, ps
+    samples: Samples,                // raw values in file type
+}
+
+pub enum Samples { I16(Vec<i16>), I32(Vec<i32>), F32(Vec<f32>) }
+
+pub struct BinaryChannel {
+    pub info: BinaryInfo,            // id, phase, circuit, normal_state
+    samples: BitVec,                 // one bit per sample
+}
+```
+
+Raw values are kept in their native type to save memory; scaled values are
+computed on demand (`AnalogChannel::value(i) -> Option<f64>`,
+`AnalogChannel::values() -> impl Iterator<Item = Option<f64>>`).
+
+### Public API
+
+- `Comtrade::from_cfg(path)` — parse configuration only (used by `list`).
+- `Comtrade::open(path)` — find sibling files, parse `.cfg`, read `.dat`, read
+  `.hdr`/`.inf` if present. Accepts `.cfg`, `.dat` or `.cff`.
+- `Comtrade::from_readers(cfg, dat)` — parse from any `Read` sources (for tests).
+- `analog_channels()` / `binary_channels()` — iterators.
+- `time()` — slice of time values.
+- `discover::find_recordings(dir, recursive) -> Vec<RecordingPath>`.
+
+### Parsing rules
+
+- Be tolerant where the standard is often broken in practice: trailing spaces,
+  missing trailing fields, `\r\n` or `\n` line endings, Latin-1 text in old files.
+- Be strict on structure: wrong channel counts or a `.dat` whose size does not
+  match `#samples × record size` produce an error with file name and line number.
+- `.dat` files are read with a buffered reader or memory map (`memmap2`) to
+  handle large files.
+
+### Errors
+
+One error type `comtrade::Error` (via `thiserror`) with variants such as
+`Io`, `MissingFile`, `Cfg { line, message }`, `Dat { sample, message }`,
+`Unsupported`. Commands use `anyhow` for context.
 
 
 ## TUI module
 
-Handles the TUI module which provides a text-based user interface for interacting with the application.
-Use ratatui library for building the text-based user interface.
+`tui::run(initial_path)` sets up the terminal (raw mode, alternate screen),
+runs the event loop and always restores the terminal, also on panic
+(install a panic hook).
 
-to run the TUI use run function in the `tui` module.
-* use tokio_select and EventStream for handling asynchronous events in the TUI.
-* use ratatui widgets for building the TUI components.
+### Event loop
 
+- `tokio::select!` over crossterm `EventStream`, a tick interval (for status
+  messages / spinners) and a channel for background task results.
+- Loading a `.dat` runs in `tokio::task::spawn_blocking` so the UI stays
+  responsive; the footer shows a loading indicator.
+- Redraw only when state changed or the terminal was resized.
+
+### Layout
+
+```
+┌ sprcmtrd v0.1.0 ─────────────────── fault_01.cfg · SUBSTATION A · 1999 · 4.8 kHz ┐
+│ Channels        │ IA [A]  ╭─╮   ╭─╮   ╭─╮                                         │
+│ ▶ IA       A    │        ─╯ ╰─╮ │ ╰─╮ │ ╰──                                       │
+│   IB       A    │ IB [A]  ...                                                     │
+│   IC       A    │ VA [kV] ...                                                     │
+│   VA       kV   │                                                                 │
+│ ─ binary ─      │ TRIP    ▁▁▁▁▁▁▁▁████████████▁▁▁▁▁                               │
+│   TRIP          │ CB_OPEN ▁▁▁▁▁▁▁▁▁▁▁▁▁████████████                               │
+│   CB_OPEN       │        -20ms     0      20ms     40ms    cursor: 12.4 ms        │
+├─────────────────┴─────────────────────────────────────────────────────────────────┤
+│ o open  i info  +/- zoom  ←/→ pan  space toggle  ? help  q quit     loaded 2.1 MB │
+└───────────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Header:** left: app name and version (big text only if terminal is ≥ 100 columns,
+  otherwise one line); right: current file, station, revision, sample rate.
+- **Sidebar:** channel list (analog, then binary) with unit; selected channels
+  are drawn in the plot area. Can be hidden.
+- **Plot area:** analog line plots stacked vertically, binary status strips below,
+  one shared time axis with a vertical cursor and trigger marker.
+- **Footer:** key hints for the current mode and status (loading, errors, cursor values).
+- **Overlays:** file picker, info, help. Drawn on top of the main layout with a
+  cleared background.
+- **Small terminals:** minimum supported size 80×24. Below that, show a
+  "terminal too small" message instead of a broken layout.
+
+### Plots
+
+- Analog: ratatui `Chart` with Braille markers. Each channel has its own Y axis
+  scaled to its visible min/max; the unit is shown in the label.
+- Binary: one-row status strip per channel (`▁` = 0, `█` = 1); states different
+  from the normal state are highlighted.
+- Downsampling: when there are more samples than horizontal cells, keep
+  min and max per column (min/max decimation) so peaks are not lost.
+- Zoom and pan act on the shared time axis for all channels at once.
+- Cursor: shows time and value of every visible channel at the cursor position.
+
+### Key bindings
+
+| Key                 | Action                                   |
+|---------------------|------------------------------------------|
+| `q`, `Ctrl+c`       | Quit (closes overlay first if one is open) |
+| `o`, `Ctrl+p`       | Open file picker                         |
+| `i`                 | Toggle info overlay                      |
+| `?`                 | Toggle help overlay                      |
+| `Tab`               | Switch focus sidebar ↔ plot              |
+| `↑`/`↓`, `k`/`j`    | Move selection in sidebar                |
+| `Space`             | Show / hide selected channel             |
+| `a`                 | Show all / hide all channels             |
+| `+`/`-`             | Zoom in / out (time)                     |
+| `←`/`→`, `h`/`l`    | Move cursor; with `Shift` pan the view   |
+| `0`                 | Reset zoom (show whole recording)        |
+| `t`                 | Jump cursor to trigger                   |
+| `p`                 | Toggle primary / secondary values        |
+| `T`                 | Toggle dark / light theme                |
+| `Esc`               | Close overlay                            |
+
+Note: `Ctrl+Shift+P` is not used because most terminals cannot tell it apart from
+`Ctrl+P`. Key bindings are defined in one table in `app.rs` so footer hints and
+help overlay are generated from it.
+
+### File picker overlay
+
+- Opens with `o` / `Ctrl+p`; starts in the directory of the current file (or `.`).
+- Text input at top; list of recordings below (from `discover::find_recordings`).
+- Filtering: case-insensitive substring by default; regex when the query starts
+  with `/` (invalid regex shows an error in the overlay, list stays unchanged).
+- Each row: file name, station, start time, #channels (from `.cfg` only).
+- `↑`/`↓` select, `Enter` open, `Backspace` on empty input goes to parent
+  directory, `Esc` close.
+- Directory scan runs in the background; results appear as they arrive.
 
 ### Theme
 
-tui/theme.rs
-
-* Full configuration for the TUI theme.
-* Declarate Dark and light themes for the TUI.
-* Use system colors for better integration with the terminal environment.
-* Allow users to switch between dark and light themes dynamically.
-* Provide a consistent look and feel across different TUI components.
-
-
-### Layout declaration
- 
-Header: 
-* left Big text sprcmtrd, version
-* right Current COMTRADE file information
-Main: 
-*Analog channels lineplots
-*Binary channels status plots
-Footer:
-* Status bar with key hints and application status
-
-* When filepicker layout is active, it overlays this main layout.
-
-
-### comtrade layout
-
-* Displays detailed information about the currently selected COMTRADE file, including analog and binary channel data.
-* Displays lineplots for the analog channels.
-* Displays status plots for the binary channels.
-* Can be accessed from the main TUI layout.
-* Lineplots can be zoomed and panned for detailed analysis.
-
-### filepicker layout
-* Overlay layout showing the search interface for COMTRADE files.
-* Open with key combination ctrl+shift+p
-* Provides an overlay for searching COMTRADE files.
-* Allows users to input search queries and displays matching results.
-* Allows selection of a COMTRADE file in current directory.
-* Use regular expressions for filtering search results.
+- Two themes, dark and light, defined in `theme.rs` as a `Theme` struct with
+  named roles (background, text, muted, border, accent, selection, warning, error,
+  trigger marker, and a palette of ≥ 8 colors for channels).
+- Uses the 16 ANSI colors by default so it follows the user's terminal color scheme.
+- `--theme auto` picks dark unless the terminal reports a light background.
+- `T` switches theme at runtime. `--no-color` / `NO_COLOR` uses no colors, only
+  modifiers (bold, reverse).
+- Channel colors follow standard phase colors where the phase field is known
+  (A/B/C/N), otherwise the palette in order.
 
 ## Command module
 
-in mod module is entry point for the command handling part of the application.
-and arg enum for command line arguments. Command enum defines the different commands available in the application.
-to run some command use async method run on the Command enum.
+`command::Command` (from `args.rs`) has an `async fn run(self) -> anyhow::Result<()>`
+that dispatches to `info::run`, `list::run`, `view::run`, or `tui::run` when no
+subcommand is given. CLI commands do synchronous work; only the TUI needs the
+async runtime.
 
-### Info command
 
-command/info.rs
+## Configuration
 
-Info command arguments.
-* `file` - The path to the COMTRADE file for which information is to be displayed.
+Use configuration file at `~/.config/sprcmtrd/config.toml` for theme and key bindings.
 
-Handles the `info` command which displays detailed information about a COMTRADE file.
+## Logging
 
-### List command
 
-command/list.rs
 
-Handles the `list` command which lists all available COMTRADE files in the specified directory.
+## Dependencies
 
-* Search for COMTRADE files in current directory.
-* Shows the list of COMTRADE files found in the current directory.
-* Prints information from .dat file in tabular format.
+| Crate                 | Use                          |
+|-----------------------|------------------------------|
+| `ratatui`, `crossterm` (with `event-stream`) | TUI       |
+| `tokio`               | runtime, `select!`, `spawn_blocking` |
+| `futures`             | `StreamExt` for `EventStream` |
+| `clap` (derive)       | argument parsing             |
+| `chrono`              | date/time parsing            |
+| `thiserror`, `anyhow` | errors                       |
+| `regex`               | file picker / list filter    |
+| `serde`, `serde_json` | `info --json`                |
+| `memmap2`             | large `.dat` files (optional)|
+| `tracing`, `tracing-subscriber` | logging to file (never to the TUI screen) |
+| `textplots`              | plotting in the terminal       |
 
-### View command
+## Testing
 
-command/view.rs
+- Unit tests for the `.cfg` parser for each revision, including malformed lines.
+- Unit tests for the `.dat` reader for each data format, missing values and
+  multiple sample rates.
+- Sample files in `tests/data/` (small, generated or public examples with a known license).
+- Integration tests for `info`, `list`, `view` with `assert_cmd` and snapshot
+  tests (`insta`) of the output.
+- TUI rendering tests with ratatui `TestBackend` and snapshot tests of the buffer.
+- Performance check: open a 100 MB `BINARY` file and show the first frame in < 2 s.
 
-Handles the `view` command which provides a detailed view of a specific COMTRADE file.
+## Milestones
 
-Arguments for the view command.
-* `file` - The path to the COMTRADE file to be viewed. Es need only DAT file (.dat). 
+1. **Parser:** `.cfg` + `.dat` (1999, ASCII + BINARY), `info` command.
+2. **Discovery:** `list` command, sibling file detection.
+3. **Plots:** `view` command with off-screen ratatui rendering.
+4. **TUI:** layout, channel list, plots, zoom/pan/cursor, help.
+5. **TUI extras:** file picker, info overlay, themes.
+6. **Full standard:** 1991 and 2013 revisions, BINARY32, FLOAT32, `.cff`.
 
-* Print detailed information about the specified COMTRADE file.
-* Print detailed information from .dat file 
-* Print line plots for the analog channels using terminal plotting library. 
-* Print status plots for the binary channels using terminal plotting library. 
+## Open questions
+
+- Should `view` support exporting plots (SVG/PNG) or stay text-only?
+- Should time windows accept sample numbers in addition to milliseconds?
+- Config file (`~/.config/sprcmtrd/config.toml`) for theme and key bindings?
+
+[ratatui]: https://ratatui.rs
+[clap]: https://docs.rs/clap
