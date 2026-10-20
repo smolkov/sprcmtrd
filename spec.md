@@ -353,6 +353,10 @@ runs the event loop and always restores the terminal, also on panic
 - Zoom and pan act on the shared time axis for all channels at once.
 - Cursor: shows time and value of every visible channel at the cursor position.
 - Always show cursor time in milliseconds on the plot time axis
+- Analog plots alternate background shades so neighbouring channels are easy to
+  tell apart: 1st, 3rd, ... lighter, 2nd, 4th, ... darker (whole row, gutter
+  included). One shade is the theme background, the other a subtle gray from the
+  256-color palette (235 on dark, 254 on light). No shading with `--no-color`.
 
 ### Key bindings
 

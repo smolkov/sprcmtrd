@@ -290,6 +290,40 @@ mod tests {
     }
 
     #[test]
+    fn analog_plots_alternate_background_shades() {
+        use ratatui::style::Color;
+
+        use crate::tui::theme::Theme;
+
+        let mut app = app();
+        // Colors on (the test app runs with --no-color).
+        app.theme = Theme::dark();
+        let mut t = Terminal::new(TestBackend::new(110, 30)).unwrap();
+        t.draw(|f| draw(f, &app)).unwrap();
+        let buf = t.backend().buffer();
+
+        // Background in the middle of the plot, on the row of each channel label.
+        let bg_of = |label: &str| {
+            let y = (0..buf.area.height)
+                .find(|&y| {
+                    let row: String = (0..buf.area.width).map(|x| buf[(x, y)].symbol()).collect();
+                    row.contains(label)
+                })
+                .unwrap_or_else(|| panic!("{label} not drawn"));
+            (buf[(80, y)].bg, buf[(25, y)].bg)
+        };
+        let [light, dark] = Theme::dark().plot_shades;
+        assert_ne!(light, dark);
+        // Plot and gutter share the shade; 1st light, 2nd dark, 3rd light again.
+        assert_eq!(bg_of("IA [A]"), (light, light));
+        assert_eq!(bg_of("IB [A]"), (dark, dark));
+        assert_eq!(bg_of("IC [A]"), (light, light));
+        // Without colors there is no shading.
+        assert_eq!(Theme::plain().plot_background(0), Color::Reset);
+        assert_eq!(Theme::plain().plot_background(1), Color::Reset);
+    }
+
+    #[test]
     fn zoom_and_cursor_keys_change_view() {
         let mut app = app();
         let full = app.recording.as_ref().unwrap().view;

@@ -57,6 +57,10 @@ pub struct Theme {
     pub accent: Color,
     /// Background of the selected item.
     pub selection: Color,
+    /// Alternating backgrounds of the analog plots: lighter (1st, 3rd, ...)
+    /// and darker (2nd, 4th, ...). One of them is the theme background, the
+    /// other a subtle gray from the 256-color palette.
+    pub plot_shades: [Color; 2],
     /// Warnings and abnormal binary states.
     pub warning: Color,
     /// Errors.
@@ -94,6 +98,7 @@ impl Theme {
             border: Color::Gray,
             accent: Color::Cyan,
             selection: Color::DarkGray,
+            plot_shades: [Color::Black, Color::Black],
             warning: Color::Yellow,
             error: Color::LightRed,
             trigger: Color::Magenta,
@@ -122,6 +127,7 @@ impl Theme {
             border: Color::DarkGray,
             accent: Color::Blue,
             selection: Color::Gray,
+            plot_shades: [Color::White, Color::Indexed(254)],
             warning: Color::Magenta,
             error: Color::Red,
             trigger: Color::Magenta,
@@ -151,6 +157,7 @@ impl Theme {
             border: r,
             accent: r,
             selection: r,
+            plot_shades: [r; 2],
             warning: r,
             error: r,
             trigger: r,
@@ -206,6 +213,12 @@ impl Theme {
     /// Style for errors.
     pub fn error(&self) -> Style {
         Style::new().fg(self.error).add_modifier(Modifier::BOLD)
+    }
+
+    /// Background of the analog plot at visible position `k` (0-based):
+    /// lighter for even positions, darker for odd ones.
+    pub fn plot_background(&self, k: usize) -> Color {
+        self.plot_shades[k % 2]
     }
 
     /// Color of a channel: by phase when known, else from the palette.

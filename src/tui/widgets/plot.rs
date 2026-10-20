@@ -3,7 +3,7 @@
 use chrono::TimeDelta;
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::symbols::Marker;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::canvas::{Canvas, Line as CanvasLine, Points};
@@ -89,7 +89,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
             width: inner.width,
             height,
         };
-        analog_plot(f, row, app, rec, i, cursor_idx);
+        analog_plot(f, row, app, rec, i, cursor_idx, app.theme.plot_background(k));
         y += height;
     }
     for &i in binary.iter().take(n_binary) {
@@ -145,8 +145,19 @@ fn centered_text(f: &mut Frame, area: Rect, text: &str, style: Style) {
     );
 }
 
-fn analog_plot(f: &mut Frame, area: Rect, app: &App, rec: &Recording, i: usize, cursor_idx: Option<usize>) {
+/// Draws analog channel `i` into `area` (gutter and plot) on `background`.
+fn analog_plot(
+    f: &mut Frame,
+    area: Rect,
+    app: &App,
+    rec: &Recording,
+    i: usize,
+    cursor_idx: Option<usize>,
+    background: Color,
+) {
     let theme = &app.theme;
+    // Shade the whole row, so gutter and plot read as one band.
+    f.render_widget(Block::new().style(Style::new().bg(background)), area);
     let ch = rec.data.analog(i).expect("visible channel exists");
     let color = theme.channel(&ch.info.phase, i);
     let (t0, t1) = rec.view;
@@ -201,7 +212,7 @@ fn analog_plot(f: &mut Frame, area: Rect, app: &App, rec: &Recording, i: usize, 
     let cursor_t = rec.cursor;
     let plot = Canvas::default()
         .marker(Marker::Braille)
-        .background_color(theme.background)
+        .background_color(background)
         .x_bounds([t0, t1])
         .y_bounds([lo, hi])
         .paint(move |ctx| {
