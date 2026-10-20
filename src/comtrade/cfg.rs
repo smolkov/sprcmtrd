@@ -340,8 +340,7 @@ impl<'a> Parser<'a> {
         };
 
         let mut time_mult = 1.0;
-        let (mut time_code, mut local_code, mut tmq_code, mut leap_second) =
-            (None, None, None, None);
+        let (mut time_code, mut local_code, mut tmq_code, mut leap_second) = (None, None, None, None);
         if let Some(f) = self.optional_line() {
             time_mult = self.num_or(field(&f, 0), 1.0, "time multiplier")?;
             if time_mult <= 0.0 {
@@ -459,16 +458,11 @@ impl<'a> Parser<'a> {
     }
 
     fn num<T: std::str::FromStr>(&self, s: &str, what: &str) -> Result<T> {
-        s.parse()
-            .map_err(|_| self.err(format!("invalid {what} '{s}'")))
+        s.parse().map_err(|_| self.err(format!("invalid {what} '{s}'")))
     }
 
     fn num_or(&self, s: &str, default: f64, what: &str) -> Result<f64> {
-        if s.is_empty() {
-            Ok(default)
-        } else {
-            self.num(s, what)
-        }
+        if s.is_empty() { Ok(default) } else { self.num(s, what) }
     }
 }
 
@@ -565,8 +559,7 @@ ASCII
 
     #[test]
     fn parses_2013_extra_lines_and_crlf() {
-        let cfg = CFG_1999.replace("1999", "2013").replace('\n', "\r\n")
-            + "-5h30,-5h30\r\nA,0\r\n";
+        let cfg = CFG_1999.replace("1999", "2013").replace('\n', "\r\n") + "-5h30,-5h30\r\nA,0\r\n";
         let c = Config::parse(&cfg).unwrap();
         assert_eq!(c.revision, Revision::Rev2013);
         assert_eq!(c.time_code.as_deref(), Some("-5h30"));

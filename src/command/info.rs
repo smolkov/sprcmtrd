@@ -18,7 +18,11 @@ pub fn summary(file: &str, c: &Config) -> Vec<(&'static str, String)> {
         .scan(0, |first, r| {
             let s = format!(
                 "{} (samples {}-{})",
-                if r.rate > 0.0 { rate(r.rate) } else { "timestamps".into() },
+                if r.rate > 0.0 {
+                    rate(r.rate)
+                } else {
+                    "timestamps".into()
+                },
                 *first + 1,
                 r.last_sample
             );
@@ -105,10 +109,7 @@ pub fn binary_rows(c: &Config) -> (Vec<&'static str>, Vec<Vec<String>>) {
 /// Formats key/value pairs as aligned lines.
 pub fn key_values(pairs: &[(&str, String)]) -> String {
     let w = pairs.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
-    pairs
-        .iter()
-        .map(|(k, v)| format!("{k:<w$}  {v}\n"))
-        .collect()
+    pairs.iter().map(|(k, v)| format!("{k:<w$}  {v}\n")).collect()
 }
 
 #[derive(Serialize)]
@@ -126,11 +127,7 @@ struct Json<'a> {
 pub fn run(file: &Path, json: bool, no_extra: bool) -> anyhow::Result<()> {
     let rec = RecordingPath::from_file(file)?;
     let config = Comtrade::config_of(&rec)?;
-    let (header, info) = if no_extra {
-        (None, None)
-    } else {
-        extras(&rec)?
-    };
+    let (header, info) = if no_extra { (None, None) } else { extras(&rec)? };
     let name = rec.main_file().display().to_string();
 
     if json {
@@ -176,9 +173,7 @@ fn extras(rec: &RecordingPath) -> anyhow::Result<(Option<String>, Option<String>
         return Ok((s.hdr.map(decode_text), s.inf.map(decode_text)));
     }
     let read = |p: &Option<std::path::PathBuf>| -> anyhow::Result<Option<String>> {
-        p.as_ref()
-            .map(|p| Ok(decode_text(&read_bytes(p)?)))
-            .transpose()
+        p.as_ref().map(|p| Ok(decode_text(&read_bytes(p)?))).transpose()
     };
     Ok((read(&rec.hdr)?, read(&rec.inf)?))
 }

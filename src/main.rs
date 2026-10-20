@@ -37,7 +37,13 @@ fn exit_code(e: &anyhow::Error) -> u8 {
     match e.chain().find_map(|c| c.downcast_ref::<sprcmtrd::Error>()) {
         Some(err) if err.is_file_error() => EXIT_FILE,
         Some(_) => EXIT_CONTENT,
-        None if e.chain().any(|c| c.downcast_ref::<std::io::Error>().is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound)) => EXIT_FILE,
+        None if e.chain().any(|c| {
+            c.downcast_ref::<std::io::Error>()
+                .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound)
+        }) =>
+        {
+            EXIT_FILE
+        }
         None => 1,
     }
 }

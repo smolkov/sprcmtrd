@@ -35,11 +35,7 @@ impl Command {
     /// Runs the command. CLI commands do synchronous work.
     pub async fn run(self, ctx: &Context) -> anyhow::Result<()> {
         match self {
-            Self::Info {
-                file,
-                json,
-                no_extra,
-            } => info::run(&file, json, no_extra),
+            Self::Info { file, json, no_extra } => info::run(&file, json, no_extra),
             Self::List {
                 dir,
                 no_recursive,

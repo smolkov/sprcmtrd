@@ -142,7 +142,9 @@ mod tests {
         assert!(c.command.is_none());
         assert_eq!(c.global.theme, Some(ThemeChoice::Light));
         let c = Cli::parse_from(["sprcmtrd", "view", "x.cfg", "--from", "-20", "--channels", "IA,d1"]);
-        let Some(Command::View { from, channels, .. }) = c.command else { panic!() };
+        let Some(Command::View { from, channels, .. }) = c.command else {
+            panic!()
+        };
         assert_eq!(from, Some(-20.0));
         assert_eq!(channels, ["IA", "d1"]);
     }

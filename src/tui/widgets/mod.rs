@@ -31,9 +31,15 @@ pub fn draw(f: &mut Frame, app: &App) {
             area.width, area.height, MIN_SIZE.0, MIN_SIZE.1
         );
         let y = area.height / 2;
-        let msg = Rect { y: area.y + y.saturating_sub(1), height: 2.min(area.height), ..area };
+        let msg = Rect {
+            y: area.y + y.saturating_sub(1),
+            height: 2.min(area.height),
+            ..area
+        };
         f.render_widget(
-            Paragraph::new(text).alignment(Alignment::Center).style(app.theme.warning()),
+            Paragraph::new(text)
+                .alignment(Alignment::Center)
+                .style(app.theme.warning()),
             msg,
         );
         return;
@@ -51,8 +57,7 @@ pub fn draw(f: &mut Frame, app: &App) {
     match (&app.recording, app.sidebar) {
         (Some(rec), true) => {
             let width = channels::width(rec).min(body.width / 3);
-            let [side, main] =
-                Layout::horizontal([Constraint::Length(width), Constraint::Min(0)]).areas(body);
+            let [side, main] = Layout::horizontal([Constraint::Length(width), Constraint::Min(0)]).areas(body);
             channels::render(f, side, app);
             plot::render(f, main, app);
         }
@@ -108,10 +113,10 @@ fn scrolled_text(f: &mut Frame, area: Rect, app: &App, lines: Vec<ratatui::text:
 
 #[cfg(test)]
 mod tests {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use ratatui::buffer::Buffer;
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     use super::*;
     use crate::args::{GlobalOpts, ThemeChoice};
@@ -125,7 +130,12 @@ mod tests {
     /// Test app; `config_path` is where the configuration overlay saves.
     fn app_with_config(config_path: Option<std::path::PathBuf>) -> App {
         let ctx = Context {
-            global: GlobalOpts { theme: Some(ThemeChoice::Dark), secondary: false, no_color: true, verbose: 0 },
+            global: GlobalOpts {
+                theme: Some(ThemeChoice::Dark),
+                secondary: false,
+                no_color: true,
+                verbose: 0,
+            },
             config: Default::default(),
             config_path,
         };
@@ -198,7 +208,11 @@ mod tests {
         // At the right edge the label flips to the left of the marker.
         let last = *app.recording.as_ref().unwrap().data.time().last().unwrap();
         app.recording.as_mut().unwrap().cursor = last;
-        assert!(axis_row(&render(&app, 110, 30)).trim_end_matches(['│', ' ']).ends_with("139.5 ms ▲"));
+        assert!(
+            axis_row(&render(&app, 110, 30))
+                .trim_end_matches(['│', ' '])
+                .ends_with("139.5 ms ▲")
+        );
 
         // Zoomed in, the label stays visible on the narrowest supported terminal.
         for _ in 0..6 {

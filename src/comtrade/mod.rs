@@ -13,10 +13,10 @@ use std::io::Read;
 use std::ops::{Deref, Range};
 use std::path::Path;
 
+pub use crate::error::{Error, Result};
 pub use cfg::{AnalogInfo, BinaryInfo, Config, DataFormat, Revision, SampleRate, Side};
 pub use dat::{Bits, Samples};
 pub use discover::RecordingPath;
-pub use crate::error::{Error, Result};
 
 /// Plot column with its lowest and highest point: `(column, min, max)`.
 type Bucket = (i64, (f64, f64), (f64, f64));
@@ -249,9 +249,10 @@ impl Comtrade {
     /// Loads a recording from its located files.
     pub fn open_recording(rec: &RecordingPath) -> Result<Self> {
         let mut c = if let Some(cfg_path) = &rec.cfg {
-            let dat_path = rec.dat.as_ref().ok_or_else(|| {
-                Error::MissingFile(cfg_path.with_extension("dat").display().to_string())
-            })?;
+            let dat_path = rec
+                .dat
+                .as_ref()
+                .ok_or_else(|| Error::MissingFile(cfg_path.with_extension("dat").display().to_string()))?;
             let config = Config::parse(&decode_text(&read_file(cfg_path)?))?;
             let data = map_file(dat_path)?;
             let mut c = Self::from_parts(config, &data)?;
@@ -278,11 +279,9 @@ impl Comtrade {
     /// Parses a recording from any readers (mainly for tests).
     pub fn from_readers(mut cfg: impl Read, mut dat: impl Read) -> Result<Self> {
         let mut text = Vec::new();
-        cfg.read_to_end(&mut text)
-            .map_err(|e| Error::io("<cfg>", e))?;
+        cfg.read_to_end(&mut text).map_err(|e| Error::io("<cfg>", e))?;
         let mut data = Vec::new();
-        dat.read_to_end(&mut data)
-            .map_err(|e| Error::io("<dat>", e))?;
+        dat.read_to_end(&mut data).map_err(|e| Error::io("<dat>", e))?;
         Self::from_parts(Config::parse(&decode_text(&text))?, &data)
     }
 
@@ -376,7 +375,11 @@ impl Comtrade {
         if i >= self.time.len() {
             return Some(self.time.len() - 1);
         }
-        Some(if t - self.time[i - 1] <= self.time[i] - t { i - 1 } else { i })
+        Some(if t - self.time[i - 1] <= self.time[i] - t {
+            i - 1
+        } else {
+            i
+        })
     }
 }
 
@@ -390,8 +393,7 @@ fn build_time(cfg: &Config, timestamps: &[u32]) -> Vec<f64> {
         for i in 0..n {
             while seg + 1 < rates.len() && i >= rates[seg].last_sample {
                 let last = rates[seg].last_sample;
-                seg_t0 += (last.saturating_sub(1 + seg_i0)) as f64 / rates[seg].rate
-                    + 1.0 / rates[seg + 1].rate;
+                seg_t0 += (last.saturating_sub(1 + seg_i0)) as f64 / rates[seg].rate + 1.0 / rates[seg + 1].rate;
                 seg_i0 = last;
                 seg += 1;
             }

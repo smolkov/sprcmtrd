@@ -69,7 +69,14 @@ fn info_binary32_2013() {
 #[test]
 fn view_binary32_2013() {
     cmd()
-        .args(["view", "tests/data/fault_2013.cfg", "--channels", "IB,CB_CLOSED", "--width", "80"])
+        .args([
+            "view",
+            "tests/data/fault_2013.cfg",
+            "--channels",
+            "IB,CB_CLOSED",
+            "--width",
+            "80",
+        ])
         .assert()
         .success()
         .stdout(predicate::str::contains("A2 IB [A]"))
@@ -82,7 +89,12 @@ fn list_shows_recordings_and_errors() {
         .args(["list", "tests/data", "--sort", "name"])
         .assert()
         .success()
-        .stdout(predicate::str::is_match(r"(?s)broken\.cfg.*combined_2013\.cff.*fault_1999\.cfg.*fault_2013\.cfg.*old_1991\.cfg").unwrap())
+        .stdout(
+            predicate::str::is_match(
+                r"(?s)broken\.cfg.*combined_2013\.cff.*fault_1999\.cfg.*fault_2013\.cfg.*old_1991\.cfg",
+            )
+            .unwrap(),
+        )
         .stdout(predicate::str::contains("channel count 5 does not match"));
 }
 
@@ -133,8 +145,18 @@ fn list_filter() {
 fn view_plots_selected_channels() {
     cmd()
         .args([
-            "view", "tests/data/old_1991.cfg", "--channels", "IA,d2", "--width", "80", "--height", "6",
-            "--from", "-10", "--to", "40",
+            "view",
+            "tests/data/old_1991.cfg",
+            "--channels",
+            "IA,d2",
+            "--width",
+            "80",
+            "--height",
+            "6",
+            "--from",
+            "-10",
+            "--to",
+            "40",
         ])
         .assert()
         .success()

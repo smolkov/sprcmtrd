@@ -13,15 +13,15 @@ const SPINNER: [char; 4] = ['◐', '◓', '◑', '◒'];
 
 pub fn render(f: &mut Frame, area: Rect, app: &App, p: &Picker) {
     let theme = &app.theme;
-    let mode = if p.recursive { "with subdirectories" } else { "this directory only" };
+    let mode = if p.recursive {
+        "with subdirectories"
+    } else {
+        "this directory only"
+    };
     let title = format!("Open recording · {} · {mode}", p.dir.display());
     let inner = overlay_block(f, centered(area, 85, 75), app, &title);
-    let [input, list, bottom] = Layout::vertical([
-        Constraint::Length(2),
-        Constraint::Min(0),
-        Constraint::Length(1),
-    ])
-    .areas(inner);
+    let [input, list, bottom] =
+        Layout::vertical([Constraint::Length(2), Constraint::Min(0), Constraint::Length(1)]).areas(inner);
 
     let mut input_line = vec![
         Span::styled("› ", theme.accent()),
@@ -40,9 +40,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, p: &Picker) {
         .filtered
         .iter()
         .map(|&i| match &p.entries[i] {
-            PickerEntry::Dir { name, .. } => {
-                Row::new(vec![Span::styled(format!("▸ {name}"), theme.accent())])
-            }
+            PickerEntry::Dir { name, .. } => Row::new(vec![Span::styled(format!("▸ {name}"), theme.accent())]),
             PickerEntry::Recording { name, details, .. } => match details {
                 Ok((station, start, a, d)) => Row::new(vec![
                     Span::raw(format!("  {name}")),

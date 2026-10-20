@@ -51,8 +51,7 @@ impl AppConfig {
 
     /// Loads the configuration from `path`.
     pub fn load_from(path: &Path) -> anyhow::Result<Self> {
-        let text = std::fs::read_to_string(path)
-            .with_context(|| format!("reading config {}", path.display()))?;
+        let text = std::fs::read_to_string(path).with_context(|| format!("reading config {}", path.display()))?;
         toml::from_str(&text).with_context(|| format!("invalid config {}", path.display()))
     }
 
@@ -87,7 +86,10 @@ mod tests {
     fn save_round_trips() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("sub/config.toml");
-        let mut c = AppConfig { theme: Some(ThemeChoice::Dark), ..Default::default() };
+        let mut c = AppConfig {
+            theme: Some(ThemeChoice::Dark),
+            ..Default::default()
+        };
         c.keys.insert("open".into(), vec!["ctrl+,".into(), "o".into()]);
         c.save_to(&path).unwrap();
         let back = AppConfig::load_from(&path).unwrap();

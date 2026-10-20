@@ -48,14 +48,11 @@ pub fn split(data: &[u8]) -> Result<Sections<'_>> {
         match marker {
             Marker::Text(kind) => current = Some((kind, end)),
             Marker::BinaryDat(len) => {
-                let stop = end
-                    .checked_add(len)
-                    .filter(|&s| s <= data.len())
-                    .ok_or_else(|| {
-                        Error::Unsupported(format!(
-                            "cff binary data section declares {len} bytes, file is too short"
-                        ))
-                    })?;
+                let stop = end.checked_add(len).filter(|&s| s <= data.len()).ok_or_else(|| {
+                    Error::Unsupported(format!(
+                        "cff binary data section declares {len} bytes, file is too short"
+                    ))
+                })?;
                 out.dat = Some(&data[end..stop]);
                 pos = stop;
                 continue;
@@ -101,9 +98,7 @@ fn parse_marker(line: &str) -> Result<Option<Marker>> {
                 .rsplit(':')
                 .next()
                 .and_then(|n| n.trim().parse().ok())
-                .ok_or_else(|| {
-                    Error::Unsupported(format!("cff data section without byte count: '{t}'"))
-                })?;
+                .ok_or_else(|| Error::Unsupported(format!("cff data section without byte count: '{t}'")))?;
             Marker::BinaryDat(len)
         }
         _ => return Ok(None),

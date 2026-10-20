@@ -19,7 +19,12 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, state: &ConfigState) {
     let [list_area, _, message_area] =
         Layout::vertical([Constraint::Min(0), Constraint::Length(1), Constraint::Length(1)]).areas(inner);
 
-    let name_width = BINDINGS.iter().map(|b| b.name.len()).max().unwrap_or(0).max("Theme".len());
+    let name_width = BINDINGS
+        .iter()
+        .map(|b| b.name.len())
+        .max()
+        .unwrap_or(0)
+        .max("Theme".len());
     let keys_width = 20;
     let header = |text: &'static str| ListItem::new(Line::styled(text, theme.accent()));
 
@@ -65,8 +70,13 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, state: &ConfigState) {
         Some((text, StatusKind::Info)) => Line::styled(text.clone(), theme.muted()),
         Some((text, StatusKind::Error)) => Line::styled(text.clone(), theme.error()),
         None if state.capturing => Line::styled("Press the new key, Esc cancels", theme.warning()),
-        None if state.selected == 0 => Line::styled("Enter / ←→ switch theme · changes are saved immediately", theme.muted()),
-        None => Line::styled("Enter change key · Backspace reset to default · changes are saved immediately", theme.muted()),
+        None if state.selected == 0 => {
+            Line::styled("Enter / ←→ switch theme · changes are saved immediately", theme.muted())
+        }
+        None => Line::styled(
+            "Enter change key · Backspace reset to default · changes are saved immediately",
+            theme.muted(),
+        ),
     };
     f.render_widget(Paragraph::new(message), message_area);
 }

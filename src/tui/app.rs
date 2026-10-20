@@ -17,9 +17,9 @@ use super::event::Message;
 use super::theme::{Theme, ThemeKind};
 use crate::args::ThemeChoice;
 use crate::command::{self, Context};
-use crate::config::AppConfig;
 use crate::comtrade::discover::{self, Visit};
 use crate::comtrade::{Comtrade, RecordingPath, Side};
+use crate::config::AppConfig;
 
 /// Something the user can do with a key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -66,29 +66,167 @@ pub struct Binding {
 /// All key bindings. Footer hints and the help overlay are generated from
 /// this table; the configuration file can replace the keys per action.
 pub const BINDINGS: &[Binding] = &[
-    Binding { action: Action::Quit, name: "quit", keys: &["q", "ctrl+c"], help: "Quit (closes an open overlay first)", hint: Some("quit") },
-    Binding { action: Action::Open, name: "open", keys: &["o", "ctrl+p"], help: "Open file picker", hint: Some("open") },
-    Binding { action: Action::Info, name: "info", keys: &["i"], help: "Toggle recording info", hint: Some("info") },
-    Binding { action: Action::Help, name: "help", keys: &["?"], help: "Toggle this help", hint: Some("help") },
-    Binding { action: Action::Focus, name: "focus", keys: &["tab"], help: "Switch focus sidebar / plot", hint: None },
-    Binding { action: Action::Up, name: "up", keys: &["up", "k"], help: "Previous channel / scroll up", hint: None },
-    Binding { action: Action::Down, name: "down", keys: &["down", "j"], help: "Next channel / scroll down", hint: None },
-    Binding { action: Action::ToggleChannel, name: "toggle_channel", keys: &["space"], help: "Show / hide selected channel", hint: Some("toggle") },
-    Binding { action: Action::ToggleAll, name: "toggle_all", keys: &["a"], help: "Show all / hide all channels", hint: None },
-    Binding { action: Action::ZoomIn, name: "zoom_in", keys: &["+", "="], help: "Zoom in (time)", hint: Some("zoom") },
-    Binding { action: Action::ZoomOut, name: "zoom_out", keys: &["-"], help: "Zoom out (time)", hint: None },
-    Binding { action: Action::CursorLeft, name: "cursor_left", keys: &["left", "h"], help: "Move cursor left", hint: Some("cursor") },
-    Binding { action: Action::CursorRight, name: "cursor_right", keys: &["right", "l"], help: "Move cursor right", hint: None },
-    Binding { action: Action::PanLeft, name: "pan_left", keys: &["shift+left", "H"], help: "Pan view left", hint: Some("pan") },
-    Binding { action: Action::PanRight, name: "pan_right", keys: &["shift+right", "L"], help: "Pan view right", hint: None },
-    Binding { action: Action::ResetZoom, name: "reset_zoom", keys: &["0"], help: "Reset zoom (whole recording)", hint: None },
-    Binding { action: Action::Trigger, name: "trigger", keys: &["t"], help: "Jump cursor to trigger", hint: None },
-    Binding { action: Action::Side, name: "side", keys: &["p"], help: "Toggle primary / secondary values", hint: None },
-    Binding { action: Action::TimeMode, name: "time_mode", keys: &["m"], help: "Toggle relative / absolute time", hint: None },
-    Binding { action: Action::Sidebar, name: "sidebar", keys: &["s"], help: "Show / hide channel sidebar", hint: None },
-    Binding { action: Action::Theme, name: "theme", keys: &["T"], help: "Toggle dark / light theme", hint: None },
-    Binding { action: Action::Config, name: "config", keys: &["ctrl+,", "c"], help: "Configuration (theme, key bindings)", hint: Some("config") },
-    Binding { action: Action::Close, name: "close", keys: &["esc"], help: "Close overlay", hint: None },
+    Binding {
+        action: Action::Quit,
+        name: "quit",
+        keys: &["q", "ctrl+c"],
+        help: "Quit (closes an open overlay first)",
+        hint: Some("quit"),
+    },
+    Binding {
+        action: Action::Open,
+        name: "open",
+        keys: &["o", "ctrl+p"],
+        help: "Open file picker",
+        hint: Some("open"),
+    },
+    Binding {
+        action: Action::Info,
+        name: "info",
+        keys: &["i"],
+        help: "Toggle recording info",
+        hint: Some("info"),
+    },
+    Binding {
+        action: Action::Help,
+        name: "help",
+        keys: &["?"],
+        help: "Toggle this help",
+        hint: Some("help"),
+    },
+    Binding {
+        action: Action::Focus,
+        name: "focus",
+        keys: &["tab"],
+        help: "Switch focus sidebar / plot",
+        hint: None,
+    },
+    Binding {
+        action: Action::Up,
+        name: "up",
+        keys: &["up", "k"],
+        help: "Previous channel / scroll up",
+        hint: None,
+    },
+    Binding {
+        action: Action::Down,
+        name: "down",
+        keys: &["down", "j"],
+        help: "Next channel / scroll down",
+        hint: None,
+    },
+    Binding {
+        action: Action::ToggleChannel,
+        name: "toggle_channel",
+        keys: &["space"],
+        help: "Show / hide selected channel",
+        hint: Some("toggle"),
+    },
+    Binding {
+        action: Action::ToggleAll,
+        name: "toggle_all",
+        keys: &["a"],
+        help: "Show all / hide all channels",
+        hint: None,
+    },
+    Binding {
+        action: Action::ZoomIn,
+        name: "zoom_in",
+        keys: &["+", "="],
+        help: "Zoom in (time)",
+        hint: Some("zoom"),
+    },
+    Binding {
+        action: Action::ZoomOut,
+        name: "zoom_out",
+        keys: &["-"],
+        help: "Zoom out (time)",
+        hint: None,
+    },
+    Binding {
+        action: Action::CursorLeft,
+        name: "cursor_left",
+        keys: &["left", "h"],
+        help: "Move cursor left",
+        hint: Some("cursor"),
+    },
+    Binding {
+        action: Action::CursorRight,
+        name: "cursor_right",
+        keys: &["right", "l"],
+        help: "Move cursor right",
+        hint: None,
+    },
+    Binding {
+        action: Action::PanLeft,
+        name: "pan_left",
+        keys: &["shift+left", "H"],
+        help: "Pan view left",
+        hint: Some("pan"),
+    },
+    Binding {
+        action: Action::PanRight,
+        name: "pan_right",
+        keys: &["shift+right", "L"],
+        help: "Pan view right",
+        hint: None,
+    },
+    Binding {
+        action: Action::ResetZoom,
+        name: "reset_zoom",
+        keys: &["0"],
+        help: "Reset zoom (whole recording)",
+        hint: None,
+    },
+    Binding {
+        action: Action::Trigger,
+        name: "trigger",
+        keys: &["t"],
+        help: "Jump cursor to trigger",
+        hint: None,
+    },
+    Binding {
+        action: Action::Side,
+        name: "side",
+        keys: &["p"],
+        help: "Toggle primary / secondary values",
+        hint: None,
+    },
+    Binding {
+        action: Action::TimeMode,
+        name: "time_mode",
+        keys: &["m"],
+        help: "Toggle relative / absolute time",
+        hint: None,
+    },
+    Binding {
+        action: Action::Sidebar,
+        name: "sidebar",
+        keys: &["s"],
+        help: "Show / hide channel sidebar",
+        hint: None,
+    },
+    Binding {
+        action: Action::Theme,
+        name: "theme",
+        keys: &["T"],
+        help: "Toggle dark / light theme",
+        hint: None,
+    },
+    Binding {
+        action: Action::Config,
+        name: "config",
+        keys: &["ctrl+,", "c"],
+        help: "Configuration (theme, key bindings)",
+        hint: Some("config"),
+    },
+    Binding {
+        action: Action::Close,
+        name: "close",
+        keys: &["esc"],
+        help: "Close overlay",
+        hint: None,
+    },
 ];
 
 /// A key with modifiers, as written in the configuration (`ctrl+p`, `shift+left`, `T`).
@@ -263,7 +401,11 @@ impl KeyMap {
     pub fn new(overrides: &BTreeMap<String, Vec<String>>) -> anyhow::Result<Self> {
         let mut keys = BTreeMap::new();
         for b in BINDINGS {
-            let specs = b.keys.iter().map(|k| KeySpec::parse(k)).collect::<anyhow::Result<_>>()?;
+            let specs = b
+                .keys
+                .iter()
+                .map(|k| KeySpec::parse(k))
+                .collect::<anyhow::Result<_>>()?;
             keys.insert(b.action, specs);
         }
         for (name, list) in overrides {
@@ -298,7 +440,9 @@ impl KeyMap {
 
     /// First key bound to `action` as text.
     pub fn label(&self, action: Action) -> String {
-        self.keys(action).first().map_or_else(|| "-".into(), ToString::to_string)
+        self.keys(action)
+            .first()
+            .map_or_else(|| "-".into(), ToString::to_string)
     }
 
     /// Replaces the keys of `action`.
@@ -472,7 +616,11 @@ impl Recording {
             let range = self.data.index_range(self.view.0, self.view.1);
             let t = self.data.time();
             if !range.is_empty() {
-                let i = if self.cursor < self.view.0 { range.start } else { range.end - 1 };
+                let i = if self.cursor < self.view.0 {
+                    range.start
+                } else {
+                    range.end - 1
+                };
                 self.cursor = t[i];
             }
         }
@@ -486,7 +634,11 @@ impl Recording {
         if let (Some(i), Some(j)) = (self.data.index_at(self.cursor), self.data.index_at(new))
             && i == j
         {
-            let k = if direction > 0.0 { (i + 1).min(t.len() - 1) } else { i.saturating_sub(1) };
+            let k = if direction > 0.0 {
+                (i + 1).min(t.len() - 1)
+            } else {
+                i.saturating_sub(1)
+            };
             new = t[k];
         }
         self.set_cursor(new);
@@ -733,7 +885,11 @@ impl App {
             focus: Focus::Sidebar,
             sidebar: true,
             selected: 0,
-            side: if ctx.global.secondary { Side::Secondary } else { Side::Primary },
+            side: if ctx.global.secondary {
+                Side::Secondary
+            } else {
+                Side::Primary
+            },
             absolute_time: false,
             overlay: None,
             frame: 0,
@@ -968,7 +1124,10 @@ impl App {
             }
             Action::ToggleAll => {
                 let any = rec.visible_analog.iter().chain(&rec.visible_binary).any(|&v| v);
-                rec.visible_analog.iter_mut().chain(&mut rec.visible_binary).for_each(|v| *v = !any);
+                rec.visible_analog
+                    .iter_mut()
+                    .chain(&mut rec.visible_binary)
+                    .for_each(|v| *v = !any);
             }
             Action::ZoomIn => rec.zoom(0.5),
             Action::ZoomOut => rec.zoom(2.0),
@@ -986,7 +1145,10 @@ impl App {
 
     fn no_recording(&mut self) {
         let key = self.keymap.label(Action::Open);
-        self.set_status(format!("no recording loaded, press {key} to open one"), StatusKind::Info);
+        self.set_status(
+            format!("no recording loaded, press {key} to open one"),
+            StatusKind::Info,
+        );
     }
 
     /// Opens the configuration overlay. A missing configuration file is
@@ -1083,9 +1245,10 @@ impl App {
 
         if changed {
             state.message = Some(match self.save_config() {
-                Ok(()) if self.theme.plain && state.selected == 0 => {
-                    ("saved; colors are disabled (--no-color / NO_COLOR)".into(), StatusKind::Info)
-                }
+                Ok(()) if self.theme.plain && state.selected == 0 => (
+                    "saved; colors are disabled (--no-color / NO_COLOR)".into(),
+                    StatusKind::Info,
+                ),
                 Ok(()) => (
                     format!("saved to {}", self.config_path.as_ref().expect("saved").display()),
                     StatusKind::Info,
@@ -1234,7 +1397,18 @@ mod tests {
 
     #[test]
     fn key_specs_round_trip_through_config_names() {
-        for s in ["q", "T", "?", "ctrl+,", "ctrl+p", "shift+left", "space", "esc", "alt+x", "pagedown"] {
+        for s in [
+            "q",
+            "T",
+            "?",
+            "ctrl+,",
+            "ctrl+p",
+            "shift+left",
+            "space",
+            "esc",
+            "alt+x",
+            "pagedown",
+        ] {
             assert_eq!(KeySpec::parse(s).unwrap().config_name(), s);
         }
         let shifted = KeyEvent::new(KeyCode::Char('T'), KeyModifiers::SHIFT);
@@ -1245,14 +1419,26 @@ mod tests {
     #[test]
     fn keymap_defaults_and_overrides() {
         let km = KeyMap::new(&BTreeMap::new()).unwrap();
-        assert_eq!(km.action(&key(KeyCode::Left, KeyModifiers::SHIFT)), Some(Action::PanLeft));
-        assert_eq!(km.action(&key(KeyCode::Left, KeyModifiers::NONE)), Some(Action::CursorLeft));
-        assert_eq!(km.action(&key(KeyCode::Char('?'), KeyModifiers::SHIFT)), Some(Action::Help));
+        assert_eq!(
+            km.action(&key(KeyCode::Left, KeyModifiers::SHIFT)),
+            Some(Action::PanLeft)
+        );
+        assert_eq!(
+            km.action(&key(KeyCode::Left, KeyModifiers::NONE)),
+            Some(Action::CursorLeft)
+        );
+        assert_eq!(
+            km.action(&key(KeyCode::Char('?'), KeyModifiers::SHIFT)),
+            Some(Action::Help)
+        );
 
         let mut o = BTreeMap::new();
         o.insert("quit".to_owned(), vec!["x".to_owned()]);
         let km = KeyMap::new(&o).unwrap();
-        assert_eq!(km.action(&key(KeyCode::Char('x'), KeyModifiers::NONE)), Some(Action::Quit));
+        assert_eq!(
+            km.action(&key(KeyCode::Char('x'), KeyModifiers::NONE)),
+            Some(Action::Quit)
+        );
         assert_eq!(km.action(&key(KeyCode::Char('q'), KeyModifiers::NONE)), None);
 
         o.insert("fly".to_owned(), vec!["f".to_owned()]);
@@ -1290,7 +1476,11 @@ mod tests {
     fn picker_filters_new_entries() {
         let mut p = Picker::new(PathBuf::from("/"), "/^a/b".into(), true, 1);
         for name in ["a/b/x.cfg", "c/a/b.cfg"] {
-            p.push(PickerEntry::Recording { name: name.into(), path: name.into(), details: Err(String::new()) });
+            p.push(PickerEntry::Recording {
+                name: name.into(),
+                path: name.into(),
+                details: Err(String::new()),
+            });
         }
         assert_eq!(p.filtered, [0]);
         p.query = "B.CFG".into();

@@ -51,11 +51,7 @@ pub fn init(verbose: u8, target: Target) -> Option<PathBuf> {
             }
             let path = log_file()?;
             std::fs::create_dir_all(path.parent()?).ok()?;
-            let file = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&path)
-                .ok()?;
+            let file = std::fs::OpenOptions::new().create(true).append(true).open(&path).ok()?;
             tracing_subscriber::fmt()
                 .with_env_filter(filter(verbose))
                 .with_writer(std::sync::Mutex::new(file))

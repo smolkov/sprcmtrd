@@ -49,8 +49,12 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         return;
     }
 
-    let analog: Vec<usize> = (0..rec.visible_analog.len()).filter(|&i| rec.visible_analog[i]).collect();
-    let binary: Vec<usize> = (0..rec.visible_binary.len()).filter(|&i| rec.visible_binary[i]).collect();
+    let analog: Vec<usize> = (0..rec.visible_analog.len())
+        .filter(|&i| rec.visible_analog[i])
+        .collect();
+    let binary: Vec<usize> = (0..rec.visible_binary.len())
+        .filter(|&i| rec.visible_binary[i])
+        .collect();
     if analog.is_empty() && binary.is_empty() {
         let key = app.keymap.label(Action::ToggleChannel);
         let msg = format!("No channels shown. Select channels in the sidebar and press {key}.");
@@ -74,23 +78,51 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     let mut y = inner.y;
     for (k, &i) in analog.iter().take(n_analog).enumerate() {
         let base = analog_rows / n_analog as u16;
-        let height = if k + 1 == n_analog { analog_rows - base * (n_analog as u16 - 1) } else { base };
-        let row = Rect { x: inner.x, y, width: inner.width, height };
+        let height = if k + 1 == n_analog {
+            analog_rows - base * (n_analog as u16 - 1)
+        } else {
+            base
+        };
+        let row = Rect {
+            x: inner.x,
+            y,
+            width: inner.width,
+            height,
+        };
         analog_plot(f, row, app, rec, i, cursor_idx);
         y += height;
     }
     for &i in binary.iter().take(n_binary) {
-        let row = Rect { x: inner.x, y, width: inner.width, height: 1 };
+        let row = Rect {
+            x: inner.x,
+            y,
+            width: inner.width,
+            height: 1,
+        };
         binary_strip(f, row, app, rec, i, cursor_idx);
         y += 1;
     }
 
-    let axis = Rect { x: canvas_x, y: inner.y + inner.height - 1, width: canvas_width, height: 1 };
+    let axis = Rect {
+        x: canvas_x,
+        y: inner.y + inner.height - 1,
+        width: canvas_width,
+        height: 1,
+    };
     time_axis(f, axis, app, rec);
-    let note = if hidden > 0 { format!("+{hidden} hidden") } else { String::new() };
+    let note = if hidden > 0 {
+        format!("+{hidden} hidden")
+    } else {
+        String::new()
+    };
     f.render_widget(
         Paragraph::new(Span::styled(note, theme.warning())),
-        Rect { x: inner.x, y: axis.y, width: GUTTER, height: 1 },
+        Rect {
+            x: inner.x,
+            y: axis.y,
+            width: GUTTER,
+            height: 1,
+        },
     );
 }
 
@@ -118,23 +150,23 @@ fn analog_plot(f: &mut Frame, area: Rect, app: &App, rec: &Recording, i: usize, 
     let ch = rec.data.analog(i).expect("visible channel exists");
     let color = theme.channel(&ch.info.phase, i);
     let (t0, t1) = rec.view;
-    let canvas = Rect { x: area.x + GUTTER, width: area.width - GUTTER, ..area };
+    let canvas = Rect {
+        x: area.x + GUTTER,
+        width: area.width - GUTTER,
+        ..area
+    };
 
     // One extra sample on each side so lines reach the plot edges.
     let range = rec.data.index_range(t0, t1);
     let range = range.start.saturating_sub(1)..(range.end + 1).min(rec.data.len());
-    let segments = ch.plot_segments(
-        rec.data.time(),
-        range,
-        (t0, t1),
-        canvas.width as usize * 2,
-        app.side,
-    );
+    let segments = ch.plot_segments(rec.data.time(), range, (t0, t1), canvas.width as usize * 2, app.side);
     let (lo, hi) = segments
         .iter()
         .flatten()
         .filter(|p| p.0 >= t0 && p.0 <= t1)
-        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| (lo.min(p.1), hi.max(p.1)));
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
+            (lo.min(p.1), hi.max(p.1))
+        });
     let (lo, hi) = match (lo.is_finite(), hi - lo) {
         (false, _) => (-1.0, 1.0),
         (true, d) if d < 1e-12 => (lo - 1.0, hi + 1.0),
@@ -157,7 +189,10 @@ fn analog_plot(f: &mut Frame, area: Rect, app: &App, rec: &Recording, i: usize, 
     } else {
         lines.push(Line::styled(format!("{}…{}", si(lo), si(hi)), theme.muted()));
     }
-    let gutter = Rect { width: GUTTER - 1, ..area };
+    let gutter = Rect {
+        width: GUTTER - 1,
+        ..area
+    };
     f.render_widget(Paragraph::new(lines), gutter);
 
     let trigger = theme.trigger;
@@ -200,7 +235,11 @@ fn binary_strip(f: &mut Frame, area: Rect, app: &App, rec: &Recording, i: usize,
         Span::styled(label, color),
         Span::styled(
             state.map_or(" -".into(), |s| format!(" {}", u8::from(s))),
-            if state.is_some_and(|s| s != ch.info.normal_state) { theme.warning() } else { theme.base() },
+            if state.is_some_and(|s| s != ch.info.normal_state) {
+                theme.warning()
+            } else {
+                theme.base()
+            },
         ),
     ]);
     f.render_widget(Paragraph::new(gutter), Rect { width: GUTTER, ..area });
@@ -232,7 +271,11 @@ fn column_of(rec: &Recording, t: f64, width: u16) -> Option<u16> {
     if !(t0..=t1).contains(&t) || t1 <= t0 {
         return None;
     }
-    Some((((t - t0) / (t1 - t0)) * f64::from(width)).floor().min(f64::from(width - 1)) as u16)
+    Some(
+        (((t - t0) / (t1 - t0)) * f64::from(width))
+            .floor()
+            .min(f64::from(width - 1)) as u16,
+    )
 }
 
 fn time_label(app: &App, rec: &Recording, t: f64, span: f64) -> String {

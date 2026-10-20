@@ -159,11 +159,7 @@ pub enum Visit<'a> {
 ///
 /// Recursion skips hidden directories (`.git`, ...) and does not follow
 /// symbolic links to directories, so link cycles cannot loop forever.
-pub fn walk(
-    dir: &Path,
-    recursive: bool,
-    f: &mut dyn FnMut(Visit) -> ControlFlow<()>,
-) -> Result<ControlFlow<()>> {
+pub fn walk(dir: &Path, recursive: bool, f: &mut dyn FnMut(Visit) -> ControlFlow<()>) -> Result<ControlFlow<()>> {
     if f(Visit::Dir(dir)).is_break() {
         return Ok(ControlFlow::Break(()));
     }
@@ -248,7 +244,11 @@ mod tests {
         let mut seen = 0;
         let flow = walk(d, true, &mut |v| {
             seen += usize::from(matches!(v, Visit::Recording(_)));
-            if seen == 2 { ControlFlow::Break(()) } else { ControlFlow::Continue(()) }
+            if seen == 2 {
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
         })
         .unwrap();
         assert!(flow.is_break());

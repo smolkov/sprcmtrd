@@ -141,10 +141,7 @@ pub fn parse(cfg: &Config, data: &[u8]) -> Result<DatData> {
     if expected > 0 && dat.len() != expected {
         return Err(Error::Dat {
             sample: dat.len().min(expected) + 1,
-            message: format!(
-                "data file has {} samples, configuration declares {expected}",
-                dat.len()
-            ),
+            message: format!("data file has {} samples, configuration declares {expected}", dat.len()),
         });
     }
     Ok(dat)
@@ -169,10 +166,7 @@ fn parse_binary(cfg: &Config, mut data: &[u8]) -> Result<DatData> {
     if !data.len().is_multiple_of(rec) {
         return Err(Error::Dat {
             sample: data.len() / rec + 1,
-            message: format!(
-                "file size {} is not a multiple of the record size {rec}",
-                data.len()
-            ),
+            message: format!("file size {} is not a multiple of the record size {rec}", data.len()),
         });
     }
     let n = data.len() / rec;
@@ -181,7 +175,8 @@ fn parse_binary(cfg: &Config, mut data: &[u8]) -> Result<DatData> {
     let n_words = cfg.binary.len().div_ceil(16);
 
     for record in data.chunks_exact(rec) {
-        out.timestamps.push(u32::from_le_bytes(record[4..8].try_into().unwrap()));
+        out.timestamps
+            .push(u32::from_le_bytes(record[4..8].try_into().unwrap()));
         let mut pos = 8;
         for col in &mut out.analog {
             match col {
@@ -231,11 +226,7 @@ fn parse_ascii(cfg: &Config, data: &[u8]) -> Result<DatData> {
         if fields.len() < 2 + n_analog + n_binary {
             return Err(Error::Dat {
                 sample,
-                message: format!(
-                    "expected {} fields, found {}",
-                    2 + n_analog + n_binary,
-                    fields.len()
-                ),
+                message: format!("expected {} fields, found {}", 2 + n_analog + n_binary, fields.len()),
             });
         }
         let bad = |what: &str, s: &str| Error::Dat {
@@ -244,10 +235,7 @@ fn parse_ascii(cfg: &Config, data: &[u8]) -> Result<DatData> {
         };
         out.timestamps.push(match fields[1] {
             "" => MISSING_TIMESTAMP,
-            s => s
-                .parse::<f64>()
-                .map(|t| t as u32)
-                .map_err(|_| bad("timestamp", s))?,
+            s => s.parse::<f64>().map(|t| t as u32).map_err(|_| bad("timestamp", s))?,
         });
         for (col, s) in out.analog.iter_mut().zip(&fields[2..2 + n_analog]) {
             let value = match *s {

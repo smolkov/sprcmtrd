@@ -100,7 +100,11 @@ fn plot(segments: &[Vec<(f64, f64)>], (t0, t1): (f64, f64), cols: usize, rows: u
     if !lo.is_finite() {
         return "  (no samples in window)\n".into();
     }
-    let (lo, hi) = if hi - lo < 1e-12 { (lo - 1.0, hi + 1.0) } else { (lo, hi) };
+    let (lo, hi) = if hi - lo < 1e-12 {
+        (lo - 1.0, hi + 1.0)
+    } else {
+        (lo, hi)
+    };
 
     let points: Vec<Vec<(f32, f32)>> = segments
         .iter()
@@ -147,9 +151,7 @@ fn select(c: &Comtrade, tokens: &[String]) -> anyhow::Result<(Vec<usize>, Vec<us
     }
     let (mut analog, mut binary) = (Vec::new(), Vec::new());
     for token in tokens.iter().map(|t| t.trim()).filter(|t| !t.is_empty()) {
-        let digital_index = token
-            .strip_prefix(['d', 'D'])
-            .and_then(|n| n.parse::<usize>().ok());
+        let digital_index = token.strip_prefix(['d', 'D']).and_then(|n| n.parse::<usize>().ok());
         if let Ok(n) = token.parse::<usize>() {
             if n == 0 || n > n_analog {
                 bail!("analog channel {n} does not exist (1..={n_analog})");
@@ -160,15 +162,9 @@ fn select(c: &Comtrade, tokens: &[String]) -> anyhow::Result<(Vec<usize>, Vec<us
                 bail!("binary channel d{n} does not exist (d1..=d{n_binary})");
             }
             binary.push(n - 1);
-        } else if let Some(i) = c
-            .analog_channels()
-            .position(|a| a.info.id.eq_ignore_ascii_case(token))
-        {
+        } else if let Some(i) = c.analog_channels().position(|a| a.info.id.eq_ignore_ascii_case(token)) {
             analog.push(i);
-        } else if let Some(i) = c
-            .binary_channels()
-            .position(|b| b.info.id.eq_ignore_ascii_case(token))
-        {
+        } else if let Some(i) = c.binary_channels().position(|b| b.info.id.eq_ignore_ascii_case(token)) {
             binary.push(i);
         } else {
             bail!("unknown channel '{token}'");
