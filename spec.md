@@ -331,6 +331,7 @@ runs the event loop and always restores the terminal, also on panic
   min and max per column (min/max decimation) so peaks are not lost.
 - Zoom and pan act on the shared time axis for all channels at once.
 - Cursor: shows time and value of every visible channel at the cursor position.
+- Always show cursor time in milliseconds on the plot time axis
 
 ### Key bindings
 
