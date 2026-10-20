@@ -356,7 +356,7 @@ runs the event loop and always restores the terminal, also on panic
 - Analog plots alternate background shades so neighbouring channels are easy to
   tell apart: 1st, 3rd, ... lighter, 2nd, 4th, ... darker (whole row, gutter
   included). One shade is the theme background, the other a subtle gray from the
-  256-color palette (235 on dark, 254 on light). No shading with `--no-color`.
+  256-color palette (234 on dark, 254 on light). No shading with `--no-color`.
 
 ### Key bindings
 

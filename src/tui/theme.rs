@@ -98,7 +98,7 @@ impl Theme {
             border: Color::Gray,
             accent: Color::Cyan,
             selection: Color::DarkGray,
-            plot_shades: [Color::Black, Color::Black],
+            plot_shades: [Color::Indexed(234), Color::Black],
             warning: Color::Yellow,
             error: Color::LightRed,
             trigger: Color::Magenta,
