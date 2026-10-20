@@ -70,11 +70,14 @@ fn key_hint(app: &App, key: &str, label: &str) -> [Span<'static>; 2] {
 }
 
 fn picker_hints(app: &App) -> Vec<Span<'static>> {
+    let recursive = matches!(&app.overlay, Some(Overlay::Picker(p)) if p.recursive);
+    let toggle = if recursive { "this dir only" } else { "subdirs" };
     [
         ("↑↓", "select"),
         ("Enter", "open"),
         ("Backspace", "parent"),
         ("/re", "regex"),
+        ("Ctrl+r", toggle),
         ("Esc", "close"),
     ]
     .iter()

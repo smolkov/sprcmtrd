@@ -2,20 +2,23 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context as _, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use regex::RegexBuilder;
+use regex::{Regex, RegexBuilder};
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::event::Message;
 use super::theme::{Theme, ThemeKind};
 use crate::args::ThemeChoice;
 use crate::command::{self, Context};
-use crate::comtrade::{Comtrade, RecordingPath, Side, discover};
+use crate::comtrade::discover::{self, Visit};
+use crate::comtrade::{Comtrade, RecordingPath, Side};
 
 /// Something the user can do with a key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -420,7 +423,7 @@ pub enum PickerEntry {
     },
     /// A recording.
     Recording {
-        /// File name.
+        /// Path relative to the picker directory.
         name: String,
         /// Path of the main file.
         path: PathBuf,
@@ -455,17 +458,53 @@ pub struct Picker {
     pub scanning: bool,
     /// Filter or scan error.
     pub error: Option<String>,
+    /// Subdirectories are searched too.
+    pub recursive: bool,
+    matcher: Matcher,
     generation: u64,
 }
 
+/// Compiled picker filter.
+#[derive(Debug, Clone)]
+enum Matcher {
+    /// Case-insensitive substring (stored lowercase).
+    Substring(String),
+    /// Case-insensitive regular expression.
+    Regex(Regex),
+}
+
+impl Matcher {
+    fn matches(&self, name: &str) -> bool {
+        match self {
+            Self::Substring(q) => name.to_lowercase().contains(q.as_str()),
+            Self::Regex(re) => re.is_match(name),
+        }
+    }
+}
+
 impl Picker {
+    fn new(dir: PathBuf, query: String, recursive: bool, generation: u64) -> Self {
+        let mut p = Self {
+            dir,
+            query,
+            entries: Vec::new(),
+            filtered: Vec::new(),
+            selected: 0,
+            scanning: true,
+            error: None,
+            recursive,
+            matcher: Matcher::Substring(String::new()),
+            generation,
+        };
+        p.refilter();
+        p
+    }
+
+    /// Recompiles the filter after a query change and filters all entries.
     fn refilter(&mut self) {
-        let matcher: Box<dyn Fn(&str) -> bool> = if let Some(re) = self.query.strip_prefix('/') {
+        self.matcher = if let Some(re) = self.query.strip_prefix('/') {
             match RegexBuilder::new(re).case_insensitive(true).build() {
-                Ok(re) => {
-                    self.error = None;
-                    Box::new(move |s| re.is_match(s))
-                }
+                Ok(re) => Matcher::Regex(re),
                 Err(e) => {
                     // Keep the previous list while the regex is invalid.
                     self.error = Some(format!("invalid regex: {}", e.to_string().lines().last().unwrap_or("")));
@@ -473,14 +512,21 @@ impl Picker {
                 }
             }
         } else {
-            self.error = None;
-            let q = self.query.to_lowercase();
-            Box::new(move |s| s.to_lowercase().contains(&q))
+            Matcher::Substring(self.query.to_lowercase())
         };
+        self.error = None;
         self.filtered = (0..self.entries.len())
-            .filter(|&i| matcher(self.entries[i].name()))
+            .filter(|&i| self.matcher.matches(self.entries[i].name()))
             .collect();
         self.selected = self.selected.min(self.filtered.len().saturating_sub(1));
+    }
+
+    /// Adds a scanned entry, filtering only the new one (scans can be large).
+    fn push(&mut self, entry: PickerEntry) {
+        if self.matcher.matches(entry.name()) {
+            self.filtered.push(self.entries.len());
+        }
+        self.entries.push(entry);
     }
 
     /// The selected entry.
@@ -536,7 +582,10 @@ pub struct App {
     /// Set when the app should exit.
     pub quit: bool,
     tx: UnboundedSender<Message>,
-    generation: u64,
+    /// Picker searches subdirectories (kept when changing directories).
+    picker_recursive: bool,
+    /// Generation of the current directory scan; older scans stop early.
+    scan_generation: Arc<AtomicU64>,
 }
 
 /// How long footer messages stay.
@@ -564,7 +613,8 @@ impl App {
             frame: 0,
             quit: false,
             tx,
-            generation: 0,
+            picker_recursive: true,
+            scan_generation: Arc::new(AtomicU64::new(0)),
         })
     }
 
@@ -586,24 +636,16 @@ impl App {
     /// Opens the file picker in `dir` and starts scanning it.
     pub fn open_picker(&mut self, dir: PathBuf) {
         let dir = std::path::absolute(&dir).unwrap_or(dir);
-        self.generation += 1;
-        let generation = self.generation;
+        let generation = self.scan_generation.fetch_add(1, Ordering::Relaxed) + 1;
         let query = match &self.overlay {
             Some(Overlay::Picker(p)) if p.dir == dir => p.query.clone(),
             _ => String::new(),
         };
-        self.overlay = Some(Overlay::Picker(Picker {
-            dir: dir.clone(),
-            query,
-            entries: Vec::new(),
-            filtered: Vec::new(),
-            selected: 0,
-            scanning: true,
-            error: None,
-            generation,
-        }));
+        let recursive = self.picker_recursive;
+        self.overlay = Some(Overlay::Picker(Picker::new(dir.clone(), query, recursive, generation)));
         let tx = self.tx.clone();
-        tokio::task::spawn_blocking(move || scan(dir, generation, tx));
+        let current = Arc::clone(&self.scan_generation);
+        tokio::task::spawn_blocking(move || scan(&dir, recursive, generation, &current, &tx));
     }
 
     fn picker_dir(&self) -> PathBuf {
@@ -653,8 +695,7 @@ impl App {
                 if let Some(Overlay::Picker(p)) = &mut self.overlay
                     && p.generation == generation
                 {
-                    p.entries.push(entry);
-                    p.refilter();
+                    p.push(entry);
                 }
             }
             Message::ScanDone { generation, error } => {
@@ -824,6 +865,8 @@ impl App {
         match key.code {
             KeyCode::Esc => {
                 self.overlay = None;
+                // Stop a running scan.
+                self.scan_generation.fetch_add(1, Ordering::Relaxed);
             }
             KeyCode::Up => p.selected = p.selected.saturating_sub(1),
             KeyCode::Down => p.selected = (p.selected + 1).min(p.filtered.len().saturating_sub(1)),
@@ -836,10 +879,16 @@ impl App {
                 }
                 Some(PickerEntry::Recording { path, .. }) => {
                     self.overlay = None;
+                    self.scan_generation.fetch_add(1, Ordering::Relaxed);
                     self.open(&path);
                 }
                 None => {}
             },
+            KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.picker_recursive = !p.recursive;
+                let dir = p.dir.clone();
+                self.open_picker(dir);
+            }
             KeyCode::Backspace if p.query.is_empty() => {
                 if let Some(parent) = p.dir.parent().map(Path::to_path_buf) {
                     self.open_picker(parent);
@@ -864,10 +913,16 @@ impl App {
     }
 }
 
-/// Scans `dir` for subdirectories and recordings, sending entries as found.
-fn scan(dir: PathBuf, generation: u64, tx: UnboundedSender<Message>) {
+/// Scans `dir` for subdirectories and recordings (in all subdirectories
+/// when `recursive`), sending entries as they are found. Stops early when
+/// `current` no longer equals `generation` (a newer scan started or the
+/// picker closed).
+fn scan(dir: &Path, recursive: bool, generation: u64, current: &AtomicU64, tx: &UnboundedSender<Message>) {
     let send = |entry| tx.send(Message::ScanEntry { generation, entry }).is_ok();
-    let mut dirs: Vec<PathBuf> = std::fs::read_dir(&dir)
+    let stale = || current.load(Ordering::Relaxed) != generation;
+
+    // Immediate subdirectories first, for navigation.
+    let mut dirs: Vec<PathBuf> = std::fs::read_dir(dir)
         .map(|rd| {
             rd.flatten()
                 .map(|e| e.path())
@@ -879,15 +934,18 @@ fn scan(dir: PathBuf, generation: u64, tx: UnboundedSender<Message>) {
     dirs.sort();
     for path in dirs {
         let name = format!("{}/", path.file_name().unwrap_or_default().to_string_lossy());
-        if !send(PickerEntry::Dir { name, path }) {
+        if stale() || !send(PickerEntry::Dir { name, path }) {
             return;
         }
     }
-    let mut alive = true;
-    let result = discover::for_each_recording(&dir, false, &mut |rec| {
-        if !alive {
-            return;
+
+    let result = discover::walk(dir, recursive, &mut |visit| {
+        if stale() {
+            return ControlFlow::Break(());
         }
+        let Visit::Recording(rec) = visit else {
+            return ControlFlow::Continue(());
+        };
         let details = Comtrade::config_of(&rec)
             .map(|c| {
                 (
@@ -898,11 +956,13 @@ fn scan(dir: PathBuf, generation: u64, tx: UnboundedSender<Message>) {
                 )
             })
             .map_err(|e| e.to_string());
-        alive = send(PickerEntry::Recording {
-            name: rec.name(),
-            path: rec.main_file().to_path_buf(),
-            details,
-        });
+        let path = rec.main_file().to_path_buf();
+        let name = path.strip_prefix(dir).unwrap_or(&path).display().to_string();
+        if send(PickerEntry::Recording { name, path, details }) {
+            ControlFlow::Continue(())
+        } else {
+            ControlFlow::Break(())
+        }
     });
     let _ = tx.send(Message::ScanDone {
         generation,
@@ -948,6 +1008,45 @@ mod tests {
 
         o.insert("fly".to_owned(), vec!["f".to_owned()]);
         assert!(KeyMap::new(&o).is_err());
+    }
+
+    fn scan_names(dir: &Path, recursive: bool, generation: u64, current: u64) -> Vec<String> {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        scan(dir, recursive, generation, &AtomicU64::new(current), &tx);
+        drop(tx);
+        let mut names = Vec::new();
+        while let Ok(msg) = rx.try_recv() {
+            if let Message::ScanEntry { entry, .. } = msg {
+                names.push(entry.name().to_owned());
+            }
+        }
+        names
+    }
+
+    #[test]
+    fn picker_scan_is_recursive_and_cancellable() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = tmp.path();
+        std::fs::create_dir_all(d.join("a/b")).unwrap();
+        std::fs::write(d.join("top.cfg"), "").unwrap();
+        std::fs::write(d.join("a/b/deep.cfg"), "").unwrap();
+
+        assert_eq!(scan_names(d, true, 1, 1), ["a/", "top.cfg", "a/b/deep.cfg"]);
+        assert_eq!(scan_names(d, false, 1, 1), ["a/", "top.cfg"]);
+        // A newer scan has started: nothing is sent.
+        assert!(scan_names(d, true, 1, 2).is_empty());
+    }
+
+    #[test]
+    fn picker_filters_new_entries() {
+        let mut p = Picker::new(PathBuf::from("/"), "/^a/b".into(), true, 1);
+        for name in ["a/b/x.cfg", "c/a/b.cfg"] {
+            p.push(PickerEntry::Recording { name: name.into(), path: name.into(), details: Err(String::new()) });
+        }
+        assert_eq!(p.filtered, [0]);
+        p.query = "B.CFG".into();
+        p.refilter();
+        assert_eq!(p.filtered, [1]);
     }
 
     #[test]

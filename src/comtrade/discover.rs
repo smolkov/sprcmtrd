@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
@@ -142,16 +143,30 @@ impl RecordingPath {
     }
 }
 
-/// Calls `f` for every recording found in `dir` (and subdirectories when
-/// `recursive`). Recordings are identified by a `.cfg` or `.cff` file.
+/// Something found while walking directories, see [`walk`].
+#[derive(Debug)]
+pub enum Visit<'a> {
+    /// A directory is about to be searched.
+    Dir(&'a Path),
+    /// A recording was found.
+    Recording(RecordingPath),
+}
+
+/// Walks `dir` (and its subdirectories when `recursive`) and calls `f` for
+/// every directory entered and every recording found. Recordings are
+/// identified by a `.cfg` or `.cff` file. Returning [`ControlFlow::Break`]
+/// from `f` stops the walk.
 ///
 /// Recursion skips hidden directories (`.git`, ...) and does not follow
 /// symbolic links to directories, so link cycles cannot loop forever.
-pub fn for_each_recording(
+pub fn walk(
     dir: &Path,
     recursive: bool,
-    f: &mut dyn FnMut(RecordingPath),
-) -> Result<()> {
+    f: &mut dyn FnMut(Visit) -> ControlFlow<()>,
+) -> Result<ControlFlow<()>> {
+    if f(Visit::Dir(dir)).is_break() {
+        return Ok(ControlFlow::Break(()));
+    }
     let mut groups: BTreeMap<PathBuf, RecordingPath> = BTreeMap::new();
     let mut subdirs = Vec::new();
     let entries = fs::read_dir(dir).map_err(|e| Error::io(dir, e))?;
@@ -170,24 +185,32 @@ pub fn for_each_recording(
         }
     }
     for rec in groups.into_values() {
-        if rec.cfg.is_some() || rec.cff.is_some() {
-            f(rec);
+        if (rec.cfg.is_some() || rec.cff.is_some()) && f(Visit::Recording(rec)).is_break() {
+            return Ok(ControlFlow::Break(()));
         }
     }
     subdirs.sort();
     for sub in subdirs {
         // Unreadable subdirectories are skipped, the top level must be readable.
-        if let Err(e) = for_each_recording(&sub, true, f) {
-            tracing::warn!("skipping {}: {e}", sub.display());
+        match walk(&sub, true, f) {
+            Ok(ControlFlow::Break(())) => return Ok(ControlFlow::Break(())),
+            Ok(ControlFlow::Continue(())) => {}
+            Err(e) => tracing::warn!("skipping {}: {e}", sub.display()),
         }
     }
-    Ok(())
+    Ok(ControlFlow::Continue(()))
 }
 
-/// Returns all recordings in `dir`, see [`for_each_recording`].
+/// Returns all recordings in `dir`, see [`walk`].
 pub fn find_recordings(dir: &Path, recursive: bool) -> Result<Vec<RecordingPath>> {
     let mut out = Vec::new();
-    for_each_recording(dir, recursive, &mut |r| out.push(r))?;
+    // The callback never breaks, so the flow is always Continue.
+    let _ = walk(dir, recursive, &mut |v| {
+        if let Visit::Recording(r) = v {
+            out.push(r);
+        }
+        ControlFlow::Continue(())
+    })?;
     Ok(out)
 }
 
@@ -220,6 +243,16 @@ mod tests {
         #[cfg(unix)]
         std::os::unix::fs::symlink(d, d.join("sub/loop")).unwrap();
         assert_eq!(find_recordings(d, true).unwrap().len(), 3);
+
+        // Breaking stops the walk.
+        let mut seen = 0;
+        let flow = walk(d, true, &mut |v| {
+            seen += usize::from(matches!(v, Visit::Recording(_)));
+            if seen == 2 { ControlFlow::Break(()) } else { ControlFlow::Continue(()) }
+        })
+        .unwrap();
+        assert!(flow.is_break());
+        assert_eq!(seen, 2);
 
         assert!(matches!(
             RecordingPath::from_file(d.join("c.dat")),

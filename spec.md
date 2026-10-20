@@ -359,13 +359,20 @@ help overlay are generated from it.
 ### File picker overlay
 
 - Opens with `o` / `Ctrl+p`; starts in the directory of the current file (or `.`).
-- Text input at top; list of recordings below (from `discover::find_recordings`).
-- Filtering: case-insensitive substring by default; regex when the query starts
+- Text input at top; list below: immediate subdirectories first (for navigation),
+  then recordings from the directory **and all its subdirectories** (recursive by
+  default, same rules as `list`: hidden directories and directory symlinks are
+  skipped). Recordings are shown with their path relative to the picker directory.
+- `Ctrl+r` toggles between recursive search and this directory only; the choice is
+  kept when changing directories.
+- Filtering on the relative path: case-insensitive substring by default; regex when the query starts
   with `/` (invalid regex shows an error in the overlay, list stays unchanged).
 - Each row: file name, station, start time, #channels (from `.cfg` only).
 - `↑`/`↓` select, `Enter` open, `Backspace` on empty input goes to parent
   directory, `Esc` close.
-- Directory scan runs in the background; results appear as they arrive.
+- Directory scan runs in the background; results appear as they arrive. Changing
+  directory, toggling `Ctrl+r` or closing the picker cancels a running scan.
+- Recursive search in subdirectories.
 
 ### Theme
 

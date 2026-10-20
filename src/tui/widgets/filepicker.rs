@@ -13,7 +13,8 @@ const SPINNER: [char; 4] = ['◐', '◓', '◑', '◒'];
 
 pub fn render(f: &mut Frame, area: Rect, app: &App, p: &Picker) {
     let theme = &app.theme;
-    let title = format!("Open recording · {}", p.dir.display());
+    let mode = if p.recursive { "with subdirectories" } else { "this directory only" };
+    let title = format!("Open recording · {} · {mode}", p.dir.display());
     let inner = overlay_block(f, centered(area, 85, 75), app, &title);
     let [input, list, bottom] = Layout::vertical([
         Constraint::Length(2),
@@ -60,8 +61,8 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, p: &Picker) {
     let table = Table::new(
         rows,
         [
-            Constraint::Percentage(35),
-            Constraint::Percentage(30),
+            Constraint::Percentage(45),
+            Constraint::Percentage(25),
             Constraint::Length(19),
             Constraint::Length(9),
         ],
@@ -73,7 +74,14 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, p: &Picker) {
     let message = if let Some(e) = &p.error {
         Line::styled(e.clone(), theme.error())
     } else if empty && !p.scanning {
-        Line::styled("no COMTRADE recordings here", theme.muted())
+        Line::styled(
+            if p.recursive {
+                "no COMTRADE recordings here or in subdirectories"
+            } else {
+                "no COMTRADE recordings here (Ctrl+r searches subdirectories)"
+            },
+            theme.muted(),
+        )
     } else {
         Line::styled(
             format!("{} of {} entries", p.filtered.len(), p.entries.len()),
