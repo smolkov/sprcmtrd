@@ -308,7 +308,8 @@ impl Recording {
             })
             .collect();
         let view = data.time_span();
-        let cursor = 0.0f64.clamp(view.0, view.1.max(view.0));
+        // Cursor on the sample closest to the trigger.
+        let cursor = data.index_at(0.0).map_or(0.0, |i| data.time()[i]);
         Self {
             data: Arc::new(data),
             name,
@@ -380,7 +381,13 @@ impl Recording {
         self.view = (self.view.0 + shift, self.view.1 + shift);
         self.clamp_view();
         if !(self.view.0..=self.view.1).contains(&self.cursor) {
-            self.cursor = self.cursor.clamp(self.view.0, self.view.1);
+            // Keep the cursor on a sample inside the view.
+            let range = self.data.index_range(self.view.0, self.view.1);
+            let t = self.data.time();
+            if !range.is_empty() {
+                let i = if self.cursor < self.view.0 { range.start } else { range.end - 1 };
+                self.cursor = t[i];
+            }
         }
     }
 
@@ -398,9 +405,12 @@ impl Recording {
         self.set_cursor(new);
     }
 
+    /// Moves the cursor to the sample closest to `t`, so the shown time is
+    /// exactly the time of the sample whose values are shown.
     fn set_cursor(&mut self, t: f64) {
         let (first, last) = self.data.time_span();
-        self.cursor = t.clamp(first, last);
+        let t = t.clamp(first, last);
+        self.cursor = self.data.index_at(t).map_or(t, |i| self.data.time()[i]);
         let span = self.view.1 - self.view.0;
         if self.cursor < self.view.0 {
             self.view = (self.cursor, self.cursor + span);

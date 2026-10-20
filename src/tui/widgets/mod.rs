@@ -170,6 +170,35 @@ mod tests {
         assert!(render(&app, 60, 20).contains("Terminal too small"));
     }
 
+    /// Second to last row: the time axis inside the plot border.
+    fn axis_row(screen: &str) -> &str {
+        let rows: Vec<&str> = screen.lines().collect();
+        rows[rows.len() - 3]
+    }
+
+    #[test]
+    fn time_axis_always_shows_cursor_time() {
+        let mut app = app();
+        // 2 kHz: one decimal shows every sample time exactly.
+        assert!(axis_row(&render(&app, 110, 30)).contains("▲ 0.0 ms"));
+
+        app.on_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        let rec = app.recording.as_ref().unwrap();
+        assert!(rec.data.time().contains(&rec.cursor), "cursor snaps to a sample");
+        assert!(axis_row(&render(&app, 110, 30)).contains("▲ 2.0 ms"));
+
+        // At the right edge the label flips to the left of the marker.
+        let last = *app.recording.as_ref().unwrap().data.time().last().unwrap();
+        app.recording.as_mut().unwrap().cursor = last;
+        assert!(axis_row(&render(&app, 110, 30)).trim_end_matches(['│', ' ']).ends_with("139.5 ms ▲"));
+
+        // Zoomed in, the label stays visible on the narrowest supported terminal.
+        for _ in 0..6 {
+            app.on_key(KeyEvent::new(KeyCode::Char('+'), KeyModifiers::NONE));
+        }
+        assert!(axis_row(&render(&app, 80, 24)).contains("139.5 ms ▲"));
+    }
+
     #[test]
     fn zoom_and_cursor_keys_change_view() {
         let mut app = app();

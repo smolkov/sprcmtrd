@@ -38,7 +38,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     block = block.title(
         Line::from(format!(
             " cursor {} · window {} ",
-            time_label(app, rec, rec.cursor, span),
+            cursor_label(app, rec),
             time(span, span)
         ))
         .alignment(Alignment::Right),
@@ -245,19 +245,68 @@ fn time_label(app: &App, rec: &Recording, t: f64, span: f64) -> String {
     }
 }
 
+/// Number of decimals that show every sample time in ms exactly
+/// (1 kHz: 0, 2 kHz: 1, 4 kHz: 2), at most 3 (µs).
+fn ms_decimals(rec: &Recording) -> usize {
+    let (first, last) = rec.data.time_span();
+    let n = rec.data.len();
+    if n < 2 || last <= first {
+        return 3;
+    }
+    let period_ms = (last - first) / (n - 1) as f64 * 1e3;
+    (0..3)
+        .find(|&d| {
+            let scaled = period_ms * 10f64.powi(d as i32);
+            (scaled - scaled.round()).abs() < 1e-6 * scaled.max(1.0)
+        })
+        .unwrap_or(3)
+}
+
+/// Cursor time: milliseconds relative to the trigger with sample
+/// resolution, or the absolute time of day.
+fn cursor_label(app: &App, rec: &Recording) -> String {
+    if app.absolute_time {
+        time_label(app, rec, rec.cursor, 0.0)
+    } else {
+        format!("{:.d$} ms", rec.cursor * 1e3, d = ms_decimals(rec))
+    }
+}
+
+/// Bottom row: tick labels, the trigger marker `T` and the cursor marker
+/// with its time. The cursor label is always drawn; tick labels that would
+/// overlap it are skipped.
 fn time_axis(f: &mut Frame, area: Rect, app: &App, rec: &Recording) {
     let theme = &app.theme;
     let (t0, t1) = rec.view;
     let span = t1 - t0;
     let width = area.width as usize;
     let mut chars = vec![' '; width];
-    // Markers first, so labels that would overlap them are skipped.
-    let trigger_col = column_of(rec, 0.0, area.width);
-    let cursor_col = column_of(rec, rec.cursor, area.width);
-    for (col, symbol) in [(trigger_col, 'T'), (cursor_col, '▲')] {
-        if let Some(c) = col {
-            chars[c as usize] = symbol;
-        }
+
+    // Cursor label next to its marker, flipped left near the right edge.
+    let label = cursor_label(app, rec);
+    let cursor_text: Vec<char> = match column_of(rec, rec.cursor, area.width) {
+        Some(c) if c as usize + label.chars().count() + 2 <= width => format!("▲ {label}"),
+        Some(_) => format!("{label} ▲"),
+        None if rec.cursor < t0 => format!("◀ {label}"),
+        None => format!("{label} ▶"),
+    }
+    .chars()
+    .collect();
+    let len = cursor_text.len().min(width);
+    let cursor_start = match column_of(rec, rec.cursor, area.width) {
+        Some(c) if cursor_text[0] == '▲' => c as usize,
+        Some(c) => (c as usize + 1).saturating_sub(len),
+        None if rec.cursor < t0 => 0,
+        None => width - len,
+    };
+    let cursor_range = cursor_start..(cursor_start + len).min(width);
+    for (slot, &ch) in chars[cursor_range.clone()].iter_mut().zip(&cursor_text) {
+        *slot = ch;
+    }
+
+    let trigger_col = column_of(rec, 0.0, area.width).filter(|&c| chars[c as usize] == ' ');
+    if let Some(c) = trigger_col {
+        chars[c as usize] = 'T';
     }
 
     let ticks = if app.absolute_time { 3 } else { 5 };
@@ -272,8 +321,10 @@ fn time_axis(f: &mut Frame, area: Rect, app: &App, rec: &Recording) {
         } else {
             pos.saturating_sub(label.len() / 2)
         };
-        // Skip labels that would overlap the previous one.
-        if chars[start.saturating_sub(1)..(start + label.len()).min(width)].iter().any(|&c| c != ' ') {
+        // Skip labels closer than two spaces to the cursor label, a marker or
+        // another label, so neighbouring times are not read as one.
+        let around = start.saturating_sub(2)..(start + label.len() + 2).min(width);
+        if chars[around].iter().any(|&c| c != ' ') {
             continue;
         }
         for (j, &ch) in label.iter().enumerate() {
@@ -286,9 +337,11 @@ fn time_axis(f: &mut Frame, area: Rect, app: &App, rec: &Recording) {
     f.render_widget(Paragraph::new(Span::styled(text, theme.muted())), area);
 
     let buf = f.buffer_mut();
-    for (col, color) in [(trigger_col, theme.trigger), (cursor_col, theme.cursor)] {
-        if let Some(c) = col {
-            buf[(area.x + c, area.y)].set_style(Style::new().fg(color).add_modifier(Modifier::BOLD));
-        }
+    if let Some(c) = trigger_col {
+        buf[(area.x + c, area.y)].set_style(Style::new().fg(theme.trigger).add_modifier(Modifier::BOLD));
+    }
+    let cursor_style = Style::new().fg(theme.cursor).add_modifier(Modifier::BOLD);
+    for x in cursor_range {
+        buf[(area.x + x as u16, area.y)].set_style(cursor_style);
     }
 }
