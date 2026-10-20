@@ -71,7 +71,7 @@ tests/cli.rs    CLI integration tests  tests/data/     sample recordings
   ratatui `TestBackend` (see `tui/widgets/mod.rs` tests), CLI behaviour and exit
   codes in `tests/cli.rs` with `assert_cmd`.
 - `tests/data/` holds small **synthetic** recordings (1991 ASCII, 1999 BINARY,
-  2013 BINARY32, 2013 FLOAT32 `.cff`, a broken `.cfg`). They are binary for git
+  1999 ASCII 4 s at 1 kHz, 2013 BINARY32, 2013 FLOAT32 `.cff`, a broken `.cfg`). They are binary for git
   (`.gitattributes`); never let tools rewrite line endings. Adding a file there
   changes `list` output, so update `list_shows_recordings_and_errors`.
 - Tests must never touch the user's real files: TUI test apps use

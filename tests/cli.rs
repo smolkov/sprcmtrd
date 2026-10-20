@@ -67,6 +67,37 @@ fn info_binary32_2013() {
 }
 
 #[test]
+fn info_ascii_1999_long() {
+    let out = cmd()
+        .args(["info", "--json", "tests/data/reclose_1999_ascii.dat"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["config"]["revision"], "Rev1999");
+    assert_eq!(v["config"]["data_format"], "Ascii");
+    assert_eq!(v["config"]["analog"].as_array().unwrap().len(), 6);
+    assert_eq!(v["config"]["binary"].as_array().unwrap().len(), 6);
+    assert_eq!(v["config"]["sample_rates"][0]["rate"], 1000.0);
+    assert_eq!(v["samples"], 4001);
+    assert_eq!(v["duration_s"], 4.0);
+    assert_eq!(v["trigger_offset_s"], 1.0);
+    // The whole .dat parses (view reads every sample).
+    cmd()
+        .args([
+            "view",
+            "tests/data/reclose_1999_ascii.cfg",
+            "--channels",
+            "IA,LOCKOUT",
+            "--width",
+            "80",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("D6 LOCKOUT"));
+}
+
+#[test]
 fn view_binary32_2013() {
     cmd()
         .args([
@@ -91,7 +122,7 @@ fn list_shows_recordings_and_errors() {
         .success()
         .stdout(
             predicate::str::is_match(
-                r"(?s)broken\.cfg.*combined_2013\.cff.*fault_1999\.cfg.*fault_2013\.cfg.*old_1991\.cfg",
+                r"(?s)broken\.cfg.*combined_2013\.cff.*fault_1999\.cfg.*fault_2013\.cfg.*old_1991\.cfg.*reclose_1999_ascii\.cfg",
             )
             .unwrap(),
         )
