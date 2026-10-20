@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum, ValueHint};
 
 /// Terminal viewer for COMTRADE (IEEE C37.111) power system recordings.
 ///
@@ -15,6 +15,7 @@ pub struct Cli {
     pub command: Option<Command>,
 
     /// File or directory to open in the TUI.
+    #[arg(value_hint = ValueHint::AnyPath)]
     pub path: Option<PathBuf>,
 
     /// Global options.
@@ -67,6 +68,7 @@ pub enum Command {
     /// Print a summary of a recording.
     Info {
         /// Any file of the recording (.cfg, .dat, .cff, ...).
+        #[arg(value_hint = ValueHint::FilePath)]
         file: PathBuf,
         /// Print JSON instead of text.
         #[arg(long)]
@@ -79,7 +81,7 @@ pub enum Command {
     /// List recordings in a directory.
     List {
         /// Directory to search.
-        #[arg(default_value = ".")]
+        #[arg(default_value = ".", value_hint = ValueHint::DirPath)]
         dir: PathBuf,
         /// Only search DIR itself, not its subdirectories.
         #[arg(long)]
@@ -95,6 +97,7 @@ pub enum Command {
     /// Print a summary and plots of a recording to stdout.
     View {
         /// Any file of the recording (.cfg, .dat, .cff, ...).
+        #[arg(value_hint = ValueHint::FilePath)]
         file: PathBuf,
         /// Channels to show: comma separated 1-based indices or ids
         /// (analog: `3` or `IA`, binary: `d2` or `TRIP`). Default: all.
@@ -112,6 +115,22 @@ pub enum Command {
         /// Height of each analog plot in rows.
         #[arg(long, default_value_t = 10)]
         height: u16,
+    },
+
+    /// Print a tab-completion script for your shell.
+    ///
+    /// Examples:
+    ///   sprcmtrd completions bash --output ~/.local/share/bash-completion/completions/sprcmtrd
+    ///   sprcmtrd completions zsh --output ~/.zfunc/_sprcmtrd
+    ///   sprcmtrd completions fish --output ~/.config/fish/completions/sprcmtrd.fish
+    ///   sprcmtrd completions powershell >> $PROFILE
+    #[command(verbatim_doc_comment)]
+    Completions {
+        /// Shell to generate the script for.
+        shell: clap_complete::Shell,
+        /// Write the script to this file instead of stdout.
+        #[arg(short, long, value_hint = ValueHint::FilePath)]
+        output: Option<PathBuf>,
     },
 }
 
@@ -147,5 +166,11 @@ mod tests {
         };
         assert_eq!(from, Some(-20.0));
         assert_eq!(channels, ["IA", "d1"]);
+        let c = Cli::parse_from(["sprcmtrd", "completions", "zsh", "-o", "_sprcmtrd"]);
+        let Some(Command::Completions { shell, output }) = c.command else {
+            panic!()
+        };
+        assert_eq!(shell, clap_complete::Shell::Zsh);
+        assert_eq!(output, Some(PathBuf::from("_sprcmtrd")));
     }
 }

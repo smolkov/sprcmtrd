@@ -163,6 +163,26 @@ Non-interactive view printed to stdout (useful for logs and reports).
   per selected analog channel and one status strip per binary channel.
 - Plots are rendered with textplots (no extra plotting crate).
 
+
+### `completions` command
+
+Generates tab-completion scripts for your shell.
+
+- Arguments: `<SHELL>` (bash, zsh, fish, powershell), `--output <FILE>` (default stdout).
+- Example: `sprcmtrd completions bash --output /etc/bash_completion.d/sprcmtrd`
+- Completions for file paths in current directories. Recursively supports subdirectories.
+- Implementation: `clap_complete` generates the script from the clap definitions,
+  so subcommands, options and values (`--theme`, `--sort`, shells) are always in
+  sync. File arguments use `ValueHint::FilePath`, `list DIR` uses
+  `ValueHint::DirPath` and the TUI `PATH` `ValueHint::AnyPath`; the shell completes
+  paths and steps into subdirectories as you type (bash falls back to its file
+  completion via `complete -o default`).
+- Elvish is supported too (part of `clap_complete::Shell`).
+- `--output` errors name the path; a missing directory exits with code 3 (file
+  not found), other write errors with 1. On success a confirmation is printed to
+  stderr and stdout stays empty.
+ 
+
 ## Architecture
 
 ```
@@ -184,6 +204,7 @@ src/
     info.rs
     list.rs
     view.rs
+    completions.rs  Generate tab-completion scripts for your shell
   tui/
     mod.rs           run(): terminal setup/teardown, event loop
     app.rs           App state, actions, key handling
@@ -435,6 +456,11 @@ that dispatches to `info::run`, `list::run`, `view::run`, or `tui::run` when no
 subcommand is given. CLI commands do synchronous work; only the TUI needs the
 async runtime.
 
+### Completions
+
+
+* Supports various shells like Bash, Zsh, Fish, and PowerShell.
+
 
 ## Configuration
 
@@ -484,7 +510,6 @@ Use configuration file at `~/.config/sprcmtrd/config.toml` for theme and key bin
 
 - Should `view` support exporting plots (SVG/PNG) or stay text-only?
 - Should time windows accept sample numbers in addition to milliseconds?
-- Config file (`~/.config/sprcmtrd/config.toml`) for theme and key bindings?
 
 [ratatui]: https://ratatui.rs
 [clap]: https://docs.rs/clap

@@ -188,6 +188,35 @@ fn view_rejects_unknown_channel_and_empty_window() {
 }
 
 #[test]
+fn completions_to_stdout_and_file() {
+    cmd()
+        .args(["completions", "bash"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("complete -F _sprcmtrd"));
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("_sprcmtrd");
+    cmd()
+        .args(["completions", "zsh", "--output"])
+        .arg(&path)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("wrote zsh completions"));
+    assert!(std::fs::read_to_string(&path).unwrap().starts_with("#compdef sprcmtrd"));
+
+    // Missing directory: error with the path, exit code 3 (file not found).
+    cmd()
+        .args(["completions", "fish", "-o"])
+        .arg(dir.path().join("missing/dir/sprcmtrd.fish"))
+        .assert()
+        .code(3)
+        .stderr(predicate::str::contains("creating"));
+    cmd().args(["completions", "tcsh"]).assert().code(2);
+}
+
+#[test]
 fn exit_codes() {
     // Missing file.
     cmd().args(["info", "tests/data/nope.cfg"]).assert().code(3);

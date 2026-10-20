@@ -54,6 +54,7 @@ sprcmtrd PATH               # TUI with PATH opened (recording file or directory)
 sprcmtrd info FILE          # summary of a recording
 sprcmtrd list [DIR]         # recordings in DIR and its subdirectories
 sprcmtrd view FILE          # summary and plots printed to stdout
+sprcmtrd completions SHELL  # tab-completion script for your shell
 ```
 
 `FILE` can be any file of a recording: `fault.cfg`, `fault.dat`, `fault.cff`, …
@@ -128,6 +129,26 @@ A2 IB [A]
 | `--from MS`, `--to MS`| Time window in ms relative to the trigger                            |
 | `--width COLS`        | Plot width (default: terminal width, 100 when not a terminal)        |
 | `--height ROWS`       | Height of each analog plot (default 10)                              |
+
+### `completions`
+
+Prints a tab-completion script for **bash, zsh, fish, PowerShell** or elvish
+(`--output FILE` writes it to a file instead of stdout). It completes
+subcommands, options and option values (`--theme`, `--sort`, shells), and file
+and directory paths, stepping into subdirectories as you type.
+
+```sh
+# bash
+sprcmtrd completions bash --output ~/.local/share/bash-completion/completions/sprcmtrd
+# zsh: a directory in $fpath, e.g. with fpath=(~/.zfunc $fpath) in ~/.zshrc
+sprcmtrd completions zsh --output ~/.zfunc/_sprcmtrd
+# fish
+sprcmtrd completions fish --output ~/.config/fish/completions/sprcmtrd.fish
+# PowerShell
+sprcmtrd completions powershell >> $PROFILE
+```
+
+Start a new shell afterwards. Regenerate the script after updating `sprcmtrd`.
 
 ### Exit codes
 

@@ -1,5 +1,6 @@
 //! Command dispatch and shared output formatting.
 
+pub mod completions;
 pub mod info;
 pub mod list;
 pub mod view;
@@ -60,6 +61,7 @@ impl Command {
                     height,
                 },
             ),
+            Self::Completions { shell, output } => completions::run(shell, output.as_deref()),
         }
     }
 }
