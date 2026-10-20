@@ -1,5 +1,7 @@
 # sprcmtrd
 
+[![CI](https://github.com/smolkov/sprcmtrd/actions/workflows/ci.yml/badge.svg)](https://github.com/smolkov/sprcmtrd/actions/workflows/ci.yml)
+
 A terminal viewer for COMTRADE recordings (IEEE C37.111 / IEC 60255-24), the
 standard format for oscillography and status data recorded by protection relays
 and disturbance recorders during power system faults.
@@ -26,7 +28,12 @@ and disturbance recorders during power system faults.
 
 ## Installation
 
-Requires Rust 1.88 or newer.
+Prebuilt binaries for Linux (x86_64, aarch64), macOS (Intel, Apple Silicon) and
+Windows (x86_64) are attached to each
+[GitHub release](https://github.com/smolkov/sprcmtrd/releases), with a
+`SHA256SUMS` file to verify them.
+
+Building from source requires Rust 1.88 or newer.
 
 ```sh
 cargo install --path .
@@ -239,8 +246,22 @@ CLI commands log warnings to stderr. The TUI never logs to the screen: with
 
 ```sh
 cargo test            # unit, TUI render and CLI integration tests
-cargo clippy --all-targets
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check     # rustfmt.toml: max_width = 120
 ```
+
+GitHub Actions run these on every push to `main` and every pull request
+(`.github/workflows/ci.yml`): format and clippy, tests on Linux, macOS and
+Windows, and a build with the minimum Rust version.
+
+### Releasing
+
+1. Set the new version in `Cargo.toml` and commit.
+2. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`
+
+`.github/workflows/release.yml` checks that the tag matches the `Cargo.toml`
+version, runs the tests, builds the binaries for all platforms and publishes a
+GitHub release with the archives, `SHA256SUMS` and generated release notes.
 
 | Path               | Content                                                       |
 |--------------------|---------------------------------------------------------------|

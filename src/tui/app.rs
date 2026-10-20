@@ -1466,7 +1466,8 @@ mod tests {
         std::fs::write(d.join("top.cfg"), "").unwrap();
         std::fs::write(d.join("a/b/deep.cfg"), "").unwrap();
 
-        assert_eq!(scan_names(d, true, 1, 1), ["a/", "top.cfg", "a/b/deep.cfg"]);
+        let deep = Path::new("a").join("b").join("deep.cfg").display().to_string();
+        assert_eq!(scan_names(d, true, 1, 1), ["a/", "top.cfg", deep.as_str()]);
         assert_eq!(scan_names(d, false, 1, 1), ["a/", "top.cfg"]);
         // A newer scan has started: nothing is sent.
         assert!(scan_names(d, true, 1, 2).is_empty());

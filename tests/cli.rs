@@ -115,7 +115,14 @@ fn list_searches_subdirectories_by_default() {
         .arg(dir.path())
         .assert()
         .success()
-        .stdout(predicate::str::contains("station/2024/fault_1999.cfg"))
+        // Path shown relative to DIR, with the platform's separator.
+        .stdout(predicate::str::contains(
+            std::path::Path::new("station")
+                .join("2024")
+                .join("fault_1999.cfg")
+                .display()
+                .to_string(),
+        ))
         .stdout(predicate::str::contains("old_1991.cfg"));
     cmd()
         .args(["list", "--no-recursive"])
