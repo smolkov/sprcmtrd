@@ -1,0 +1,131 @@
+# GitLab pipeline, same checks and release as .github/workflows/ for Linux
+# Docker runners:
+#
+# - Merge requests and pushes to the default branch: rustfmt, clippy, tests,
+#   build with the minimum Rust version (1.88).
+# - Version tags (v0.2.0): additionally check the tag against Cargo.toml,
+#   build release binaries, upload them to the generic package registry and
+#   create a GitLab release with links to them:
+#
+#     git tag v0.2.0 && git push gitlab v0.2.0
+#
+# Differences to GitHub (Linux runners only): tests run on Linux only, the
+# Windows binary is cross-compiled with MinGW (x86_64-pc-windows-gnu) and
+# there are no macOS binaries.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # No branch pipeline when the same push also runs a merge request pipeline.
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+stages:
+  - check
+  - build
+  - release
+
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  CARGO_TERM_COLOR: always
+  # Stable toolchain; `rust:1` follows the latest 1.x release.
+  RUST_IMAGE: rust:1-bookworm
+
+default:
+  image: $RUST_IMAGE
+  interruptible: true
+
+.cargo-cache:
+  cache:
+    key:
+      files: [Cargo.lock]
+      prefix: $CI_JOB_NAME_SLUG
+    paths:
+      - .cargo/registry/index/
+      - .cargo/registry/cache/
+      - .cargo/git/db/
+      - target/
+
+.release-only:
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+
+# --- checks (every pipeline) -------------------------------------------------
+
+format-clippy:
+  stage: check
+  extends: .cargo-cache
+  script:
+    - rustup component add rustfmt clippy
+    - cargo fmt --check
+    - cargo clippy --locked --all-targets -- -D warnings
+
+test:
+  stage: check
+  extends: .cargo-cache
+  script:
+    - cargo build --locked --all-targets
+    - cargo test --locked
+
+msrv:
+  stage: check
+  extends: .cargo-cache
+  image: rust:1.88-bookworm
+  script:
+    - cargo check --locked --all-targets
+
+verify-tag:
+  stage: check
+  extends: .release-only
+  image: alpine:3
+  script:
+    - version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+    - |
+      if [ "v$version" != "$CI_COMMIT_TAG" ]; then
+        echo "tag $CI_COMMIT_TAG does not match Cargo.toml version $version"
+        exit 1
+      fi
+
+# --- release binaries (version tags) ----------------------------------------
+
+build:
+  stage: build
+  extends: [.cargo-cache, .release-only]
+  # Debian bullseye links against glibc 2.31, so the Linux binaries run on
+  # more distributions.
+  image: rust:1-bullseye
+  needs: [verify-tag, test, format-clippy, msrv]
+  parallel:
+    matrix:
+      - TARGET:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-pc-windows-gnu
+  cache:
+    key:
+      files: [Cargo.lock]
+      prefix: build-$TARGET
+    paths:
+      - .cargo/registry/index/
+      - .cargo/registry/cache/
+      - .cargo/git/db/
+      - target/
+  variables:
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+  script:
+    - ci/build-release.sh "$TARGET" "$CI_COMMIT_TAG"
+  artifacts:
+    paths: [dist/]
+    expire_in: 1 week
+
+release:
+  stage: release
+  extends: .release-only
+  image: alpine:3
+  needs: [build]
+  script:
+    - apk add --no-cache curl
+    - ci/gitlab-release.sh

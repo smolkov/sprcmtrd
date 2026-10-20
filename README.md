@@ -284,6 +284,26 @@ Windows, and a build with the minimum Rust version.
 version, runs the tests, builds the binaries for all platforms and publishes a
 GitHub release with the archives, `SHA256SUMS` and generated release notes.
 
+### GitLab
+
+`.gitlab-ci.yml` runs the same checks on Linux Docker runners for merge
+requests and the default branch: rustfmt, clippy, tests and the minimum Rust
+version. For a version tag pushed to GitLab (`git push gitlab v0.2.0`) it also
+checks the tag against `Cargo.toml` and builds release binaries with
+`ci/build-release.sh`. `ci/gitlab-release.sh` uploads the binaries and
+`SHA256SUMS` to the project's generic package registry and creates a GitLab
+release linking to them.
+
+| Platform        | GitHub                    | GitLab                           |
+|-----------------|---------------------------|----------------------------------|
+| Linux x86_64    | tests + binary            | tests + binary                   |
+| Linux aarch64   | binary                    | binary (cross-compiled)          |
+| Windows x86_64  | tests + binary (MSVC)     | binary (MinGW, cross-compiled)   |
+| macOS           | tests + binaries          | — (needs a macOS runner)         |
+
+The GitLab release needs the package registry enabled for the project
+(Settings → General → Visibility → Package registry).
+
 | Path               | Content                                                       |
 |--------------------|---------------------------------------------------------------|
 | `src/comtrade/`    | COMTRADE library: `.cfg`, `.dat`, `.cff` parsing, discovery    |
