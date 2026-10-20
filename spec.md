@@ -384,11 +384,6 @@ help overlay are generated from it.
 - Configuration file is located at `~/.config/sprcmtrd/config.toml`.
 - If configuration file does not exist, it will be created with default values.
 
-Settings: 
-
-* Theme: dark or light
-* Key bindings: every action from the key binding table
-
 Layout (centered, 75 % × 85 %, title shows the configuration file path):
 
 ```
