@@ -92,9 +92,10 @@ pub enum Command {
         /// Only show recordings that load without errors (configuration and data).
         #[arg(long)]
         valid: bool,
-        /// Sort order.
-        #[arg(long, value_enum, default_value_t = SortKey::Time)]
-        sort: SortKey,
+        /// Sort order. Default: in a terminal, rows are shown as they are
+        /// found; otherwise sorted by start time.
+        #[arg(long, value_enum)]
+        sort: Option<SortKey>,
     },
 
     /// Print a summary and plots of a recording to stdout.

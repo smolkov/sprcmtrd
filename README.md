@@ -99,7 +99,10 @@ old_1991.cfg           SUBSTATION A  1991  1994-03-15 08:30:00  99.00 ms  1 kHz 
 - Subdirectories are searched by default; `--no-recursive` searches only `DIR`.
   Hidden directories and symbolic links to directories are skipped.
 - `--filter REGEX` keeps recordings whose file name matches.
-- `--sort time|name|size` (default `time`).
+- In a terminal, recordings are printed as they are found, with a spinner
+  showing the progress of the search. `--sort time|name|size` prints a sorted
+  table when the search is done instead. Piped output is always a table sorted
+  by start time (or `--sort`), without spinner.
 - Recordings that cannot be parsed are listed with the error instead of being
   dropped; a configuration without data file is marked `(!no data)`.
 - `--valid` shows only recordings that load completely (configuration and data),

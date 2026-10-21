@@ -149,7 +149,18 @@ Searches for recordings in a directory and prints one row per recording.
 - Columns: file name, station, revision, start time, duration, sample rate,
   #analog, #binary, `.dat` size.
 - Only the `.cfg` is parsed (fast). The `.dat` is not read.
-- Sorted by start time; `--sort name|time|size` to change it.
+- Search runs in the background (own thread); found recordings are sent to the
+  output as they are found.
+- In a terminal without `--sort`, rows are printed as they are found (search
+  order) with fixed column widths: the file column takes what the terminal width
+  leaves (long paths keep their end), errors follow the file name, and lines are
+  cut at the terminal width instead of wrapping.
+- With `--sort name|time|size`, or when stdout is not a terminal (pipes,
+  scripts), the rows are sorted (by start time by default) and printed as one
+  aligned table at the end.
+- While searching, a spinner with the number of recordings found and the
+  directory being searched is shown on stderr (only when stderr is a terminal);
+  it is cleared when the search ends.
 - Files that fail to parse are listed with an error column instead of being dropped.
 - `--valid` shows only recordings that load completely, as the viewer would open
   them: the `.cfg` parses, the `.dat` exists and its samples parse. This reads the
