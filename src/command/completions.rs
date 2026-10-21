@@ -59,6 +59,7 @@ mod tests {
                 "list",
                 "view",
                 "convert",
+                "export",
                 "completions",
                 "no-recursive",
                 "theme",

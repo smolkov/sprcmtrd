@@ -121,6 +121,44 @@ pub enum Command {
         height: u16,
     },
 
+    /// Export samples as CSV or JSON (for Excel, Python, gnuplot, ...).
+    ///
+    /// Analog values are scaled (primary side unless --secondary), binary
+    /// channels are 0 or 1, missing values are empty (CSV) or null (JSON).
+    ///
+    /// Examples:
+    ///   sprcmtrd export fault.cfg -o fault.csv
+    ///   sprcmtrd export fault.cfg --channels IA,IB,TRIP --from -20 --to 100
+    ///   sprcmtrd export fault.cfg --format json --every 4 -o fault.json
+    #[command(verbatim_doc_comment)]
+    Export {
+        /// Any file of the recording (.cfg, .dat, .cff, ...).
+        #[arg(value_hint = ValueHint::FilePath)]
+        file: PathBuf,
+        /// Output format (default: json for a .json output file, otherwise csv).
+        #[arg(long, value_enum)]
+        format: Option<ExportFormat>,
+        /// Channels to export: comma separated 1-based indices or ids
+        /// (analog: `3` or `IA`, binary: `d2` or `TRIP`). Default: all.
+        #[arg(long, value_delimiter = ',')]
+        channels: Vec<String>,
+        /// Start of the time window in ms relative to the trigger.
+        #[arg(long, allow_hyphen_values = true)]
+        from: Option<f64>,
+        /// End of the time window in ms relative to the trigger.
+        #[arg(long, allow_hyphen_values = true)]
+        to: Option<f64>,
+        /// Export only every Nth sample (no filtering).
+        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
+        every: u32,
+        /// Time as date and time of day instead of ms relative to the trigger.
+        #[arg(long)]
+        absolute: bool,
+        /// Write to this file instead of stdout.
+        #[arg(short, long, value_hint = ValueHint::FilePath)]
+        output: Option<PathBuf>,
+    },
+
     /// Convert a recording to another revision, data format or file layout.
     ///
     /// The output extension selects the layout: `.cfg` writes .cfg + .dat
@@ -165,6 +203,15 @@ pub enum Command {
         #[arg(short, long, value_hint = ValueHint::FilePath)]
         output: Option<PathBuf>,
     },
+}
+
+/// Output format for `export`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum ExportFormat {
+    /// Comma separated values with a header row.
+    Csv,
+    /// One JSON object with an array per column.
+    Json,
 }
 
 /// Data file format for `convert`.

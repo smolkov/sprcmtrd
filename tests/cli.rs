@@ -410,3 +410,88 @@ fn convert_refuses_bad_targets_and_overwrites() {
 
     cmd().args(["convert", "missing.cfg", "-o"]).arg(&out).assert().code(3);
 }
+
+#[test]
+fn export_csv_with_selection() {
+    cmd()
+        .args(["export", "tests/data/fault_1999.cfg"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with(
+            "sample,time_ms,IA [A],IB [A],IC [A],VA [kV],START,TRIP,CB_OPEN,SPARE\n\
+             1,-60,0,-346.4,346.4,0,0,0,0,0\n2,-59.5,62.6,-373.4,310.8,14.08,0,0,0,0\n",
+        ));
+
+    // 2 kHz: -1 ms .. 1 ms is 5 samples, every 2nd of them is 3.
+    let out = cmd()
+        .args([
+            "export",
+            "tests/data/fault_1999.cfg",
+            "--channels",
+            "IB,d2",
+            "--from",
+            "-1",
+            "--to",
+            "1",
+        ])
+        .args(["--every", "2", "--absolute"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8(out).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines[0], "sample,time,IB [A],TRIP");
+    assert_eq!(lines.len(), 4, "{text}");
+    assert!(lines[1].starts_with("119,2024-03-15T08:30:00.059000,"), "{text}");
+
+    cmd()
+        .args(["export", "tests/data/fault_1999.cfg", "--channels", "NOPE"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("unknown channel 'NOPE'"));
+    cmd()
+        .args(["export", "tests/data/fault_1999.cfg", "--every", "0"])
+        .assert()
+        .code(2);
+}
+
+#[test]
+fn export_json_to_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("old.json");
+    cmd()
+        .args(["export", "tests/data/old_1991.cfg", "--channels", "IA,TRIP", "-o"])
+        .arg(&out)
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("wrote 100 samples × 2 channels"));
+    let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&out).unwrap()).unwrap();
+    assert_eq!(v["revision"], "1991");
+    assert_eq!(v["side"], "primary");
+    assert_eq!(v["time_ms"].as_array().unwrap().len(), 100);
+    assert_eq!(v["analog"][0]["id"], "IA");
+    // 99999 marks a missing value in the 1991 data file.
+    assert!(v["analog"][0]["values"][50].is_null());
+    assert_eq!(v["binary"][0]["values"][50], 1);
+
+    // Never over a file of the recording.
+    let data = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
+    for f in ["old_1991.cfg", "old_1991.dat"] {
+        std::fs::copy(format!("{data}/{f}"), dir.path().join(f)).unwrap();
+    }
+    let dat = dir.path().join("old_1991.dat");
+    cmd()
+        .arg("export")
+        .arg(dir.path().join("old_1991.cfg"))
+        .arg("-o")
+        .arg(&dat)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("part of the source recording"));
+    assert_eq!(
+        std::fs::read(&dat).unwrap(),
+        std::fs::read(format!("{data}/old_1991.dat")).unwrap()
+    );
+}

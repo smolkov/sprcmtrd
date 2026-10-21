@@ -3,11 +3,10 @@
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
-use anyhow::bail;
 use textplots::{Chart, LabelBuilder, LabelFormat, Plot, Shape};
 
 use super::info::{key_values, summary};
-use super::{Context, si, time};
+use super::{Context, select_channels, si, time, time_window};
 use crate::comtrade::{Cell, Comtrade, Side};
 
 /// Options of the `view` command.
@@ -38,14 +37,8 @@ pub fn run(ctx: &Context, opts: &Options) -> anyhow::Result<()> {
     } else {
         Side::Primary
     };
-    let (analog, binary) = select(&c, &opts.channels)?;
-
-    let (first, last) = c.time_span();
-    let t0 = opts.from_ms.map_or(first, |ms| ms / 1e3);
-    let t1 = opts.to_ms.map_or(last, |ms| ms / 1e3);
-    if t1 <= t0 {
-        bail!("empty time window: --from must be before --to");
-    }
+    let (analog, binary) = select_channels(&c, &opts.channels)?;
+    let (t0, t1) = time_window(&c, opts.from_ms, opts.to_ms)?;
     let width = opts.width.map(usize::from).unwrap_or_else(terminal_width);
     let plot_cols = width.saturating_sub(LABEL_WIDTH).max(16);
     let range = c.index_range(t0, t1);
@@ -140,37 +133,6 @@ fn plot(segments: &[Vec<(f64, f64)>], (t0, t1): (f64, f64), cols: usize, rows: u
     c.figures();
     // textplots pads with U+2800 (blank braille); plain spaces copy better.
     c.to_string().replace('\u{2800}', " ")
-}
-
-/// Resolves the channel selection into analog and binary positions.
-fn select(c: &Comtrade, tokens: &[String]) -> anyhow::Result<(Vec<usize>, Vec<usize>)> {
-    let n_analog = c.analog_channels().len();
-    let n_binary = c.binary_channels().len();
-    if tokens.is_empty() {
-        return Ok(((0..n_analog).collect(), (0..n_binary).collect()));
-    }
-    let (mut analog, mut binary) = (Vec::new(), Vec::new());
-    for token in tokens.iter().map(|t| t.trim()).filter(|t| !t.is_empty()) {
-        let digital_index = token.strip_prefix(['d', 'D']).and_then(|n| n.parse::<usize>().ok());
-        if let Ok(n) = token.parse::<usize>() {
-            if n == 0 || n > n_analog {
-                bail!("analog channel {n} does not exist (1..={n_analog})");
-            }
-            analog.push(n - 1);
-        } else if let Some(n) = digital_index {
-            if n == 0 || n > n_binary {
-                bail!("binary channel d{n} does not exist (d1..=d{n_binary})");
-            }
-            binary.push(n - 1);
-        } else if let Some(i) = c.analog_channels().position(|a| a.info.id.eq_ignore_ascii_case(token)) {
-            analog.push(i);
-        } else if let Some(i) = c.binary_channels().position(|b| b.info.id.eq_ignore_ascii_case(token)) {
-            binary.push(i);
-        } else {
-            bail!("unknown channel '{token}'");
-        }
-    }
-    Ok((analog, binary))
 }
 
 fn terminal_width() -> usize {

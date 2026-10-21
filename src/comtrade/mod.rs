@@ -7,6 +7,7 @@ pub mod cff;
 pub mod cfg;
 pub mod dat;
 pub mod discover;
+pub mod export;
 pub mod write;
 
 use std::fs::File;
@@ -357,10 +358,13 @@ impl Comtrade {
         }
     }
 
-    /// Indices of the samples with `t0 <= time <= t1`.
+    /// Indices of the samples with `t0 <= time <= t1`. Times within 1 ns of
+    /// an edge count as inside, so a sample computed as -1.0000000000000009 ms
+    /// is in a window starting at -1 ms.
     pub fn index_range(&self, t0: f64, t1: f64) -> Range<usize> {
-        let start = self.time.partition_point(|&t| t < t0);
-        let end = self.time.partition_point(|&t| t <= t1);
+        const EPS: f64 = 1e-9;
+        let start = self.time.partition_point(|&t| t < t0 - EPS);
+        let end = self.time.partition_point(|&t| t <= t1 + EPS);
         start..end.max(start)
     }
 

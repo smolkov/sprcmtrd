@@ -2,11 +2,15 @@
 
 pub mod completions;
 pub mod convert;
+pub mod export;
 pub mod info;
 pub mod list;
 pub mod view;
 
+use anyhow::bail;
+
 use crate::args::{Cli, Command, GlobalOpts};
+use crate::comtrade::Comtrade;
 use crate::config::AppConfig;
 
 /// Settings available to all commands.
@@ -63,6 +67,28 @@ impl Command {
                     height,
                 },
             ),
+            Self::Export {
+                file,
+                format,
+                channels,
+                from,
+                to,
+                every,
+                absolute,
+                output,
+            } => export::run(
+                ctx,
+                &export::Options {
+                    file,
+                    format,
+                    channels,
+                    from_ms: from,
+                    to_ms: to,
+                    every: every as usize,
+                    absolute,
+                    output,
+                },
+            ),
             Self::Convert {
                 file,
                 output,
@@ -73,6 +99,51 @@ impl Command {
             Self::Completions { shell, output } => completions::run(shell, output.as_deref()),
         }
     }
+}
+
+/// Resolves a `--channels` selection (1-based analog indices, `dN` binary
+/// indices or channel ids) into analog and binary positions. An empty
+/// selection means all channels.
+pub fn select_channels(c: &Comtrade, tokens: &[String]) -> anyhow::Result<(Vec<usize>, Vec<usize>)> {
+    let n_analog = c.analog_channels().len();
+    let n_binary = c.binary_channels().len();
+    if tokens.is_empty() {
+        return Ok(((0..n_analog).collect(), (0..n_binary).collect()));
+    }
+    let (mut analog, mut binary) = (Vec::new(), Vec::new());
+    for token in tokens.iter().map(|t| t.trim()).filter(|t| !t.is_empty()) {
+        let digital_index = token.strip_prefix(['d', 'D']).and_then(|n| n.parse::<usize>().ok());
+        if let Ok(n) = token.parse::<usize>() {
+            if n == 0 || n > n_analog {
+                bail!("analog channel {n} does not exist (1..={n_analog})");
+            }
+            analog.push(n - 1);
+        } else if let Some(n) = digital_index {
+            if n == 0 || n > n_binary {
+                bail!("binary channel d{n} does not exist (d1..=d{n_binary})");
+            }
+            binary.push(n - 1);
+        } else if let Some(i) = c.analog_channels().position(|a| a.info.id.eq_ignore_ascii_case(token)) {
+            analog.push(i);
+        } else if let Some(i) = c.binary_channels().position(|b| b.info.id.eq_ignore_ascii_case(token)) {
+            binary.push(i);
+        } else {
+            bail!("unknown channel '{token}'");
+        }
+    }
+    Ok((analog, binary))
+}
+
+/// Time window in seconds relative to the trigger from `--from` / `--to` in
+/// ms; the whole recording when they are not given.
+pub fn time_window(c: &Comtrade, from_ms: Option<f64>, to_ms: Option<f64>) -> anyhow::Result<(f64, f64)> {
+    let (first, last) = c.time_span();
+    let t0 = from_ms.map_or(first, |ms| ms / 1e3);
+    let t1 = to_ms.map_or(last, |ms| ms / 1e3);
+    if t1 <= t0 {
+        bail!("empty time window: --from must be before --to");
+    }
+    Ok((t0, t1))
 }
 
 /// Formats `v` with 4 significant digits and an SI prefix (`12.34k`).

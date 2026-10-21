@@ -5,7 +5,7 @@
 `sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
 faces:
 
-- **CLI commands** (`info`, `list`, `view`, `convert`) that print to stdout and can be used in scripts.
+- **CLI commands** (`info`, `list`, `view`, `export`, `convert`) that print to stdout and can be used in scripts.
 - **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
   analog and binary channels as plots.
 
@@ -98,6 +98,7 @@ sprcmtrd [PATH]                # start TUI with PATH (file or directory) opened
 sprcmtrd info <FILE>           # print summary of a recording
 sprcmtrd list [DIR]            # list recordings in DIR (default: .)
 sprcmtrd view <FILE>           # print summary and terminal plots to stdout
+sprcmtrd export <FILE>         # samples as CSV or JSON
 sprcmtrd convert <FILE> -o <OUT> # write as another revision / format / .cff
 ```
 
@@ -181,6 +182,35 @@ Non-interactive view printed to stdout (useful for logs and reports).
 - Plots are rendered with textplots (no extra plotting crate).
 
 
+### `export` command
+
+Writes samples as CSV or JSON for spreadsheets and scripts (Excel, Python,
+gnuplot).
+
+- Arguments: `<FILE>`, `--format csv|json` (default: `json` when `--output`
+  ends in `.json`, otherwise `csv`), `--channels <LIST>` and `--from` / `--to`
+  (as in `view`), `--every N` (every Nth sample, plain picking without
+  filtering), `--absolute`, `-o, --output <FILE>` (default stdout). The global
+  `--secondary` selects secondary values.
+- Library: `comtrade::export` (`Export` with the selected channels, sample
+  range, `every`, side and time column; `Export::write` with `Format::Csv` /
+  `Format::Json`). The command resolves the options and handles the output file.
+- Values are scaled (`a * raw + b`, converted to the selected side) and rounded
+  to 12 significant digits, so scaling noise doesn't show. Binary channels are
+  `0` / `1`.
+- CSV: header row `sample,time_ms,<id> [<unit>]…,<binary id>…`; one row per
+  sample; `sample` is the 1-based sample number, `time_ms` the time relative to
+  the trigger. With `--absolute` the column is `time` with date and time of day
+  (`2024-03-15T08:30:00.060000`). Missing values are empty fields; fields with
+  commas or quotes are quoted.
+- JSON: one object with `station`, `device`, `revision`, `start_time`,
+  `trigger_time`, `side`, then one array per column: `time_ms` (or `time`),
+  `sample`, `analog[]` (`index`, `id`, `phase`, `circuit`, `unit`, `values` with
+  `null` for missing) and `binary[]` (`values` of 0/1).
+- `--output` replaces an existing file but never a file of the source recording.
+  A summary (`wrote N samples × M channels to FILE`) goes to stderr. Writing to
+  a closed pipe (`| head`) ends quietly.
+
 ### `convert` command
 
 Writes a recording as another revision, data format or file layout.
@@ -249,12 +279,14 @@ src/
     dat.rs           .dat reader (ASCII, BINARY, BINARY32, FLOAT32)
     cff.rs           .cff splitter (2013)
     write.rs         .cfg / .dat / .cff writer (convert)
+    export.rs        samples as CSV / JSON (export)
     discover.rs      find sibling files / recordings in a directory
   command/
     mod.rs           Command::run dispatch
     info.rs
     list.rs
     view.rs
+    export.rs       Samples as CSV / JSON
     convert.rs      Write a recording as another revision / format
     completions.rs  Generate tab-completion scripts for your shell
   tui/
