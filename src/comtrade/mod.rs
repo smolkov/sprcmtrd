@@ -8,6 +8,7 @@ pub mod cfg;
 pub mod dat;
 pub mod discover;
 pub mod export;
+pub mod stats;
 pub mod write;
 
 use std::fs::File;
@@ -504,6 +505,12 @@ fn build_time(cfg: &Config, timestamps: &[u32]) -> Vec<f64> {
         *t -= offset;
     }
     out
+}
+
+/// Rounds to 12 significant digits, so float noise (`0.2 * 6` =
+/// `1.2000000000000002`) does not show; printing gives the shortest form.
+pub fn round12(v: f64) -> f64 {
+    format!("{v:.11e}").parse().unwrap_or(v)
 }
 
 /// Decodes text as UTF-8, falling back to Latin-1 for old files.

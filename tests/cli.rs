@@ -564,3 +564,30 @@ fn cut_reports_trigger_and_bad_windows() {
         .stderr(predicate::str::contains("no samples in the time window"));
     assert!(!dir.path().join("x.cfg").exists());
 }
+
+#[test]
+fn stats_text_and_json() {
+    cmd()
+        .args(["stats", "tests/data/fault_2013.cfg", "--channels", "IB,CB_CLOSED"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Window  -0.500 s .. 1.500 s (4001 samples)"))
+        .stdout(predicate::str::is_match(r"A2 IB +A +-4\.602k .* 7\.244k +0\.011 s").unwrap())
+        .stdout(predicate::str::is_match(r"D7 CB_CLOSED +1 +1 +2 +0\.100 s +1\.200 s").unwrap());
+
+    // `stat` is an alias; 99999 marks a missing value in the 1991 data file.
+    let out = cmd()
+        .args(["stat", "tests/data/old_1991.cfg", "--channels", "IA,TRIP", "--json"])
+        .args(["--from", "0", "--to", "30"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["samples"], 31);
+    let ia = &v["analog"][0];
+    assert_eq!(ia["id"], "IA");
+    assert_eq!(ia["samples"].as_u64().unwrap() + ia["missing"].as_u64().unwrap(), 31);
+    assert_eq!(ia["missing"], 1);
+    assert_eq!(v["binary"][0]["id"], "TRIP");
+    assert_eq!(v["binary"][0]["first_change"], 0.02);
+}

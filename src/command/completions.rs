@@ -61,6 +61,7 @@ mod tests {
                 "convert",
                 "cut",
                 "export",
+                "stats",
                 "completions",
                 "no-recursive",
                 "theme",

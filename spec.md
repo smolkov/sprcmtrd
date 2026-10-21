@@ -5,7 +5,7 @@
 `sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
 faces:
 
-- **CLI commands** (`info`, `list`, `view`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
+- **CLI commands** (`info`, `list`, `view`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
 - **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
   analog and binary channels as plots.
 
@@ -98,6 +98,7 @@ sprcmtrd [PATH]                # start TUI with PATH (file or directory) opened
 sprcmtrd info <FILE>           # print summary of a recording
 sprcmtrd list [DIR]            # list recordings in DIR (default: .)
 sprcmtrd view <FILE>           # print summary and terminal plots to stdout
+sprcmtrd stats <FILE>          # min, max, mean, RMS, peak; binary changes
 sprcmtrd export <FILE>         # samples as CSV or JSON
 sprcmtrd cut <FILE> -o <OUT>   # time window / channels as a new recording
 sprcmtrd convert <FILE> -o <OUT> # write as another revision / format / .cff
@@ -182,6 +183,26 @@ Non-interactive view printed to stdout (useful for logs and reports).
   per selected analog channel and one status strip per binary channel.
 - Plots are rendered with textplots (no extra plotting crate).
 
+
+### `stats` command
+
+Statistics per channel over a time window (alias `stat`).
+
+- Arguments: `<FILE>`, `--channels <LIST>` and `--from` / `--to` as in `view`,
+  `--json`; the global `--secondary` selects secondary values.
+- Analog channels: min and max with the time of their first occurrence, mean
+  (DC part), RMS over the window (true RMS of all samples, not of the
+  fundamental), peak (value with the largest magnitude, with sign) and its time,
+  number of missing samples (left out of all other values).
+- Binary channels: state at the first and last sample, number of changes, time
+  of the first change, time spent in state 1 (each sample counts until the next).
+- Text output: window and side, then one table for analog and one for binary
+  channels; values with 4 significant digits and SI prefix, times relative to
+  the trigger. JSON: `file`, `side`, `from_s`, `to_s`, `samples`, `analog[]`,
+  `binary[]` with full values (times in s).
+- Results are rounded to 12 significant digits, and a mean below 1e-12 of the
+  peak counts as 0, so float noise doesn't show.
+- Library: `comtrade::stats` (`analog`, `binary`).
 
 ### `export` command
 
@@ -300,12 +321,14 @@ src/
     cff.rs           .cff splitter (2013)
     write.rs         .cfg / .dat / .cff writer (convert)
     export.rs        samples as CSV / JSON (export)
+    stats.rs         channel statistics (stats)
     discover.rs      find sibling files / recordings in a directory
   command/
     mod.rs           Command::run dispatch
     info.rs
     list.rs
     view.rs
+    stats.rs        Channel statistics
     export.rs       Samples as CSV / JSON
     cut.rs          Time window / channels as a new recording
     convert.rs      Write a recording as another revision / format

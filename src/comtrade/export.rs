@@ -10,7 +10,7 @@ use std::ops::Range;
 use chrono::{NaiveDateTime, TimeDelta};
 use serde::Serialize;
 
-use super::{AnalogChannel, BinaryChannel, Comtrade, Side};
+use super::{AnalogChannel, BinaryChannel, Comtrade, Side, round12 as round};
 
 /// Output format of an export.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -183,12 +183,6 @@ fn csv_field(s: &str) -> String {
     } else {
         s.to_owned()
     }
-}
-
-/// Rounds to 12 significant digits, so scaling noise (`0.2 * 6` =
-/// `1.2000000000000002`) does not show; the shortest form is printed.
-fn round(v: f64) -> f64 {
-    format!("{v:.11e}").parse().unwrap_or(v)
 }
 
 #[derive(Serialize)]

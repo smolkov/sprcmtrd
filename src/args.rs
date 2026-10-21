@@ -121,6 +121,32 @@ pub enum Command {
         height: u16,
     },
 
+    /// Statistics per channel: min, max, mean, RMS and peak of analog
+    /// channels, state changes of binary channels.
+    ///
+    /// Examples:
+    ///   sprcmtrd stats fault.cfg
+    ///   sprcmtrd stats fault.cfg --channels IA,IB,IC --from 0 --to 100
+    #[command(visible_alias = "stat", verbatim_doc_comment)]
+    Stats {
+        /// Any file of the recording (.cfg, .dat, .cff, ...).
+        #[arg(value_hint = ValueHint::FilePath)]
+        file: PathBuf,
+        /// Channels: comma separated 1-based indices or ids
+        /// (analog: `3` or `IA`, binary: `d2` or `TRIP`). Default: all.
+        #[arg(long, value_delimiter = ',')]
+        channels: Vec<String>,
+        /// Start of the time window in ms relative to the trigger.
+        #[arg(long, allow_hyphen_values = true)]
+        from: Option<f64>,
+        /// End of the time window in ms relative to the trigger.
+        #[arg(long, allow_hyphen_values = true)]
+        to: Option<f64>,
+        /// Print JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Export samples as CSV or JSON (for Excel, Python, gnuplot, ...).
     ///
     /// Analog values are scaled (primary side unless --secondary), binary

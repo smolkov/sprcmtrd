@@ -6,6 +6,7 @@ pub mod cut;
 pub mod export;
 pub mod info;
 pub mod list;
+pub mod stats;
 pub mod view;
 
 use anyhow::bail;
@@ -68,6 +69,13 @@ impl Command {
                     height,
                 },
             ),
+            Self::Stats {
+                file,
+                channels,
+                from,
+                to,
+                json,
+            } => stats::run(ctx, &file, &channels, from, to, json),
             Self::Export {
                 file,
                 format,

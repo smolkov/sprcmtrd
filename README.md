@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `view`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `view`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 ## Features
@@ -54,6 +54,7 @@ sprcmtrd PATH               # TUI with PATH opened (recording file or directory)
 sprcmtrd info FILE          # summary of a recording
 sprcmtrd list [DIR]         # recordings in DIR and its subdirectories
 sprcmtrd view FILE          # summary and plots printed to stdout
+sprcmtrd stats FILE         # min, max, mean, RMS, peak; binary changes
 sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
 sprcmtrd convert FILE -o OUT  # other revision, data format or .cff
@@ -138,6 +139,35 @@ A2 IB [A]
 | `--from MS`, `--to MS`| Time window in ms relative to the trigger                            |
 | `--width COLS`        | Plot width (default: terminal width, 100 when not a terminal)        |
 | `--height ROWS`       | Height of each analog plot (default 10)                              |
+
+### `stats`
+
+```sh
+sprcmtrd stats tests/data/fault_2013.cfg --channels IA,IB,VA,TRIP_B,CB_CLOSED
+```
+
+```
+File    tests/data/fault_2013.cfg
+Window  -0.500 s .. 1.500 s (4001 samples)
+Values  primary
+
+Analog channels
+channel  unit  min      at        max     at        mean   rms    peak    at        missing
+A1 IA    A     -450.0   -0.485 s  450.0   -0.495 s  0.000  246.4  450.0   -0.495 s  0
+A2 IB    A     -4.602k  0.082 s   7.244k  0.011 s   55.31  862.2  7.244k  0.011 s   0
+A5 VA    kV    -89.80   -0.485 s  89.80   -0.495 s  0.000  49.18  89.80   -0.495 s  0
+
+Binary channels
+channel       first  last  changes  first change  time set
+D5 TRIP_B     0      0     2        0.060 s       0.060 s
+D7 CB_CLOSED  1      1     2        0.100 s       1.200 s
+```
+
+- Analog: min and max with their time, mean, RMS over the window, peak (largest
+  magnitude, with sign) and its time, missing samples (left out of the rest).
+- Binary: first and last state, number of changes, first change, time set.
+- `--channels`, `--from` / `--to` as in `view`; `--secondary` for secondary
+  values; `--json` for full values. `stat` works too.
 
 ### `export`
 
@@ -396,8 +426,8 @@ The GitLab release needs the package registry enabled for the project
 
 | Path               | Content                                                                 |
 |--------------------|-------------------------------------------------------------------------|
-| `src/comtrade/`    | COMTRADE library: reading, writing, CSV/JSON export, discovery          |
-| `src/command/`     | `info`, `list`, `view`, `export`, `cut`, `convert` commands, formatting |
+| `src/comtrade/`    | COMTRADE library: reading, writing, export, statistics, discovery       |
+| `src/command/`     | Commands (`info`, `list`, `view`, `stats`, ...) and output formatting   |
 | `src/tui/`         | TUI: state and keys (`app.rs`), events, theme, widgets                  |
 | `tests/data/`      | Synthetic sample recordings (all revisions and formats)                 |
 | `spec.md`          | Specification                                                           |
