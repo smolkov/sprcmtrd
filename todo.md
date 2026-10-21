@@ -6,7 +6,7 @@
 ## Command ideas
 
 * [ ] `check <FILE|DIR>`: full validation of recordings for scripts and CI. Reads `.cfg` and `.dat` and reports problems: sample count vs `.cfg` end sample, record size, non-monotonic timestamps, missing values (`99999` / `0xFFFF`), clipped values at min/max, unknown units. Exit code 0 when all valid, 4 otherwise; `--json` for machine output.
-* [ ] `events <FILE>`: timeline of binary channel changes (trip, breaker open/close) with time relative to trigger and absolute time, e.g. `+12.5 ms  TRIP_A  0 → 1`. Options `--channels`, `--from`/`--to`, `--json`.
+* [x] `events <FILE>`: timeline of binary channel changes (trip, breaker open/close) with time relative to trigger and absolute time, e.g. `+12.5 ms  TRIP_A  0 → 1`. Options `--channels`, `--from`/`--to`, `--json`.
 * [x] `stats <FILE>`: per analog channel min, max, mean, RMS, peak value and its time, in primary or secondary values (`--secondary`); per binary channel number of changes. Options `--channels`, `--from`/`--to`, `--json`.
 * [x] `export <FILE>`: write samples as CSV (or JSON) for Excel, Python or gnuplot. Options `--channels`, `--from`/`--to`, `--secondary`, `--every N` (decimation), `--output FILE` (default stdout).
 * [ ] `diff <A> <B>`: compare two recordings: header fields, sample rates, channel lists (added, removed, changed scaling or units). Useful when relay settings or a recorder changed.

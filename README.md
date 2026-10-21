@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `view`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `view`, `events`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 ## Features
@@ -54,6 +54,7 @@ sprcmtrd PATH               # TUI with PATH opened (recording file or directory)
 sprcmtrd info FILE          # summary of a recording
 sprcmtrd list [DIR]         # recordings in DIR and its subdirectories
 sprcmtrd view FILE          # summary and plots printed to stdout
+sprcmtrd events FILE        # timeline of binary channel changes
 sprcmtrd stats FILE         # min, max, mean, RMS, peak; binary changes
 sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
@@ -139,6 +140,37 @@ A2 IB [A]
 | `--from MS`, `--to MS`| Time window in ms relative to the trigger                            |
 | `--width COLS`        | Plot width (default: terminal width, 100 when not a terminal)        |
 | `--height ROWS`       | Height of each analog plot (default 10)                              |
+
+### `events`
+
+```sh
+sprcmtrd events tests/data/fault_2013.cfg
+```
+
+```
+File     tests/data/fault_2013.cfg
+Window   -0.500 s .. +1.500 s (4001 samples)
+Trigger  2026-10-20 14:00:00.500000
+
+time      Δ         absolute                    channel       change
+0.000 s             2026-10-20 14:00:00.500000  trigger
++0.010 s  +0.010 s  2026-10-20 14:00:00.510000  D2 START_B    0 → 1
++0.060 s  +0.050 s  2026-10-20 14:00:00.560000  D5 TRIP_B     0 → 1
++0.100 s  +0.040 s  2026-10-20 14:00:00.600000  D2 START_B    1 → 0
++0.100 s  +0.000 s  2026-10-20 14:00:00.600000  D7 CB_CLOSED  1 → 0
++0.120 s  +0.020 s  2026-10-20 14:00:00.620000  D5 TRIP_B     1 → 0
++0.850 s  +0.730 s  2026-10-20 14:00:01.350000  D8 RECLOSE    0 → 1
++0.900 s  +0.050 s  2026-10-20 14:00:01.400000  D7 CB_CLOSED  0 → 1
++0.950 s  +0.050 s  2026-10-20 14:00:01.450000  D8 RECLOSE    1 → 0
+
+8 changes in 10 binary channels
+```
+
+- One row per change of a binary channel: time relative to the trigger, `Δ`
+  since the previous row (operate times), time of day, channel and change. The
+  trigger is a row of its own.
+- `--channels` (binary channels), `--from` / `--to` as in `view`; `--json` for
+  scripts.
 
 ### `stats`
 
@@ -426,7 +458,7 @@ The GitLab release needs the package registry enabled for the project
 
 | Path               | Content                                                                 |
 |--------------------|-------------------------------------------------------------------------|
-| `src/comtrade/`    | COMTRADE library: reading, writing, export, statistics, discovery       |
+| `src/comtrade/`    | COMTRADE library: reading, writing, export, statistics, events, ...     |
 | `src/command/`     | Commands (`info`, `list`, `view`, `stats`, ...) and output formatting   |
 | `src/tui/`         | TUI: state and keys (`app.rs`), events, theme, widgets                  |
 | `tests/data/`      | Synthetic sample recordings (all revisions and formats)                 |

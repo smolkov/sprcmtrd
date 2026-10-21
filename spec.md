@@ -5,7 +5,7 @@
 `sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
 faces:
 
-- **CLI commands** (`info`, `list`, `view`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
+- **CLI commands** (`info`, `list`, `view`, `events`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
 - **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
   analog and binary channels as plots.
 
@@ -98,6 +98,7 @@ sprcmtrd [PATH]                # start TUI with PATH (file or directory) opened
 sprcmtrd info <FILE>           # print summary of a recording
 sprcmtrd list [DIR]            # list recordings in DIR (default: .)
 sprcmtrd view <FILE>           # print summary and terminal plots to stdout
+sprcmtrd events <FILE>         # timeline of binary channel changes
 sprcmtrd stats <FILE>          # min, max, mean, RMS, peak; binary changes
 sprcmtrd export <FILE>         # samples as CSV or JSON
 sprcmtrd cut <FILE> -o <OUT>   # time window / channels as a new recording
@@ -183,6 +184,26 @@ Non-interactive view printed to stdout (useful for logs and reports).
   per selected analog channel and one status strip per binary channel.
 - Plots are rendered with textplots (no extra plotting crate).
 
+
+### `events` command
+
+Timeline of binary channel changes (start, trip, breaker open, reclose, ...).
+
+- Arguments: `<FILE>`, `--channels <LIST>` (binary channels: `dN` or id;
+  naming an analog channel is an error), `--from` / `--to` as in `view`,
+  `--json`.
+- A change is reported at the first sample with the new state; the first
+  sample of the window is the starting state. Changes at the same sample are
+  listed in channel order.
+- Text output: one row per change with the time relative to the trigger
+  (`+60.0 ms`), `Δ` since the previous row, date and time of day, channel
+  (`D5 TRIP_B`) and change (`0 → 1`); the trigger is a row of its own when it
+  lies in the window, so operate times (start → trip → breaker open) can be read
+  from the `Δ` column. Ends with the number of changes and channels; "No
+  changes" when there are none.
+- JSON: `file`, `trigger_time`, `from_s`, `to_s`, `events[]` with `sample`
+  (1-based), `time` (s), `index`, `id`, `from`, `to` and `absolute`.
+- Library: `comtrade::events::events`.
 
 ### `stats` command
 
@@ -322,12 +343,14 @@ src/
     write.rs         .cfg / .dat / .cff writer (convert)
     export.rs        samples as CSV / JSON (export)
     stats.rs         channel statistics (stats)
+    events.rs        binary channel changes (events)
     discover.rs      find sibling files / recordings in a directory
   command/
     mod.rs           Command::run dispatch
     info.rs
     list.rs
     view.rs
+    events.rs       Timeline of binary channel changes
     stats.rs        Channel statistics
     export.rs       Samples as CSV / JSON
     cut.rs          Time window / channels as a new recording

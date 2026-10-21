@@ -591,3 +591,60 @@ fn stats_text_and_json() {
     assert_eq!(v["binary"][0]["id"], "TRIP");
     assert_eq!(v["binary"][0]["first_change"], 0.02);
 }
+
+#[test]
+fn events_timeline() {
+    cmd()
+        .args(["events", "tests/data/fault_2013.cfg"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r"\n0\.000 s +2026-10-20 14:00:00\.500000  trigger\n").unwrap())
+        .stdout(
+            predicate::str::is_match(r"\n\+0\.010 s +\+0\.010 s +2026-10-20 14:00:00\.510000  D2 START_B +0 → 1\n")
+                .unwrap(),
+        )
+        .stdout(predicate::str::is_match(r"\n\+0\.060 s +\+0\.050 s .* D5 TRIP_B +0 → 1\n").unwrap())
+        .stdout(predicate::str::contains("8 changes in 10 binary channels"));
+
+    let out = cmd()
+        .args([
+            "events",
+            "tests/data/fault_1999.cfg",
+            "--channels",
+            "TRIP,d3",
+            "--from",
+            "0",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let ev = v["events"].as_array().unwrap();
+    let short: Vec<_> = ev
+        .iter()
+        .map(|e| {
+            (
+                e["id"].as_str().unwrap(),
+                e["time"].as_f64().unwrap(),
+                e["to"].as_bool().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        short,
+        [("TRIP", 0.02, true), ("CB_OPEN", 0.06, true), ("TRIP", 0.07, false)]
+    );
+    assert_eq!(ev[0]["absolute"], "2024-03-15 08:30:00.080000");
+
+    cmd()
+        .args(["events", "tests/data/fault_1999.cfg", "--to", "-30"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No changes in 4 binary channels."));
+    cmd()
+        .args(["events", "tests/data/fault_1999.cfg", "--channels", "IA"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("IA is an analog channel"));
+}

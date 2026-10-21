@@ -3,6 +3,7 @@
 pub mod completions;
 pub mod convert;
 pub mod cut;
+pub mod events;
 pub mod export;
 pub mod info;
 pub mod list;
@@ -69,6 +70,13 @@ impl Command {
                     height,
                 },
             ),
+            Self::Events {
+                file,
+                channels,
+                from,
+                to,
+                json,
+            } => events::run(&file, &channels, from, to, json),
             Self::Stats {
                 file,
                 channels,

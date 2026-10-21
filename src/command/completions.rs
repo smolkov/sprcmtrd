@@ -62,6 +62,7 @@ mod tests {
                 "cut",
                 "export",
                 "stats",
+                "events",
                 "completions",
                 "no-recursive",
                 "theme",

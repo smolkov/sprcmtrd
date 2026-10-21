@@ -121,6 +121,30 @@ pub enum Command {
         height: u16,
     },
 
+    /// Timeline of binary channel changes (start, trip, breaker open, ...).
+    ///
+    /// Examples:
+    ///   sprcmtrd events fault.cfg
+    ///   sprcmtrd events fault.cfg --channels TRIP,CB_OPEN --from 0
+    #[command(verbatim_doc_comment)]
+    Events {
+        /// Any file of the recording (.cfg, .dat, .cff, ...).
+        #[arg(value_hint = ValueHint::FilePath)]
+        file: PathBuf,
+        /// Binary channels: comma separated `dN` indices or ids. Default: all.
+        #[arg(long, value_delimiter = ',')]
+        channels: Vec<String>,
+        /// Start of the time window in ms relative to the trigger.
+        #[arg(long, allow_hyphen_values = true)]
+        from: Option<f64>,
+        /// End of the time window in ms relative to the trigger.
+        #[arg(long, allow_hyphen_values = true)]
+        to: Option<f64>,
+        /// Print JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Statistics per channel: min, max, mean, RMS and peak of analog
     /// channels, state changes of binary channels.
     ///

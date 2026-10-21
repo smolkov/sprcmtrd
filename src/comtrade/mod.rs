@@ -7,6 +7,7 @@ pub mod cff;
 pub mod cfg;
 pub mod dat;
 pub mod discover;
+pub mod events;
 pub mod export;
 pub mod stats;
 pub mod write;
