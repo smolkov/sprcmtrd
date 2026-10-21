@@ -480,6 +480,7 @@ Use configuration file at `~/.config/sprcmtrd/config.toml` for theme and key bin
 
 ## Logging
 
+* Write log in files if running in TUI mode.
 
 
 ## Dependencies
