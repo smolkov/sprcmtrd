@@ -139,7 +139,8 @@ Option `--json` prints the same data as JSON for scripting.
 
 Searches for recordings in a directory and prints one row per recording.
 
-- Arguments: `[DIR]` (default `.`), `--no-recursive`, `--filter <REGEX>` (on file name).
+- Arguments: `[DIR]` (default `.`), `--no-recursive`, `--filter <REGEX>` (on file name),
+  `--valid`.
 - Subdirectories are searched recursively by default; `--no-recursive` limits the
   search to `DIR`. Hidden directories and symbolic links to directories are skipped
   (no endless loops on link cycles). File names are shown relative to `DIR`.
@@ -150,6 +151,9 @@ Searches for recordings in a directory and prints one row per recording.
 - Only the `.cfg` is parsed (fast). The `.dat` is not read.
 - Sorted by start time; `--sort name|time|size` to change it.
 - Files that fail to parse are listed with an error column instead of being dropped.
+- `--valid` shows only recordings that load completely, as the viewer would open
+  them: the `.cfg` parses, the `.dat` exists and its samples parse. This reads the
+  `.dat` of every recording, so it is slower than the default listing.
 - Recursive search in children directories is enabled by default.
 
 ### `view` command

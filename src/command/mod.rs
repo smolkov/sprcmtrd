@@ -41,8 +41,9 @@ impl Command {
                 dir,
                 no_recursive,
                 filter,
+                valid,
                 sort,
-            } => list::run(&dir, !no_recursive, filter.as_deref(), sort),
+            } => list::run(&dir, !no_recursive, filter.as_deref(), valid, sort),
             Self::View {
                 file,
                 channels,

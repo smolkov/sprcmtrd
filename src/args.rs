@@ -89,6 +89,9 @@ pub enum Command {
         /// Only show recordings whose file name matches this regular expression.
         #[arg(long)]
         filter: Option<String>,
+        /// Only show recordings that load without errors (configuration and data).
+        #[arg(long)]
+        valid: bool,
         /// Sort order.
         #[arg(long, value_enum, default_value_t = SortKey::Time)]
         sort: SortKey,

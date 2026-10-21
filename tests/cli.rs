@@ -165,6 +165,39 @@ fn list_searches_subdirectories_by_default() {
 }
 
 #[test]
+fn list_valid_hides_broken_recordings() {
+    let dir = tempfile::tempdir().unwrap();
+    let data = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
+    for f in ["broken.cfg", "fault_1999.cfg", "fault_1999.dat", "old_1991.cfg"] {
+        std::fs::copy(format!("{data}/{f}"), dir.path().join(f)).unwrap();
+    }
+
+    // old_1991.cfg parses but has no data file.
+    cmd()
+        .args(["list", "--valid"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("fault_1999.cfg"))
+        .stdout(predicate::str::contains("broken.cfg").not())
+        .stdout(predicate::str::contains("old_1991.cfg").not())
+        .stdout(
+            predicate::str::contains("error")
+                .not()
+                .or(predicate::str::is_match(r"error\s*\n").unwrap()),
+        );
+
+    std::fs::remove_file(dir.path().join("fault_1999.cfg")).unwrap();
+    cmd()
+        .args(["list", "--valid"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout("")
+        .stderr(predicate::str::contains("no valid COMTRADE recordings"));
+}
+
+#[test]
 fn list_filter() {
     cmd()
         .args(["list", "tests/data", "--filter", "^fault"])

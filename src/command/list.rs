@@ -17,7 +17,9 @@ struct Row {
 }
 
 /// Runs the `list` command. Subdirectories are searched when `recursive`.
-pub fn run(dir: &Path, recursive: bool, filter: Option<&str>, sort: SortKey) -> anyhow::Result<()> {
+/// With `valid`, only recordings that load completely (configuration and
+/// sample data) are shown.
+pub fn run(dir: &Path, recursive: bool, filter: Option<&str>, valid: bool, sort: SortKey) -> anyhow::Result<()> {
     let filter = filter
         .map(Regex::new)
         .transpose()
@@ -37,9 +39,19 @@ pub fn run(dir: &Path, recursive: bool, filter: Option<&str>, sort: SortKey) -> 
             rec,
         })
         .collect();
+    if valid {
+        // A parsable configuration is not enough: the data must load too,
+        // so the recording opens in the viewer.
+        rows.retain(|r| r.config.is_ok() && Comtrade::open_recording(&r.rec).is_ok());
+    }
 
     if rows.is_empty() {
-        eprintln!("no COMTRADE recordings found in {}", dir.display());
+        let what = if valid {
+            "valid COMTRADE recordings"
+        } else {
+            "COMTRADE recordings"
+        };
+        eprintln!("no {what} found in {}", dir.display());
         return Ok(());
     }
 

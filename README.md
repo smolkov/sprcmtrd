@@ -102,6 +102,8 @@ old_1991.cfg           SUBSTATION A  1991  1994-03-15 08:30:00  99.00 ms  1 kHz 
 - `--sort time|name|size` (default `time`).
 - Recordings that cannot be parsed are listed with the error instead of being
   dropped; a configuration without data file is marked `(!no data)`.
+- `--valid` shows only recordings that load completely (configuration and data),
+  hiding broken ones. It reads every data file, so it is slower.
 
 ### `view`
 
