@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `view`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `view`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 ## Features
@@ -54,6 +54,7 @@ sprcmtrd PATH               # TUI with PATH opened (recording file or directory)
 sprcmtrd info FILE          # summary of a recording
 sprcmtrd list [DIR]         # recordings in DIR and its subdirectories
 sprcmtrd view FILE          # summary and plots printed to stdout
+sprcmtrd convert FILE -o OUT  # other revision, data format or .cff
 sprcmtrd completions SHELL  # tab-completion script for your shell
 ```
 
@@ -134,6 +135,35 @@ A2 IB [A]
 | `--from MS`, `--to MS`| Time window in ms relative to the trigger                            |
 | `--width COLS`        | Plot width (default: terminal width, 100 when not a terminal)        |
 | `--height ROWS`       | Height of each analog plot (default 10)                              |
+
+### `convert`
+
+```sh
+sprcmtrd convert tests/data/combined_2013.cff -o fault.cfg --rev 1999 --format binary
+```
+
+```
+tests/data/combined_2013.cff (2013 FLOAT32) -> fault.cfg (1999 BINARY)
+  wrote fault.cfg  440 B
+  wrote fault.dat  14.4 kB
+  wrote fault.hdr  31 B
+  wrote fault.inf  47 B
+  note: revision 1999 has no time codes or leap second field; they are left out
+  note: IA: rescaled to 16-bit integers, resolution 1.2207e-1 A
+  ...
+  read back: 800 samples, 4 analog, 4 binary channels
+```
+
+- The output name selects the layout: `NAME.cfg` writes `.cfg` + `.dat` (and
+  `.hdr` / `.inf`), `NAME.cff` one combined file.
+- `--format ascii|binary|binary32|float32` and `--rev 1991|1999|2013` default
+  to the source's. BINARY32, FLOAT32 and `.cff` need revision 2013, which is
+  then chosen automatically.
+- Anything that loses information is printed as a `note:`: channels rescaled to
+  fit 16- or 32-bit integers (with the new resolution), values rounded to
+  32-bit floats, and fields an older revision cannot store.
+- Existing files are only replaced with `--force`, and never the source
+  recording. The result is read back before the command reports success.
 
 ### `completions`
 
@@ -311,13 +341,13 @@ release linking to them.
 The GitLab release needs the package registry enabled for the project
 (Settings → General → Visibility → Package registry).
 
-| Path               | Content                                                       |
-|--------------------|---------------------------------------------------------------|
-| `src/comtrade/`    | COMTRADE library: `.cfg`, `.dat`, `.cff` parsing, discovery    |
-| `src/command/`     | `info`, `list`, `view` commands and output formatting         |
-| `src/tui/`         | TUI: state and keys (`app.rs`), events, theme, widgets        |
-| `tests/data/`      | Synthetic sample recordings (all revisions and formats)       |
-| `spec.md`          | Specification                                                 |
+| Path               | Content                                                                 |
+|--------------------|-------------------------------------------------------------------------|
+| `src/comtrade/`    | COMTRADE library: `.cfg`, `.dat`, `.cff` reading and writing, discovery |
+| `src/command/`     | `info`, `list`, `view`, `convert` commands and output formatting        |
+| `src/tui/`         | TUI: state and keys (`app.rs`), events, theme, widgets                  |
+| `tests/data/`      | Synthetic sample recordings (all revisions and formats)                 |
+| `spec.md`          | Specification                                                           |
 
 The `comtrade` module does not depend on the command or TUI code and could be
 used as a library on its own.

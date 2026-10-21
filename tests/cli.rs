@@ -312,3 +312,101 @@ fn invalid_config_file_is_reported() {
         .code(1)
         .stderr(predicate::str::contains("invalid config"));
 }
+
+#[test]
+fn convert_writes_cfg_dat_and_cff() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("fault.cff");
+    cmd()
+        .args(["convert", "tests/data/fault_1999.cfg", "--output"])
+        .arg(&out)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("(1999 BINARY) ->"))
+        .stdout(predicate::str::contains("(2013 BINARY)"))
+        .stdout(predicate::str::contains(
+            "read back: 400 samples, 4 analog, 4 binary channels",
+        ));
+    // The .hdr of the source goes into the combined file.
+    cmd()
+        .arg("info")
+        .arg(&out)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Revision      2013"));
+
+    let out = dir.path().join("float.cfg");
+    cmd()
+        .args([
+            "convert",
+            "tests/data/combined_2013.cff",
+            "--rev",
+            "1999",
+            "--format",
+            "binary",
+            "-o",
+        ])
+        .arg(&out)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("note: IA: rescaled to 16-bit integers"));
+    assert!(dir.path().join("float.dat").exists());
+    assert!(dir.path().join("float.hdr").exists());
+    cmd()
+        .args(["info", "--json"])
+        .arg(&out)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"data_format\": \"Binary\""));
+}
+
+#[test]
+fn convert_refuses_bad_targets_and_overwrites() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("x.cfg");
+    let convert = |args: &[&str], out: &std::path::Path| {
+        cmd()
+            .args(["convert", "tests/data/fault_1999.cfg"])
+            .args(args)
+            .arg("-o")
+            .arg(out)
+            .assert()
+    };
+    convert(&["--rev", "1999", "--format", "float32"], &out)
+        .code(1)
+        .stderr(predicate::str::contains("FLOAT32 data needs revision 2013"));
+    convert(&["--rev", "1999"], &dir.path().join("x.cff"))
+        .code(1)
+        .stderr(predicate::str::contains("needs revision 2013"));
+    convert(&[], &dir.path().join("x.txt"))
+        .code(1)
+        .stderr(predicate::str::contains("must end in .cfg or .cff"));
+    assert!(!out.exists());
+
+    convert(&[], &out).success();
+    convert(&[], &out)
+        .code(1)
+        .stderr(predicate::str::contains("already exists (use --force"));
+    convert(&["--force"], &out).success();
+
+    // Never the source itself, not even with --force.
+    let data = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
+    for f in ["fault_1999.cfg", "fault_1999.dat"] {
+        std::fs::copy(format!("{data}/{f}"), dir.path().join(f)).unwrap();
+    }
+    let src = dir.path().join("fault_1999.cfg");
+    cmd()
+        .arg("convert")
+        .arg(&src)
+        .args(["--format", "ascii", "--force", "-o"])
+        .arg(&src)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("part of the source recording"));
+    assert_eq!(
+        std::fs::read(&src).unwrap(),
+        std::fs::read(format!("{data}/fault_1999.cfg")).unwrap()
+    );
+
+    cmd().args(["convert", "missing.cfg", "-o"]).arg(&out).assert().code(3);
+}

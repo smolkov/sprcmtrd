@@ -7,6 +7,7 @@ pub mod cff;
 pub mod cfg;
 pub mod dat;
 pub mod discover;
+pub mod write;
 
 use std::fs::File;
 use std::io::Read;

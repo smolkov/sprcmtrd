@@ -31,8 +31,8 @@ cargo +1.88 check --locked --all-targets            # minimum supported Rust
 ## Architecture
 
 ```
-src/comtrade/   COMTRADE library: cfg.rs, dat.rs, cff.rs, discover.rs, mod.rs
-src/command/    info, list, view, completions + shared formatting (si, time, table)
+src/comtrade/   COMTRADE library: cfg.rs, dat.rs, cff.rs, discover.rs, write.rs, mod.rs
+src/command/    info, list, view, convert, completions + shared formatting (si, time, table)
 src/tui/        app.rs (state, actions, key handling), event.rs, theme.rs, widgets/
 src/args.rs     clap definitions      src/config.rs   config.toml load/save
 src/error.rs    comtrade::Error       src/logging.rs  tracing setup

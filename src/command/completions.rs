@@ -54,7 +54,15 @@ mod tests {
         for shell in [Shell::Bash, Shell::Zsh, Shell::Fish, Shell::PowerShell, Shell::Elvish] {
             let s = script(shell);
             // Fish writes long options as `-l no-recursive`, so match without dashes.
-            for word in ["info", "list", "view", "completions", "no-recursive", "theme"] {
+            for word in [
+                "info",
+                "list",
+                "view",
+                "convert",
+                "completions",
+                "no-recursive",
+                "theme",
+            ] {
                 assert!(s.contains(word), "{shell} script lacks {word}");
             }
         }

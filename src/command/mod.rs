@@ -1,6 +1,7 @@
 //! Command dispatch and shared output formatting.
 
 pub mod completions;
+pub mod convert;
 pub mod info;
 pub mod list;
 pub mod view;
@@ -62,6 +63,13 @@ impl Command {
                     height,
                 },
             ),
+            Self::Convert {
+                file,
+                output,
+                format,
+                rev,
+                force,
+            } => convert::run(&file, &output, format, rev, force),
             Self::Completions { shell, output } => completions::run(shell, output.as_deref()),
         }
     }

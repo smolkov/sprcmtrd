@@ -121,6 +121,35 @@ pub enum Command {
         height: u16,
     },
 
+    /// Convert a recording to another revision, data format or file layout.
+    ///
+    /// The output extension selects the layout: `.cfg` writes .cfg + .dat
+    /// (and .hdr / .inf when the source has them), `.cff` one combined file.
+    ///
+    /// Examples:
+    ///   sprcmtrd convert fault.cfg --output fault_ascii.cfg --format ascii
+    ///   sprcmtrd convert fault.cfg --output fault.cff
+    ///   sprcmtrd convert new.cff --output old.cfg --rev 1999 --format binary
+    #[command(verbatim_doc_comment)]
+    Convert {
+        /// Any file of the recording (.cfg, .dat, .cff, ...).
+        #[arg(value_hint = ValueHint::FilePath)]
+        file: PathBuf,
+        /// Output file: NAME.cfg (with NAME.dat) or NAME.cff.
+        #[arg(short, long, value_hint = ValueHint::FilePath)]
+        output: PathBuf,
+        /// Data format of the output (default: the source format).
+        #[arg(long, value_enum)]
+        format: Option<FormatArg>,
+        /// Standard revision of the output (default: the source revision, or
+        /// 2013 when the format or .cff output needs it).
+        #[arg(long, value_enum)]
+        rev: Option<RevisionArg>,
+        /// Overwrite existing output files.
+        #[arg(long)]
+        force: bool,
+    },
+
     /// Print a tab-completion script for your shell.
     ///
     /// Examples:
@@ -136,6 +165,33 @@ pub enum Command {
         #[arg(short, long, value_hint = ValueHint::FilePath)]
         output: Option<PathBuf>,
     },
+}
+
+/// Data file format for `convert`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum FormatArg {
+    /// Comma separated text.
+    Ascii,
+    /// 16-bit integers.
+    Binary,
+    /// 32-bit integers (revision 2013).
+    Binary32,
+    /// 32-bit floats (revision 2013).
+    Float32,
+}
+
+/// Standard revision for `convert`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum RevisionArg {
+    /// IEEE C37.111-1991.
+    #[value(name = "1991")]
+    Rev1991,
+    /// IEEE C37.111-1999.
+    #[value(name = "1999")]
+    Rev1999,
+    /// IEEE C37.111-2013 / IEC 60255-24:2013.
+    #[value(name = "2013")]
+    Rev2013,
 }
 
 /// Sort order for `list`.

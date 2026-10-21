@@ -5,7 +5,7 @@
 `sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
 faces:
 
-- **CLI commands** (`info`, `list`, `view`) that print to stdout and can be used in scripts.
+- **CLI commands** (`info`, `list`, `view`, `convert`) that print to stdout and can be used in scripts.
 - **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
   analog and binary channels as plots.
 
@@ -30,7 +30,8 @@ recorded during power system disturbances, faults and simulation tests.
 
 ### Non-goals (for v1)
 
-- Editing or writing COMTRADE files.
+- Editing COMTRADE files. Writing is limited to `convert` (a new recording in
+  another revision, format or layout).
 - Signal analysis (RMS, phasors, harmonics, FFT). May come later.
 - Comparing several recordings side by side.
 - Mouse-first interaction (keyboard is primary; mouse is optional).
@@ -97,6 +98,7 @@ sprcmtrd [PATH]                # start TUI with PATH (file or directory) opened
 sprcmtrd info <FILE>           # print summary of a recording
 sprcmtrd list [DIR]            # list recordings in DIR (default: .)
 sprcmtrd view <FILE>           # print summary and terminal plots to stdout
+sprcmtrd convert <FILE> -o <OUT> # write as another revision / format / .cff
 ```
 
 Global options:
@@ -179,6 +181,39 @@ Non-interactive view printed to stdout (useful for logs and reports).
 - Plots are rendered with textplots (no extra plotting crate).
 
 
+### `convert` command
+
+Writes a recording as another revision, data format or file layout.
+
+- Arguments: `<FILE>`, `-o, --output <OUT>`, `--format ascii|binary|binary32|float32`,
+  `--rev 1991|1999|2013`, `--force`.
+- The output extension selects the layout: `NAME.cfg` writes `NAME.cfg` +
+  `NAME.dat` (plus `.hdr` / `.inf` when the source has them; sibling extensions
+  follow the case of the given one), `NAME.cff` writes one combined file.
+- Defaults: the source format and revision. Revision 2013 is chosen when the
+  format (BINARY32, FLOAT32) or the `.cff` layout needs it; an explicit `--rev`
+  that can't hold them is an error (exit 1).
+- Values: raw values are copied when the target format holds them exactly
+  (integers that fit). Otherwise integer targets are rescaled: the raw values
+  are multiplied so the channel's peak uses the full range (±32767 / ±2147483647;
+  the minimum is the missing value marker), `a` is divided by the same factor
+  and min/max are set to the range, so the scaled values stay the same within
+  the new resolution. FLOAT32 rounds to 32-bit floats. Missing values stay
+  missing (2013 ASCII: empty field, older: `99999`).
+- Timestamps are written from the sample times (in `timemult` µs; 1991 has no
+  `timemult`, so µs). Sample rates, start and trigger time are kept.
+- Revision 1991 has no transformer ratios, primary/secondary flag, binary
+  channel phase and circuit, `timemult` or time codes, and two-digit years
+  (1970–2069). 1999 has no time codes. Fields that are left out are reported.
+  Upgrading to 2013 writes `0,0` for time codes the source doesn't have.
+- Every change that loses information (rescaled channels with their new
+  resolution, float rounding, dropped fields) is printed as a `note:` line.
+- Safety: existing output files are only replaced with `--force`; files of the
+  source recording are never overwritten. The result is read back with the
+  parser before the command reports success.
+- Library: `comtrade::write` (`encode`, `cfg_text`, `Encoded::cff`) builds the
+  file contents; the command writes them to disk.
+
 ### `completions` command
 
 Generates tab-completion scripts for your shell.
@@ -213,12 +248,14 @@ src/
     cfg.rs           .cfg parser (all revisions)
     dat.rs           .dat reader (ASCII, BINARY, BINARY32, FLOAT32)
     cff.rs           .cff splitter (2013)
+    write.rs         .cfg / .dat / .cff writer (convert)
     discover.rs      find sibling files / recordings in a directory
   command/
     mod.rs           Command::run dispatch
     info.rs
     list.rs
     view.rs
+    convert.rs      Write a recording as another revision / format
     completions.rs  Generate tab-completion scripts for your shell
   tui/
     mod.rs           run(): terminal setup/teardown, event loop
