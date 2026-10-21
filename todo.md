@@ -16,7 +16,7 @@
 
 ## Commands that write files (non-goal for v1, needs spec decision)
 
-* [ ] `cut <FILE> --from <ms> --to <ms> --output <NAME>`: extract a time window (and optionally `--channels`) into a new, smaller recording.
+* [x] `cut <FILE> --from <ms> --to <ms> --output <NAME>`: extract a time window (and optionally `--channels`) into a new, smaller recording.
 * [x] `convert <FILE>`: convert between data formats (ASCII ↔ BINARY/BINARY32/FLOAT32), revisions (1991/1999 → 2013), and `.cfg`+`.dat` ↔ `.cff`.
 * [ ] `rename <DIR>`: rename recordings to a pattern such as `{station}_{start:%Y%m%d_%H%M%S}`, with `--dry-run`.
 

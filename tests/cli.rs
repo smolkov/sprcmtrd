@@ -495,3 +495,72 @@ fn export_json_to_file() {
         std::fs::read(format!("{data}/old_1991.dat")).unwrap()
     );
 }
+
+#[test]
+fn cut_window_and_channels() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("short.cfg");
+    cmd()
+        .args(["cut", "tests/data/fault_2013.cfg", "--from", "-20", "--to", "100"])
+        .args(["--channels", "IA,IB,IC,TRIP_A,CB_CLOSED", "-o"])
+        .arg(&out)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("(2013 BINARY32)"))
+        .stdout(predicate::str::contains(
+            "kept samples 961..=1201 of 4001 (-20.0 ms .. 100.0 ms), 3 of 8 analog and 2 of 10 binary channels",
+        ))
+        .stdout(predicate::str::contains(
+            "read back: 241 samples, 3 analog, 2 binary channels",
+        ));
+
+    // Same values at the same times relative to the trigger as the source.
+    let export = |file: &std::path::Path, channels: &str| {
+        let out = cmd()
+            .arg("export")
+            .arg(file)
+            .args(["--channels", channels, "--from", "-5", "--to", "5"])
+            .output()
+            .unwrap();
+        let text = String::from_utf8(out.stdout).unwrap();
+        // Without the sample number, which starts at 1 again in the cut file.
+        text.lines()
+            .map(|l| l.split_once(',').unwrap().1.to_owned())
+            .collect::<Vec<_>>()
+    };
+    let cut = export(&out, "IA,IB,IC,TRIP_A,CB_CLOSED");
+    assert_eq!(cut.len(), 22);
+    assert_eq!(
+        cut,
+        export(
+            std::path::Path::new("tests/data/fault_2013.cfg"),
+            "IA,IB,IC,TRIP_A,CB_CLOSED"
+        )
+    );
+}
+
+#[test]
+fn cut_reports_trigger_and_bad_windows() {
+    let dir = tempfile::tempdir().unwrap();
+    cmd()
+        .args(["cut", "tests/data/fault_1999.cfg", "--from", "50", "-o"])
+        .arg(dir.path().join("late.cff"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("(2013 BINARY)"))
+        .stdout(predicate::str::contains("note: the trigger is outside the window"));
+    cmd()
+        .args(["cut", "tests/data/fault_1999.cfg", "--from", "500", "-o"])
+        .arg(dir.path().join("x.cfg"))
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("the recording runs from -60.0 ms to 139.5 ms"));
+    // Between two samples (2 kHz): nothing to keep.
+    cmd()
+        .args(["cut", "tests/data/fault_1999.cfg", "--from", "0.1", "--to", "0.2", "-o"])
+        .arg(dir.path().join("x.cfg"))
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("no samples in the time window"));
+    assert!(!dir.path().join("x.cfg").exists());
+}

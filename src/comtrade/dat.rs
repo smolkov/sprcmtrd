@@ -46,6 +46,18 @@ impl Samples {
         self.len() == 0
     }
 
+    /// The samples in `range` (limited to the available samples).
+    pub fn slice(&self, range: std::ops::Range<usize>) -> Self {
+        let r = range.start.min(self.len())..range.end.min(self.len());
+        let r = r.start.min(r.end)..r.end;
+        match self {
+            Self::I16(v) => Self::I16(v[r].to_vec()),
+            Self::I32(v) => Self::I32(v[r].to_vec()),
+            Self::F32(v) => Self::F32(v[r].to_vec()),
+            Self::F64(v) => Self::F64(v[r].to_vec()),
+        }
+    }
+
     /// Raw value at `i`, `None` when missing or out of range.
     pub fn raw(&self, i: usize) -> Option<f64> {
         match self {
@@ -95,6 +107,16 @@ impl Bits {
     /// State at sample `i` (`false` when out of range).
     pub fn get(&self, i: usize) -> bool {
         i < self.len && self.words[i / 64] >> (i % 64) & 1 == 1
+    }
+
+    /// The samples in `range` (limited to the available samples).
+    pub fn slice(&self, range: std::ops::Range<usize>) -> Self {
+        let end = range.end.min(self.len);
+        let mut out = Self::with_capacity(end.saturating_sub(range.start));
+        for i in range.start.min(end)..end {
+            out.push(self.get(i));
+        }
+        out
     }
 
     /// Returns `true` when any sample in `range` is set.

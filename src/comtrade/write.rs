@@ -448,6 +448,42 @@ mod tests {
         }
     }
 
+    /// The middle half of each sample recording with some channels, written
+    /// and read back, has the same times and values as the source.
+    #[test]
+    fn slices_round_trip() {
+        for name in [
+            "fault_1999.cfg",
+            "fault_2013.cfg",
+            "old_1991.cfg",
+            "combined_2013.cff",
+            "reclose_1999_ascii.cfg",
+        ] {
+            let src = load(name);
+            let n = src.len();
+            let range = n / 4..3 * n / 4;
+            let last_binary = src.binary_channels().len() - 1;
+            let cut = src.slice(range.clone(), &[1, 0], &[last_binary]);
+            let e = encode(&cut, cut.config.revision, cut.config.data_format).unwrap();
+            let out = read_back(&e, false);
+            assert_eq!(out.len(), range.len(), "{name}");
+            for (a, b) in out.time().iter().zip(&src.time()[range.clone()]) {
+                assert!((a - b).abs() < 1e-6, "{name}: time {a} != {b}");
+            }
+            let ids: Vec<_> = out
+                .analog_channels()
+                .map(|c| (c.info.index, c.info.id.clone()))
+                .collect();
+            let want = [src.analog(1).unwrap(), src.analog(0).unwrap()].map(|c| c.info.id.clone());
+            assert_eq!(ids, [(1, want[0].clone()), (2, want[1].clone())], "{name}");
+            let (a, b) = (out.analog(0).unwrap(), src.analog(1).unwrap());
+            for (i, j) in range.clone().enumerate() {
+                assert_eq!(a.value(i), b.value(j), "{name} sample {j}");
+                assert_eq!(out.binary(0).unwrap().get(i), src.binary(last_binary).unwrap().get(j));
+            }
+        }
+    }
+
     #[test]
     fn rescaling_and_dropped_fields_are_reported() {
         // FLOAT32 values do not fit 16-bit integers as they are.

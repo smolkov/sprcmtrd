@@ -159,6 +159,38 @@ pub enum Command {
         output: Option<PathBuf>,
     },
 
+    /// Cut a time window and/or some channels into a new, smaller recording.
+    ///
+    /// The output keeps the revision and data format of the source (`.cff`
+    /// output needs revision 2013, see `convert`). Times relative to the
+    /// trigger stay the same.
+    ///
+    /// Examples:
+    ///   sprcmtrd cut fault.cfg --from -20 --to 100 -o fault_short.cfg
+    ///   sprcmtrd cut fault.cfg --channels IA,IB,IC,TRIP -o fault_currents.cfg
+    #[command(verbatim_doc_comment)]
+    Cut {
+        /// Any file of the recording (.cfg, .dat, .cff, ...).
+        #[arg(value_hint = ValueHint::FilePath)]
+        file: PathBuf,
+        /// Output file: NAME.cfg (with NAME.dat) or NAME.cff.
+        #[arg(short, long, value_hint = ValueHint::FilePath)]
+        output: PathBuf,
+        /// Start of the time window in ms relative to the trigger.
+        #[arg(long, allow_hyphen_values = true)]
+        from: Option<f64>,
+        /// End of the time window in ms relative to the trigger.
+        #[arg(long, allow_hyphen_values = true)]
+        to: Option<f64>,
+        /// Channels to keep: comma separated 1-based indices or ids
+        /// (analog: `3` or `IA`, binary: `d2` or `TRIP`). Default: all.
+        #[arg(long, value_delimiter = ',')]
+        channels: Vec<String>,
+        /// Overwrite existing output files.
+        #[arg(long)]
+        force: bool,
+    },
+
     /// Convert a recording to another revision, data format or file layout.
     ///
     /// The output extension selects the layout: `.cfg` writes .cfg + .dat

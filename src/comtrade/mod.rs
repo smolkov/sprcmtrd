@@ -315,6 +315,84 @@ impl Comtrade {
         })
     }
 
+    /// A new recording with the samples in `samples` and the channels at the
+    /// positions `analog` and `binary` (0-based, in that order; positions
+    /// that don't exist are skipped). Channels are numbered from 1 again.
+    ///
+    /// The start time moves to the first kept sample and the sample rate
+    /// segments are counted again; the trigger time stays, so times relative
+    /// to the trigger don't change (the trigger may lie outside the samples).
+    pub fn slice(&self, samples: Range<usize>, analog: &[usize], binary: &[usize]) -> Self {
+        let end = samples.end.min(self.len());
+        let samples = samples.start.min(end)..end;
+
+        let mut config = self.config.clone();
+        let mut rates = Vec::new();
+        let mut first = 0;
+        for r in &self.config.sample_rates {
+            let kept = r.last_sample.min(samples.end).saturating_sub(first.max(samples.start));
+            first = r.last_sample;
+            if kept > 0 {
+                let last_sample = rates.last().map_or(0, |r: &SampleRate| r.last_sample) + kept;
+                rates.push(SampleRate {
+                    rate: r.rate,
+                    last_sample,
+                });
+            }
+        }
+        if rates.last().map(|r| r.last_sample) != Some(samples.len()) {
+            // The source declared no sample count; keep its first rate.
+            let rate = self.config.sample_rates.first().map_or(0.0, |r| r.rate);
+            rates = vec![SampleRate {
+                rate,
+                last_sample: samples.len(),
+            }];
+        }
+        config.sample_rates = rates;
+        if let Some(&t) = self.time.get(samples.start) {
+            let since_start = t + self.config.trigger_offset();
+            config.start_time =
+                self.config.start_time + chrono::TimeDelta::nanoseconds((since_start * 1e9).round() as i64);
+        }
+
+        let analog: Vec<AnalogChannel> = analog
+            .iter()
+            .filter_map(|&i| self.analog.get(i))
+            .enumerate()
+            .map(|(n, ch)| AnalogChannel {
+                info: AnalogInfo {
+                    index: n + 1,
+                    ..ch.info.clone()
+                },
+                samples: ch.samples.slice(samples.clone()),
+            })
+            .collect();
+        let binary: Vec<BinaryChannel> = binary
+            .iter()
+            .filter_map(|&i| self.binary.get(i))
+            .enumerate()
+            .map(|(n, ch)| BinaryChannel {
+                info: BinaryInfo {
+                    index: n + 1,
+                    ..ch.info.clone()
+                },
+                samples: ch.samples.slice(samples.clone()),
+            })
+            .collect();
+        config.analog = analog.iter().map(|c| c.info.clone()).collect();
+        config.binary = binary.iter().map(|c| c.info.clone()).collect();
+
+        Self {
+            config,
+            header: self.header.clone(),
+            info: self.info.clone(),
+            path: None,
+            analog,
+            binary,
+            time: self.time[samples].to_vec(),
+        }
+    }
+
     /// Analog channels.
     pub fn analog_channels(&self) -> impl ExactSizeIterator<Item = &AnalogChannel> {
         self.analog.iter()
@@ -511,6 +589,39 @@ mod tests {
         let c = Comtrade::from_readers(cfg.as_bytes(), dat.as_bytes()).unwrap();
         let t: Vec<f64> = c.time().iter().map(|t| (t * 1e6).round() / 1e3).collect();
         assert_eq!(t, [-2.0, -1.0, 1.0, 3.0]);
+
+        // Slices keep the times and count the rate segments again.
+        let ms = |c: &Comtrade| c.time().iter().map(|t| (t * 1e6).round() / 1e3).collect::<Vec<_>>();
+        let s = c.slice(1..4, &[0], &[0]);
+        assert_eq!(ms(&s), [-1.0, 1.0, 3.0]);
+        assert_eq!(
+            s.config.sample_rates,
+            [
+                SampleRate {
+                    rate: 1000.0,
+                    last_sample: 1
+                },
+                SampleRate {
+                    rate: 500.0,
+                    last_sample: 3
+                }
+            ]
+        );
+        assert_eq!(
+            s.config.start_time,
+            c.config.start_time + chrono::TimeDelta::milliseconds(1)
+        );
+        let s = c.slice(2..10, &[], &[0]);
+        assert_eq!(ms(&s), [1.0, 3.0]);
+        assert_eq!(
+            s.config.sample_rates,
+            [SampleRate {
+                rate: 500.0,
+                last_sample: 2
+            }]
+        );
+        assert!(s.config.analog.is_empty());
+        assert!(c.slice(9..12, &[0], &[]).is_empty());
 
         let cfg = cfg_text("0,4", 1);
         let dat = "1,0,1,0\n2,500,1,0\n3,,1,0\n4,2000,1,0\n";

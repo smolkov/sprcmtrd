@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `view`, `export`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `view`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 ## Features
@@ -55,6 +55,7 @@ sprcmtrd info FILE          # summary of a recording
 sprcmtrd list [DIR]         # recordings in DIR and its subdirectories
 sprcmtrd view FILE          # summary and plots printed to stdout
 sprcmtrd export FILE        # samples as CSV or JSON
+sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
 sprcmtrd convert FILE -o OUT  # other revision, data format or .cff
 sprcmtrd completions SHELL  # tab-completion script for your shell
 ```
@@ -166,6 +167,27 @@ Values are scaled (primary side, `--secondary` for secondary), binary channels
 0/1, missing values empty (CSV) or `null` (JSON). JSON has one array per column
 (`time_ms`, `sample`, and `values` of each channel), which loads directly into
 pandas or numpy.
+
+### `cut`
+
+```sh
+sprcmtrd cut tests/data/fault_2013.cfg --from -20 --to 100 --channels IA,IB,IC,TRIP_A,CB_CLOSED -o short.cfg
+```
+
+```
+tests/data/fault_2013.cfg -> short.cfg (2013 BINARY32)
+  kept samples 961..=1201 of 4001 (-20.0 ms .. 100.0 ms), 3 of 8 analog and 2 of 10 binary channels
+  wrote short.cfg  362 B
+  wrote short.dat  5.3 kB
+  read back: 241 samples, 3 analog, 2 binary channels
+```
+
+- `--from` / `--to` (ms relative to the trigger) and `--channels` work as in
+  `view`; without them everything is kept.
+- The new recording has the source's revision and data format; times relative
+  to the trigger stay the same. `NAME.cff` writes a combined 2013 file.
+- Existing files are only replaced with `--force`, and never the source
+  recording. To change revision or format too, run `convert` on the result.
 
 ### `convert`
 
@@ -375,7 +397,7 @@ The GitLab release needs the package registry enabled for the project
 | Path               | Content                                                                 |
 |--------------------|-------------------------------------------------------------------------|
 | `src/comtrade/`    | COMTRADE library: reading, writing, CSV/JSON export, discovery          |
-| `src/command/`     | `info`, `list`, `view`, `export`, `convert` commands and formatting     |
+| `src/command/`     | `info`, `list`, `view`, `export`, `cut`, `convert` commands, formatting |
 | `src/tui/`         | TUI: state and keys (`app.rs`), events, theme, widgets                  |
 | `tests/data/`      | Synthetic sample recordings (all revisions and formats)                 |
 | `spec.md`          | Specification                                                           |

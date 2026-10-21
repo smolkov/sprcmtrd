@@ -2,6 +2,7 @@
 
 pub mod completions;
 pub mod convert;
+pub mod cut;
 pub mod export;
 pub mod info;
 pub mod list;
@@ -89,6 +90,14 @@ impl Command {
                     output,
                 },
             ),
+            Self::Cut {
+                file,
+                output,
+                from,
+                to,
+                channels,
+                force,
+            } => cut::run(&file, &output, from, to, &channels, force),
             Self::Convert {
                 file,
                 output,
@@ -141,7 +150,14 @@ pub fn time_window(c: &Comtrade, from_ms: Option<f64>, to_ms: Option<f64>) -> an
     let t0 = from_ms.map_or(first, |ms| ms / 1e3);
     let t1 = to_ms.map_or(last, |ms| ms / 1e3);
     if t1 <= t0 {
-        bail!("empty time window: --from must be before --to");
+        let span = last - first;
+        bail!(
+            "empty time window {} .. {}; the recording runs from {} to {}",
+            time(t0, span),
+            time(t1, span),
+            time(first, span),
+            time(last, span)
+        );
     }
     Ok((t0, t1))
 }

@@ -5,7 +5,7 @@
 `sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
 faces:
 
-- **CLI commands** (`info`, `list`, `view`, `export`, `convert`) that print to stdout and can be used in scripts.
+- **CLI commands** (`info`, `list`, `view`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
 - **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
   analog and binary channels as plots.
 
@@ -30,8 +30,8 @@ recorded during power system disturbances, faults and simulation tests.
 
 ### Non-goals (for v1)
 
-- Editing COMTRADE files. Writing is limited to `convert` (a new recording in
-  another revision, format or layout).
+- Editing COMTRADE files. Writing is limited to `convert` and `cut` (a new
+  recording in another revision, format or layout, or a part of one).
 - Signal analysis (RMS, phasors, harmonics, FFT). May come later.
 - Comparing several recordings side by side.
 - Mouse-first interaction (keyboard is primary; mouse is optional).
@@ -99,6 +99,7 @@ sprcmtrd info <FILE>           # print summary of a recording
 sprcmtrd list [DIR]            # list recordings in DIR (default: .)
 sprcmtrd view <FILE>           # print summary and terminal plots to stdout
 sprcmtrd export <FILE>         # samples as CSV or JSON
+sprcmtrd cut <FILE> -o <OUT>   # time window / channels as a new recording
 sprcmtrd convert <FILE> -o <OUT> # write as another revision / format / .cff
 ```
 
@@ -211,6 +212,25 @@ gnuplot).
   A summary (`wrote N samples × M channels to FILE`) goes to stderr. Writing to
   a closed pipe (`| head`) ends quietly.
 
+### `cut` command
+
+Writes a time window and/or some channels of a recording as a new, smaller
+recording.
+
+- Arguments: `<FILE>`, `-o, --output <OUT>`, `--from` / `--to` (ms relative to
+  the trigger) and `--channels <LIST>` as in `view`, `--force`.
+- The output keeps the source's revision and data format and is written like
+  `convert` writes: `.cfg` (+ `.dat`, `.hdr`, `.inf`) or `.cff` (which chooses
+  revision 2013), `--force` for existing files, never over the source, read
+  back before success. Channels are numbered from 1 again in the given order.
+- Times: the start time moves to the first kept sample, the trigger time stays,
+  so times relative to the trigger are the same as in the source (the trigger
+  may be outside the window; this is reported). Sample rate segments are
+  counted again for the kept samples.
+- A window without samples is an error that names the recording's time range.
+- Library: `Comtrade::slice(samples, analog, binary)` builds the new recording
+  in memory; the command writes it with the `convert` code.
+
 ### `convert` command
 
 Writes a recording as another revision, data format or file layout.
@@ -287,6 +307,7 @@ src/
     list.rs
     view.rs
     export.rs       Samples as CSV / JSON
+    cut.rs          Time window / channels as a new recording
     convert.rs      Write a recording as another revision / format
     completions.rs  Generate tab-completion scripts for your shell
   tui/
