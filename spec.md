@@ -148,8 +148,8 @@ Searches for recordings in a directory and prints one row per recording.
   (no endless loops on link cycles). File names are shown relative to `DIR`.
 - A recording is identified by its `.cfg` (or `.cff`). A `.cfg` without a `.dat` is
   listed with a warning marker.
-- Columns: file name, station, revision, start time, duration, sample rate,
-  #analog, #binary, `.dat` size.
+- Columns: file name, station, revision, data format (ASCII, BINARY, BINARY32,
+  FLOAT32), start time, duration, sample rate, #analog, #binary, `.dat` size.
 - Only the `.cfg` is parsed (fast). The `.dat` is not read.
 - Search runs in the background (own thread); found recordings are sent to the
   output as they are found.

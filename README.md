@@ -89,12 +89,13 @@ sprcmtrd list tests/data --sort name
 ```
 
 ```
-file                   station       rev   start                duration  rate   #A  #D  size      error
-broken.cfg (!no data)  -             -     -                    -         -      -   -   -         cfg line 2: channel count 5 does not match 2A + 1D
-combined_2013.cff      SUBSTATION A  2013  2024-03-15 09:00:00  199.8 ms  4 kHz  4   4   21.4 kB
-fault_1999.cfg         SUBSTATION A  1999  2024-03-15 08:30:00  199.5 ms  2 kHz  4   4   7.2 kB
-fault_2013.cfg         SUBSTATION B  2013  2026-10-20 14:00:00  2.000 s   2 kHz  8   10  168.0 kB
-old_1991.cfg           SUBSTATION A  1991  1994-03-15 08:30:00  99.00 ms  1 kHz  4   4   3.4 kB
+file                    station       rev   format    start                duration  rate   #A  #D  size      error
+broken.cfg (!no data)   -             -     -         -                    -         -      -   -   -         cfg line 2: channel count 5 does not match 2A + 1D
+combined_2013.cff       SUBSTATION A  2013  FLOAT32   2024-03-15 09:00:00  199.8 ms  4 kHz  4   4   21.4 kB
+fault_1999.cfg          SUBSTATION A  1999  BINARY    2024-03-15 08:30:00  199.5 ms  2 kHz  4   4   7.2 kB
+fault_2013.cfg          SUBSTATION B  2013  BINARY32  2026-10-20 14:00:00  2.000 s   2 kHz  8   10  168.0 kB
+old_1991.cfg            SUBSTATION A  1991  ASCII     1994-03-15 08:30:00  99.00 ms  1 kHz  4   4   3.4 kB
+reclose_1999_ascii.cfg  SUBSTATION C  1999  ASCII     2026-10-20 15:30:00  4.000 s   1 kHz  6   6   173.0 kB
 ```
 
 - Subdirectories are searched by default; `--no-recursive` searches only `DIR`.

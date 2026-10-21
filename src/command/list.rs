@@ -29,13 +29,16 @@ enum Found {
     Row(Box<Row>),
 }
 
-const HEADERS: [&str; 10] = [
-    "file", "station", "rev", "start", "duration", "rate", "#A", "#D", "size", "error",
+const HEADERS: [&str; 11] = [
+    "file", "station", "rev", "format", "start", "duration", "rate", "#A", "#D", "size", "error",
 ];
+
+/// Index of the error column.
+const ERROR: usize = HEADERS.len() - 1;
 
 /// Widths of the columns after the file name in rows printed as they are
 /// found. The full table can't be measured in advance.
-const LIVE_WIDTHS: [usize; 8] = [12, 4, 19, 8, 8, 3, 3, 8];
+const LIVE_WIDTHS: [usize; 9] = [12, 4, 8, 19, 8, 8, 3, 3, 8];
 
 const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
@@ -82,7 +85,7 @@ pub fn run(
                 if spinner.found == 0 {
                     // Errors follow the file name, the error column is not used.
                     let mut header = HEADERS.map(String::from);
-                    header[9].clear();
+                    header[ERROR].clear();
                     writeln!(out, "{}", live_line(&header, width))?;
                 }
                 writeln!(out, "{}", live_line(&row_cells(&row, true), width))?;
@@ -191,6 +194,7 @@ fn row_cells(r: &Row, live: bool) -> Vec<String> {
             format!("{}{marker}", r.name),
             c.station_name.clone(),
             c.revision.to_string(),
+            c.data_format.to_string(),
             c.start_time.format("%Y-%m-%d %H:%M:%S").to_string(),
             c.duration().map_or_else(|| "-".into(), |d| time(d, d)),
             c.sample_rates
@@ -204,7 +208,7 @@ fn row_cells(r: &Row, live: bool) -> Vec<String> {
         ],
         Err(e) => {
             let mut cells = vec![format!("{}{marker}", r.name)];
-            cells.extend(std::iter::repeat_n("-".to_owned(), 7));
+            cells.extend(std::iter::repeat_n("-".to_owned(), ERROR - 2));
             cells.push(size);
             cells.push(if no_data && live {
                 format!("no data · {e}")
@@ -226,7 +230,7 @@ fn live_line(cells: &[String], width: usize) -> String {
     let file_width = width.saturating_sub(others).clamp(18, 48);
     let mut s = String::new();
     push_cell(&mut s, &cells[0], file_width, true);
-    match cells.get(9).filter(|e| !e.is_empty()) {
+    match cells.get(ERROR).filter(|e| !e.is_empty()) {
         Some(error) => s.push_str(error),
         None => {
             for (cell, &w) in cells[1..].iter().zip(&LIVE_WIDTHS) {
@@ -327,7 +331,20 @@ mod tests {
 
         let row = |name: &str, error: &str, width: usize| {
             let mut cells = vec![name.to_owned()];
-            cells.extend(["S", "1999", "2024-03-15 08:30:00", "1.0 s", "2 kHz", "4", "4", "7.2 kB"].map(String::from));
+            cells.extend(
+                [
+                    "S",
+                    "1999",
+                    "BINARY32",
+                    "2024-03-15 08:30:00",
+                    "1.0 s",
+                    "2 kHz",
+                    "4",
+                    "4",
+                    "7.2 kB",
+                ]
+                .map(String::from),
+            );
             cells.push(error.to_owned());
             live_line(&cells, width)
         };
@@ -337,8 +354,9 @@ mod tests {
         assert_eq!(short.chars().count(), long.chars().count());
         assert!(long.starts_with('…') && long.contains("/a.cfg  S  "));
         assert!(short.ends_with("7.2 kB"));
-        // A 100 column terminal shows the whole row.
-        assert!(row("a.cfg", "", 100).ends_with("7.2 kB"));
+        // A 110 column terminal shows the whole row.
+        assert!(row("a.cfg", "", 110).ends_with("7.2 kB"));
+        assert!(short.contains("  1999  BINARY32  2024-03-15"));
         // Errors follow the file name and never make the line wrap.
         let broken = row("broken.cfg", &"bad ".repeat(40), 80);
         assert!(broken.starts_with("broken.cfg   "));
@@ -359,7 +377,7 @@ mod tests {
         assert_eq!(row_cells(&row, false)[0], "broken.cfg (!no data)");
         let live = row_cells(&row, true);
         assert_eq!(live[0], "broken.cfg");
-        assert!(live[9].starts_with("no data · cfg line 2"));
+        assert!(live[ERROR].starts_with("no data · cfg line 2"));
     }
 
     #[test]
