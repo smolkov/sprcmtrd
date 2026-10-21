@@ -38,6 +38,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, scroll: u16) {
     lines.push(Line::styled("  File picker", theme.accent()));
     for text in [
         "Searches all subdirectories; Ctrl+r toggles this directory only",
+        "Ctrl+b toggles showing only valid recordings (configuration and data load)",
         "Type to filter by path (case-insensitive substring)",
         "Start the filter with / to use a regular expression",
         "↑/↓ select, Enter open file or directory",

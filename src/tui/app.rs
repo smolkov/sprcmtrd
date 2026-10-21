@@ -709,6 +709,8 @@ pub struct Picker {
     pub error: Option<String>,
     /// Subdirectories are searched too.
     pub recursive: bool,
+    /// Only recordings that load completely are listed.
+    pub valid_only: bool,
     matcher: Matcher,
     generation: u64,
 }
@@ -732,7 +734,7 @@ impl Matcher {
 }
 
 impl Picker {
-    fn new(dir: PathBuf, query: String, recursive: bool, generation: u64) -> Self {
+    fn new(dir: PathBuf, query: String, recursive: bool, valid_only: bool, generation: u64) -> Self {
         let mut p = Self {
             dir,
             query,
@@ -742,6 +744,7 @@ impl Picker {
             scanning: true,
             error: None,
             recursive,
+            valid_only,
             matcher: Matcher::Substring(String::new()),
             generation,
         };
@@ -861,6 +864,8 @@ pub struct App {
     tx: UnboundedSender<Message>,
     /// Picker searches subdirectories (kept when changing directories).
     picker_recursive: bool,
+    /// Picker lists only valid recordings (kept when changing directories).
+    picker_valid_only: bool,
     /// Generation of the current directory scan; older scans stop early.
     scan_generation: Arc<AtomicU64>,
 }
@@ -896,6 +901,7 @@ impl App {
             quit: false,
             tx,
             picker_recursive: true,
+            picker_valid_only: false,
             scan_generation: Arc::new(AtomicU64::new(0)),
         })
     }
@@ -923,11 +929,17 @@ impl App {
             Some(Overlay::Picker(p)) if p.dir == dir => p.query.clone(),
             _ => String::new(),
         };
-        let recursive = self.picker_recursive;
-        self.overlay = Some(Overlay::Picker(Picker::new(dir.clone(), query, recursive, generation)));
+        let (recursive, valid_only) = (self.picker_recursive, self.picker_valid_only);
+        self.overlay = Some(Overlay::Picker(Picker::new(
+            dir.clone(),
+            query,
+            recursive,
+            valid_only,
+            generation,
+        )));
         let tx = self.tx.clone();
         let current = Arc::clone(&self.scan_generation);
-        tokio::task::spawn_blocking(move || scan(&dir, recursive, generation, &current, &tx));
+        tokio::task::spawn_blocking(move || scan(&dir, recursive, valid_only, generation, &current, &tx));
     }
 
     fn picker_dir(&self) -> PathBuf {
@@ -1291,6 +1303,11 @@ impl App {
                 let dir = p.dir.clone();
                 self.open_picker(dir);
             }
+            KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.picker_valid_only = !p.valid_only;
+                let dir = p.dir.clone();
+                self.open_picker(dir);
+            }
             KeyCode::Backspace if p.query.is_empty() => {
                 if let Some(parent) = p.dir.parent().map(Path::to_path_buf) {
                     self.open_picker(parent);
@@ -1316,10 +1333,18 @@ impl App {
 }
 
 /// Scans `dir` for subdirectories and recordings (in all subdirectories
-/// when `recursive`), sending entries as they are found. Stops early when
+/// when `recursive`), sending entries as they are found. With `valid_only`,
+/// recordings that fail to load completely are skipped. Stops early when
 /// `current` no longer equals `generation` (a newer scan started or the
 /// picker closed).
-fn scan(dir: &Path, recursive: bool, generation: u64, current: &AtomicU64, tx: &UnboundedSender<Message>) {
+fn scan(
+    dir: &Path,
+    recursive: bool,
+    valid_only: bool,
+    generation: u64,
+    current: &AtomicU64,
+    tx: &UnboundedSender<Message>,
+) {
     let send = |entry| tx.send(Message::ScanEntry { generation, entry }).is_ok();
     let stale = || current.load(Ordering::Relaxed) != generation;
 
@@ -1358,6 +1383,10 @@ fn scan(dir: &Path, recursive: bool, generation: u64, current: &AtomicU64, tx: &
                 )
             })
             .map_err(|e| e.to_string());
+        // The data must load too, as when the recording is opened.
+        if valid_only && (details.is_err() || Comtrade::open_recording(&rec).is_err()) {
+            return ControlFlow::Continue(());
+        }
         let path = rec.main_file().to_path_buf();
         let name = path.strip_prefix(dir).unwrap_or(&path).display().to_string();
         if send(PickerEntry::Recording { name, path, details }) {
@@ -1445,9 +1474,9 @@ mod tests {
         assert!(KeyMap::new(&o).is_err());
     }
 
-    fn scan_names(dir: &Path, recursive: bool, generation: u64, current: u64) -> Vec<String> {
+    fn scan_names(dir: &Path, recursive: bool, valid_only: bool, generation: u64, current: u64) -> Vec<String> {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        scan(dir, recursive, generation, &AtomicU64::new(current), &tx);
+        scan(dir, recursive, valid_only, generation, &AtomicU64::new(current), &tx);
         drop(tx);
         let mut names = Vec::new();
         while let Ok(msg) = rx.try_recv() {
@@ -1467,15 +1496,31 @@ mod tests {
         std::fs::write(d.join("a/b/deep.cfg"), "").unwrap();
 
         let deep = Path::new("a").join("b").join("deep.cfg").display().to_string();
-        assert_eq!(scan_names(d, true, 1, 1), ["a/", "top.cfg", deep.as_str()]);
-        assert_eq!(scan_names(d, false, 1, 1), ["a/", "top.cfg"]);
+        assert_eq!(scan_names(d, true, false, 1, 1), ["a/", "top.cfg", deep.as_str()]);
+        assert_eq!(scan_names(d, false, false, 1, 1), ["a/", "top.cfg"]);
         // A newer scan has started: nothing is sent.
-        assert!(scan_names(d, true, 1, 2).is_empty());
+        assert!(scan_names(d, true, false, 1, 2).is_empty());
+    }
+
+    #[test]
+    fn picker_scan_valid_only_skips_broken_recordings() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = tmp.path();
+        let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data");
+        for f in ["broken.cfg", "fault_1999.cfg", "fault_1999.dat", "old_1991.cfg"] {
+            std::fs::copy(data.join(f), d.join(f)).unwrap();
+        }
+        // old_1991.cfg parses but has no data file.
+        assert_eq!(
+            scan_names(d, false, false, 1, 1),
+            ["broken.cfg", "fault_1999.cfg", "old_1991.cfg"]
+        );
+        assert_eq!(scan_names(d, false, true, 1, 1), ["fault_1999.cfg"]);
     }
 
     #[test]
     fn picker_filters_new_entries() {
-        let mut p = Picker::new(PathBuf::from("/"), "/^a/b".into(), true, 1);
+        let mut p = Picker::new(PathBuf::from("/"), "/^a/b".into(), true, false, 1);
         for name in ["a/b/x.cfg", "c/a/b.cfg"] {
             p.push(PickerEntry::Recording {
                 name: name.into(),

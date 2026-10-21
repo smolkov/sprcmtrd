@@ -396,13 +396,17 @@ help overlay are generated from it.
   skipped). Recordings are shown with their path relative to the picker directory.
 - `Ctrl+r` toggles between recursive search and this directory only; the choice is
   kept when changing directories.
+- `Ctrl+b` toggles between all recordings (default) and valid recordings only, the
+  same check as `list --valid` (configuration and data load completely). The
+  choice is kept when changing directories; the title shows `valid only` while it
+  is on. Toggling restarts the scan, which then reads every `.dat` and is slower.
 - Filtering on the relative path: case-insensitive substring by default; regex when the query starts
   with `/` (invalid regex shows an error in the overlay, list stays unchanged).
 - Each row: file name, station, start time, #channels (from `.cfg` only).
 - `↑`/`↓` select, `Enter` open, `Backspace` on empty input goes to parent
   directory, `Esc` close.
 - Directory scan runs in the background; results appear as they arrive. Changing
-  directory, toggling `Ctrl+r` or closing the picker cancels a running scan.
+  directory, toggling `Ctrl+r` / `Ctrl+b` or closing the picker cancels a running scan.
 - Recursive search in subdirectories.
 
 ### Configuration overlay

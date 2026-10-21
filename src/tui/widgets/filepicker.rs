@@ -18,7 +18,9 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, p: &Picker) {
     } else {
         "this directory only"
     };
-    let title = format!("Open recording · {} · {mode}", p.dir.display());
+    let shown = if p.valid_only { " · valid only" } else { "" };
+    // Modes before the directory, so a long path can't push them out.
+    let title = format!("Open recording · {mode}{shown} · {}", p.dir.display());
     let inner = overlay_block(f, centered(area, 85, 75), app, &title);
     let [input, list, bottom] =
         Layout::vertical([Constraint::Length(2), Constraint::Min(0), Constraint::Length(1)]).areas(inner);
@@ -72,11 +74,16 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, p: &Picker) {
     let message = if let Some(e) = &p.error {
         Line::styled(e.clone(), theme.error())
     } else if empty && !p.scanning {
+        let what = if p.valid_only {
+            "valid COMTRADE recordings"
+        } else {
+            "COMTRADE recordings"
+        };
         Line::styled(
             if p.recursive {
-                "no COMTRADE recordings here or in subdirectories"
+                format!("no {what} here or in subdirectories")
             } else {
-                "no COMTRADE recordings here (Ctrl+r searches subdirectories)"
+                format!("no {what} here (Ctrl+r searches subdirectories)")
             },
             theme.muted(),
         )
