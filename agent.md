@@ -35,6 +35,7 @@ src/comtrade/   COMTRADE library: cfg.rs, dat.rs, cff.rs, discover.rs, events.rs
 src/command/    info, list, view, events, stats, export, cut, convert, completions + shared formatting (si, time, table)
 src/tui/        app.rs (state, actions, key handling), event.rs, theme.rs, widgets/
 src/args.rs     clap definitions      src/config.rs   config.toml load/save
+src/complete.rs dynamic shell completion of recordings (COMPLETE=<shell> sprcmtrd)
 src/error.rs    comtrade::Error       src/logging.rs  tracing setup
 tests/cli.rs    CLI integration tests  tests/data/     sample recordings
 ```

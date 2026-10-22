@@ -257,7 +257,8 @@ fn completions_to_stdout_and_file() {
         .args(["completions", "bash"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("complete -F _sprcmtrd"));
+        .stdout(predicate::str::contains("complete -o nospace -o bashdefault"))
+        .stdout(predicate::str::contains("COMPLETE=\"bash\""));
 
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("_sprcmtrd");
@@ -268,7 +269,7 @@ fn completions_to_stdout_and_file() {
         .success()
         .stdout(predicate::str::is_empty())
         .stderr(predicate::str::contains("wrote zsh completions"));
-    assert!(std::fs::read_to_string(&path).unwrap().starts_with("#compdef sprcmtrd"));
+    assert!(std::fs::read_to_string(&path).unwrap().contains("#compdef sprcmtrd"));
 
     // Missing directory: error with the path, exit code 3 (file not found).
     cmd()
@@ -647,4 +648,57 @@ fn events_timeline() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("IA is an analog channel"));
+}
+
+/// Asks for completions the way the bash script does: the words of the
+/// command line and the index of the word under the cursor.
+fn complete(words: &[&str]) -> Vec<String> {
+    // Word 0 is the program, so the last word has index `words.len()`.
+    let out = cmd()
+        .env("COMPLETE", "bash")
+        .env("_CLAP_COMPLETE_INDEX", words.len().to_string())
+        .arg("--")
+        .arg("sprcmtrd")
+        .args(words)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    String::from_utf8(out.stdout)
+        .unwrap()
+        .split('\n')
+        .filter(|l| !l.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+fn dynamic_completion() {
+    let sep = std::path::MAIN_SEPARATOR;
+    // Recordings only (no .dat, .hdr), in the typed directory and below.
+    for command in ["info", "view", "stats", "events", "export", "cut", "convert"] {
+        let got = complete(&[command, "tests/data/fa"]);
+        assert_eq!(
+            got,
+            ["tests/data/fault_1999.cfg", "tests/data/fault_2013.cfg"],
+            "{command}"
+        );
+    }
+    let got = complete(&["view", "tests/d"]);
+    assert_eq!(got[0], format!("tests/data{sep}"));
+    assert!(got.contains(&format!("tests/data{sep}combined_2013.cff")), "{got:?}");
+    assert!(
+        !got.iter().any(|c| c.ends_with(".dat") || c.ends_with(".hdr")),
+        "{got:?}"
+    );
+
+    // Subcommands and option values come from the clap definitions.
+    assert!(complete(&["ev"]).contains(&"events".to_owned()));
+    assert_eq!(complete(&["convert", "x.cfg", "--rev", ""]), ["1991", "1999", "2013"]);
+
+    // Without words: the registration script for the shell.
+    cmd()
+        .env("COMPLETE", "bash")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("_clap_complete_sprcmtrd"));
 }

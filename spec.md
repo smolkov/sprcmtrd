@@ -308,18 +308,35 @@ Writes a recording as another revision, data format or file layout.
 
 ### `completions` command
 
-Generates tab-completion scripts for your shell.
+Tab completion for your shell, computed by `sprcmtrd` itself (dynamic
+completion of `clap_complete`, feature `unstable-dynamic`).
 
-- Arguments: `<SHELL>` (bash, zsh, fish, powershell), `--output <FILE>` (default stdout).
-- Example: `sprcmtrd completions bash --output /etc/bash_completion.d/sprcmtrd`
-- Completions for file paths in current directories. Recursively supports subdirectories.
-- Implementation: `clap_complete` generates the script from the clap definitions,
-  so subcommands, options and values (`--theme`, `--sort`, shells) are always in
-  sync. File arguments use `ValueHint::FilePath`, `list DIR` uses
-  `ValueHint::DirPath` and the TUI `PATH` `ValueHint::AnyPath`; the shell completes
-  paths and steps into subdirectories as you type (bash falls back to its file
-  completion via `complete -o default`).
-- Elvish is supported too (part of `clap_complete::Shell`).
+- On Tab the shell script runs `COMPLETE=<shell> sprcmtrd -- <words>`; `main`
+  answers with `CompleteEnv` before anything else runs and exits.
+- Subcommands, options and option values (`--theme`, `--sort`, `--format`,
+  `--rev`, …) come from the clap definitions, so they are always in sync.
+- Recording arguments (`FILE` of `info`, `view`, `events`, `stats`, `export`,
+  `cut`, `convert`, and the TUI `PATH`) use `complete::recordings`:
+  - the typed text up to the last `/` is the directory to search (relative,
+    absolute or `~/`), the rest the start of a name in it;
+  - offered: subdirectories whose name continues the typed text (ending with
+    `/`, so the shell steps into them), then the recordings (`.cfg` / `.cff`,
+    the main file of each recording) directly in the directory, then those in
+    the matching subdirectories and below, all whose path starts with the typed
+    text. `.dat`, `.hdr` and other files are not offered;
+  - same rules as `list`: hidden directories are skipped unless a name starting
+    with `.` is typed, symbolic links to directories are not followed;
+  - at most 500 recordings and 200 ms per Tab, so completion in a large tree
+    (`~`) stays responsive.
+- Output files (`-o`) and `list DIR` keep the plain file / directory completion.
+- Shells: bash, zsh, fish, PowerShell, elvish. Recommended setup loads the script
+  on shell start (`source <(COMPLETE=bash sprcmtrd)` in `~/.bashrc`,
+  `source <(COMPLETE=zsh sprcmtrd)` in `~/.zshrc`,
+  `COMPLETE=fish sprcmtrd | source` in fish), so it matches the installed
+  binary.
+- `completions <SHELL> [--output <FILE>]` prints the same script (calling
+  `sprcmtrd` from `PATH`, or the absolute path when started by path), for
+  installing it as a file; it has to be written again after an update.
 - `--output` errors name the path; a missing directory exits with code 3 (file
   not found), other write errors with 1. On success a confirmation is printed to
   stderr and stdout stays empty.
@@ -617,8 +634,8 @@ async runtime.
 
 ### Completions
 
-
-* Supports various shells like Bash, Zsh, Fish, and PowerShell.
+* Supports bash, zsh, fish, PowerShell and elvish; see the `completions`
+  command for the dynamic completion of recordings.
 
 
 ## Configuration

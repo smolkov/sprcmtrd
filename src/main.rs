@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use clap_complete::CompleteEnv;
 use sprcmtrd::args::Cli;
 use sprcmtrd::config::AppConfig;
 use sprcmtrd::logging::{self, Target};
@@ -12,6 +13,9 @@ const EXIT_CONTENT: u8 = 4;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    // `COMPLETE=<shell> sprcmtrd ...` is a request from the shell's
+    // completion script: answer it and exit before anything else runs.
+    CompleteEnv::with_factory(Cli::command).complete();
     let cli = Cli::parse();
     let target = if cli.command.is_some() {
         Target::Stderr

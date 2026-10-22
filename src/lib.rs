@@ -2,6 +2,7 @@
 
 pub mod args;
 pub mod command;
+pub mod complete;
 pub mod comtrade;
 pub mod config;
 pub mod error;

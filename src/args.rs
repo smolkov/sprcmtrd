@@ -3,6 +3,9 @@
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum, ValueHint};
+use clap_complete::engine::ArgValueCompleter;
+
+use crate::complete::recordings;
 
 /// Terminal viewer for COMTRADE (IEEE C37.111) power system recordings.
 ///
@@ -15,7 +18,7 @@ pub struct Cli {
     pub command: Option<Command>,
 
     /// File or directory to open in the TUI.
-    #[arg(value_hint = ValueHint::AnyPath)]
+    #[arg(value_hint = ValueHint::AnyPath, add = ArgValueCompleter::new(recordings))]
     pub path: Option<PathBuf>,
 
     /// Global options.
@@ -68,7 +71,7 @@ pub enum Command {
     /// Print a summary of a recording.
     Info {
         /// Any file of the recording (.cfg, .dat, .cff, ...).
-        #[arg(value_hint = ValueHint::FilePath)]
+        #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
         file: PathBuf,
         /// Print JSON instead of text.
         #[arg(long)]
@@ -101,7 +104,7 @@ pub enum Command {
     /// Print a summary and plots of a recording to stdout.
     View {
         /// Any file of the recording (.cfg, .dat, .cff, ...).
-        #[arg(value_hint = ValueHint::FilePath)]
+        #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
         file: PathBuf,
         /// Channels to show: comma separated 1-based indices or ids
         /// (analog: `3` or `IA`, binary: `d2` or `TRIP`). Default: all.
@@ -129,7 +132,7 @@ pub enum Command {
     #[command(verbatim_doc_comment)]
     Events {
         /// Any file of the recording (.cfg, .dat, .cff, ...).
-        #[arg(value_hint = ValueHint::FilePath)]
+        #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
         file: PathBuf,
         /// Binary channels: comma separated `dN` indices or ids. Default: all.
         #[arg(long, value_delimiter = ',')]
@@ -154,7 +157,7 @@ pub enum Command {
     #[command(visible_alias = "stat", verbatim_doc_comment)]
     Stats {
         /// Any file of the recording (.cfg, .dat, .cff, ...).
-        #[arg(value_hint = ValueHint::FilePath)]
+        #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
         file: PathBuf,
         /// Channels: comma separated 1-based indices or ids
         /// (analog: `3` or `IA`, binary: `d2` or `TRIP`). Default: all.
@@ -183,7 +186,7 @@ pub enum Command {
     #[command(verbatim_doc_comment)]
     Export {
         /// Any file of the recording (.cfg, .dat, .cff, ...).
-        #[arg(value_hint = ValueHint::FilePath)]
+        #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
         file: PathBuf,
         /// Output format (default: json for a .json output file, otherwise csv).
         #[arg(long, value_enum)]
@@ -221,7 +224,7 @@ pub enum Command {
     #[command(verbatim_doc_comment)]
     Cut {
         /// Any file of the recording (.cfg, .dat, .cff, ...).
-        #[arg(value_hint = ValueHint::FilePath)]
+        #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
         file: PathBuf,
         /// Output file: NAME.cfg (with NAME.dat) or NAME.cff.
         #[arg(short, long, value_hint = ValueHint::FilePath)]
@@ -253,7 +256,7 @@ pub enum Command {
     #[command(verbatim_doc_comment)]
     Convert {
         /// Any file of the recording (.cfg, .dat, .cff, ...).
-        #[arg(value_hint = ValueHint::FilePath)]
+        #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
         file: PathBuf,
         /// Output file: NAME.cfg (with NAME.dat) or NAME.cff.
         #[arg(short, long, value_hint = ValueHint::FilePath)]
@@ -270,13 +273,17 @@ pub enum Command {
         force: bool,
     },
 
-    /// Print a tab-completion script for your shell.
+    /// Print the tab-completion script for your shell.
     ///
-    /// Examples:
+    /// On Tab the shell asks sprcmtrd, which completes subcommands, options and
+    /// recordings (.cfg / .cff) in the typed directory and its subdirectories.
+    /// Recommended: load the script on shell start, so it always matches the
+    /// installed version:
+    ///   bash  ~/.bashrc:                      source <(COMPLETE=bash sprcmtrd)
+    ///   zsh   ~/.zshrc (after compinit):      source <(COMPLETE=zsh sprcmtrd)
+    ///   fish  ~/.config/fish/config.fish:     COMPLETE=fish sprcmtrd | source
+    /// Or write it to a file (again after each update):
     ///   sprcmtrd completions bash --output ~/.local/share/bash-completion/completions/sprcmtrd
-    ///   sprcmtrd completions zsh --output ~/.zfunc/_sprcmtrd
-    ///   sprcmtrd completions fish --output ~/.config/fish/completions/sprcmtrd.fish
-    ///   sprcmtrd completions powershell >> $PROFILE
     #[command(verbatim_doc_comment)]
     Completions {
         /// Shell to generate the script for.

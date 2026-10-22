@@ -282,23 +282,38 @@ tests/data/combined_2013.cff (2013 FLOAT32) -> fault.cfg (1999 BINARY)
 
 ### `completions`
 
-Prints a tab-completion script for **bash, zsh, fish, PowerShell** or elvish
-(`--output FILE` writes it to a file instead of stdout). It completes
-subcommands, options and option values (`--theme`, `--sort`, shells), and file
-and directory paths, stepping into subdirectories as you type.
+Tab completion for **bash, zsh, fish, PowerShell** and elvish. On Tab the
+shell asks `sprcmtrd`, which completes subcommands, options and option values,
+and for the recording argument of `info`, `view`, `events`, `stats`, `export`,
+`cut`, `convert` and the viewer: **COMTRADE recordings** (`.cfg` / `.cff`) in
+the typed directory **and its subdirectories**, plus the subdirectories to step
+into.
 
-```sh
-# bash
-sprcmtrd completions bash --output ~/.local/share/bash-completion/completions/sprcmtrd
-# zsh: a directory in $fpath, e.g. with fpath=(~/.zfunc $fpath) in ~/.zshrc
-sprcmtrd completions zsh --output ~/.zfunc/_sprcmtrd
-# fish
-sprcmtrd completions fish --output ~/.config/fish/completions/sprcmtrd.fish
-# PowerShell
-sprcmtrd completions powershell >> $PROFILE
+```
+$ sprcmtrd view sta<Tab><Tab>
+station_a/                     station_a/2024/fault_1999.cfg
+station_b/                     station_b/combined_2013.cff
 ```
 
-Start a new shell afterwards. Regenerate the script after updating `sprcmtrd`.
+Load it on shell start (recommended, it then always matches the installed
+version):
+
+```sh
+# bash: ~/.bashrc
+source <(COMPLETE=bash sprcmtrd)
+# zsh: ~/.zshrc, after compinit
+source <(COMPLETE=zsh sprcmtrd)
+# fish: ~/.config/fish/config.fish
+COMPLETE=fish sprcmtrd | source
+# PowerShell: $PROFILE
+$env:COMPLETE = "powershell"; sprcmtrd | Out-String | Invoke-Expression; Remove-Item Env:\COMPLETE
+```
+
+Or write the script to a file with `sprcmtrd completions SHELL --output FILE`
+(for example `~/.local/share/bash-completion/completions/sprcmtrd`); write it
+again after updating `sprcmtrd`. Hidden directories are skipped (type `.` to
+see them), and a Tab offers at most 500 recordings, so it stays quick in large
+trees.
 
 ### Exit codes
 

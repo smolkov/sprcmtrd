@@ -1,19 +1,22 @@
-//! `completions` command: tab-completion scripts for bash, zsh, fish, PowerShell and elvish.
+//! `completions` command: the shell script for dynamic tab completion.
 //!
-//! The scripts are generated from the clap definitions in [`crate::args`], so
-//! subcommands, options and values (shells, themes, sort keys) stay in sync
-//! with the binary. File and directory arguments carry value hints, so the
-//! shell completes paths and steps into subdirectories as you type.
+//! The script is the same one `COMPLETE=<shell> sprcmtrd` prints: on every
+//! Tab the shell calls `sprcmtrd`, which completes subcommands, options and
+//! values from the clap definitions and recordings with
+//! [`crate::complete::recordings`]. Sourcing `COMPLETE=<shell> sprcmtrd` on
+//! shell start keeps the script in step with the installed binary; a script
+//! written with `--output` has to be written again after an update.
 
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use anyhow::Context;
-use clap::CommandFactory;
+use anyhow::{Context, anyhow};
 use clap_complete::Shell;
+use clap_complete::env::Shells;
 
-use crate::args::Cli;
+/// Variable the shell script sets to ask for completions.
+pub const VAR: &str = "COMPLETE";
 
 /// Runs the `completions` command: writes the script for `shell` to
 /// `output`, or to stdout.
@@ -31,12 +34,27 @@ pub fn run(shell: Shell, output: Option<&Path>) -> anyhow::Result<()> {
     }
 }
 
-/// Generates the completion script for `shell` into `out`.
+/// Writes the completion script for `shell` into `out`.
 pub fn write(shell: Shell, out: &mut dyn Write) -> anyhow::Result<()> {
-    let mut cmd = Cli::command();
-    let name = cmd.get_name().to_owned();
-    clap_complete::generate(shell, &mut cmd, name, out);
+    let name = shell.to_string();
+    let shells = Shells::builtins();
+    let completer = shells
+        .completer(&name)
+        .ok_or_else(|| anyhow!("no completion support for {name}"))?;
+    completer.write_registration(VAR, "sprcmtrd", "sprcmtrd", &program(), out)?;
     Ok(())
+}
+
+/// How the script calls the program: as started (`sprcmtrd` from `PATH`), or
+/// the absolute path when started by path (`./target/debug/sprcmtrd`).
+fn program() -> String {
+    let arg0 = PathBuf::from(std::env::args_os().next().unwrap_or_else(|| "sprcmtrd".into()));
+    let path = if arg0.components().count() > 1 {
+        std::path::absolute(&arg0).unwrap_or(arg0)
+    } else {
+        arg0
+    };
+    path.to_string_lossy().into_owned()
 }
 
 #[cfg(test)]
@@ -50,32 +68,16 @@ mod tests {
     }
 
     #[test]
-    fn scripts_list_subcommands_and_values() {
+    fn scripts_call_back_into_the_program() {
         for shell in [Shell::Bash, Shell::Zsh, Shell::Fish, Shell::PowerShell, Shell::Elvish] {
             let s = script(shell);
-            // Fish writes long options as `-l no-recursive`, so match without dashes.
-            for word in [
-                "info",
-                "list",
-                "view",
-                "convert",
-                "cut",
-                "export",
-                "stats",
-                "events",
-                "completions",
-                "no-recursive",
-                "theme",
-            ] {
-                assert!(s.contains(word), "{shell} script lacks {word}");
-            }
+            assert!(s.contains(VAR), "{shell} script lacks {VAR}");
+            assert!(s.contains("sprcmtrd"), "{shell} script lacks the program");
         }
-        let zsh = script(Shell::Zsh);
-        assert!(zsh.starts_with("#compdef sprcmtrd"));
-        // Path arguments complete files / directories.
-        assert!(zsh.contains("_files"));
-        assert!(zsh.contains("_files -/"));
-        // Theme values with their descriptions.
-        assert!(script(Shell::Fish).contains("-l theme -d 'TUI theme' -r -f -a \"dark\\t'Dark background'"));
+        assert!(
+            script(Shell::Bash)
+                .contains("complete -o nospace -o bashdefault -o nosort -F _clap_complete_sprcmtrd sprcmtrd")
+        );
+        assert!(script(Shell::Zsh).contains("#compdef sprcmtrd"));
     }
 }
