@@ -712,3 +712,73 @@ fn dynamic_completion() {
         .success()
         .stdout(predicate::str::contains("_clap_complete_sprcmtrd"));
 }
+
+#[test]
+fn check_files_and_directories() {
+    cmd()
+        .args(["check", "tests/data/fault_2013.cfg"])
+        .assert()
+        .success()
+        .stdout("status  file                       channel  finding\n✓ OK    tests/data/fault_2013.cfg\n");
+
+    // A warning passes, unless --strict.
+    cmd()
+        .args(["check", "tests/data/old_1991.cfg"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "! WARNING  tests/data/old_1991.cfg  A1 IA    1 missing value (first at sample 51)\n",
+        ));
+    cmd()
+        .args(["check", "tests/data/old_1991.cfg", "--strict"])
+        .assert()
+        .code(4)
+        .stderr(predicate::str::contains(
+            "check failed: 1 of 1 with warnings (--strict)",
+        ));
+
+    // A directory with a broken recording fails.
+    cmd()
+        .args(["check", "tests/data"])
+        .assert()
+        .code(4)
+        .stdout(
+            predicate::str::is_match(r"\n✗ ERROR +broken\.cfg +cfg line 2: channel count 5 does not match 2A \+ 1D\n")
+                .unwrap(),
+        )
+        .stdout(predicate::str::is_match(r"\n✓ OK +fault_1999\.cfg\n").unwrap())
+        // Piped output has no color codes.
+        .stdout(predicate::str::contains("\x1b").not())
+        .stdout(predicate::str::is_match(r"\d+ recordings: \d+ ok, 1 with warnings, 1 with errors").unwrap());
+
+    // Data problems: a cut-short data file, and none at all.
+    let dir = tempfile::tempdir().unwrap();
+    let data = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
+    std::fs::copy(format!("{data}/fault_2013.cfg"), dir.path().join("short.cfg")).unwrap();
+    let dat = std::fs::read(format!("{data}/fault_2013.dat")).unwrap();
+    std::fs::write(dir.path().join("short.dat"), &dat[..1000]).unwrap();
+    std::fs::copy(format!("{data}/fault_1999.cfg"), dir.path().join("nodata.cfg")).unwrap();
+    let out = cmd().arg("check").arg(dir.path()).arg("--json").output().unwrap();
+    assert_eq!(out.status.code(), Some(4));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let status: Vec<_> = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| (r["file"].as_str().unwrap(), r["status"].as_str().unwrap()))
+        .collect();
+    assert_eq!(status, [("nodata.cfg", "error"), ("short.cfg", "error")]);
+    assert!(
+        v[1]["issues"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("not a multiple of the record size")
+    );
+
+    // A missing file is a file error (3), reported once.
+    cmd()
+        .args(["check", "tests/data/nope.cfg"])
+        .assert()
+        .code(3)
+        .stderr("error: tests/data/nope.cfg: no such file\n");
+}

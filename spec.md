@@ -5,7 +5,7 @@
 `sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
 faces:
 
-- **CLI commands** (`info`, `list`, `view`, `events`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
 - **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
   analog and binary channels as plots.
 
@@ -98,6 +98,7 @@ sprcmtrd [PATH]                # start TUI with PATH (file or directory) opened
 sprcmtrd info <FILE>           # print summary of a recording
 sprcmtrd list [DIR]            # list recordings in DIR (default: .)
 sprcmtrd view <FILE>           # print summary and terminal plots to stdout
+sprcmtrd check <PATH>          # validate recordings (exit code 4 on errors)
 sprcmtrd events <FILE>         # timeline of binary channel changes
 sprcmtrd stats <FILE>          # min, max, mean, RMS, peak; binary changes
 sprcmtrd export <FILE>         # samples as CSV or JSON
@@ -184,6 +185,45 @@ Non-interactive view printed to stdout (useful for logs and reports).
   per selected analog channel and one status strip per binary channel.
 - Plots are rendered with textplots (no extra plotting crate).
 
+
+### `check` command
+
+Validates recordings, for scripts and CI.
+
+- Arguments: `<PATH>` (a recording file, or a directory: all recordings in it
+  and its subdirectories, same rules as `list`), `--no-recursive`, `--strict`,
+  `--json`.
+- Findings have a severity:
+  - **error**: the recording can't be read (completely or correctly): the
+    configuration doesn't parse, the data file is missing, its size doesn't fit
+    the record size, the sample count differs from the configuration, …
+  - **warning**: readable, but something is wrong: missing values (count and
+    first sample), raw values outside the declared min/max or exactly at it
+    (clipped?), time not increasing (timestamps out of order), channel numbers
+    not 1..n, duplicate or empty channel ids, no unit, multiplier `a` = 0,
+    transformer ratio 0 (1999+), min above max, no declared sample count,
+    trigger outside the recording.
+  - **note** (doesn't affect the status): unusual unit, line frequency other
+    than 50 / 60 / 16.7 Hz.
+- Text output: a table `status | file | channel | finding` with one row per
+  finding (the file named on its first row only) and one `✓ OK` row for a
+  recording without findings; files relative to the directory. For a directory
+  a summary line (`9 recordings: 7 ok, 1 with warnings, 1 with errors`).
+- Colors, for accessibility only an extra cue: every status has a word and a
+  symbol (`✓ OK`, `i NOTE`, `! WARNING`, `✗ ERROR`). OK uses the accent color
+  (cyan on dark, blue on light backgrounds) instead of green, so OK and errors
+  don't differ by red / green alone; warnings are yellow (dark) or magenta
+  (light, yellow is hard to read on white); errors bold red; notes gray; the
+  header bold. The 16 ANSI colors follow the terminal's scheme; light or dark
+  comes from `--theme` / the configuration / `COLORFGBG`, like the TUI. Colors
+  only on a terminal, never with `--no-color` or `NO_COLOR`
+  (`command::style::Palette`).
+- JSON: an array of `{file, status, issues: [{severity, channel, message}],
+  samples}`.
+- Exit code 4 when a recording has an error, or a warning with `--strict`;
+  0 otherwise (also for a directory without recordings, with a message). A
+  missing path exits with 3.
+- Library: `comtrade::check::check(&RecordingPath) -> Report`.
 
 ### `events` command
 
@@ -316,7 +356,7 @@ completion of `clap_complete`, feature `unstable-dynamic`).
 - Subcommands, options and option values (`--theme`, `--sort`, `--format`,
   `--rev`, …) come from the clap definitions, so they are always in sync.
 - Recording arguments (`FILE` of `info`, `view`, `events`, `stats`, `export`,
-  `cut`, `convert`, and the TUI `PATH`) use `complete::recordings`:
+  `cut`, `convert`, `check`, and the TUI `PATH`) use `complete::recordings`:
   - the typed text up to the last `/` is the directory to search (relative,
     absolute or `~/`), the rest the start of a name in it;
   - offered: subdirectories whose name continues the typed text (ending with
@@ -361,12 +401,14 @@ src/
     export.rs        samples as CSV / JSON (export)
     stats.rs         channel statistics (stats)
     events.rs        binary channel changes (events)
+    check.rs         validation of recordings (check)
     discover.rs      find sibling files / recordings in a directory
   command/
     mod.rs           Command::run dispatch
     info.rs
     list.rs
     view.rs
+    check.rs        Validate recordings
     events.rs       Timeline of binary channel changes
     stats.rs        Channel statistics
     export.rs       Samples as CSV / JSON

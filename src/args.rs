@@ -124,6 +124,31 @@ pub enum Command {
         height: u16,
     },
 
+    /// Check recordings for problems (for scripts and CI).
+    ///
+    /// Errors: the recording can't be read correctly. Warnings: missing or
+    /// clipped values, times out of order, missing units, unusable ratios, ...
+    /// Exit code 4 when a recording has an error (or a warning with --strict).
+    ///
+    /// Examples:
+    ///   sprcmtrd check fault.cfg
+    ///   sprcmtrd check /data/recorder --strict
+    #[command(verbatim_doc_comment)]
+    Check {
+        /// A recording file, or a directory to check all recordings in.
+        #[arg(value_hint = ValueHint::AnyPath, add = ArgValueCompleter::new(recordings))]
+        path: PathBuf,
+        /// Only check DIR itself, not its subdirectories.
+        #[arg(long)]
+        no_recursive: bool,
+        /// Fail (exit code 4) on warnings too.
+        #[arg(long)]
+        strict: bool,
+        /// Print JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Timeline of binary channel changes (start, trip, breaker open, ...).
     ///
     /// Examples:

@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `view`, `events`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 ## Features
@@ -54,6 +54,7 @@ sprcmtrd PATH               # TUI with PATH opened (recording file or directory)
 sprcmtrd info FILE          # summary of a recording
 sprcmtrd list [DIR]         # recordings in DIR and its subdirectories
 sprcmtrd view FILE          # summary and plots printed to stdout
+sprcmtrd check PATH         # validate recordings (exit code 4 on errors)
 sprcmtrd events FILE        # timeline of binary channel changes
 sprcmtrd stats FILE         # min, max, mean, RMS, peak; binary changes
 sprcmtrd export FILE        # samples as CSV or JSON
@@ -140,6 +141,42 @@ A2 IB [A]
 | `--from MS`, `--to MS`| Time window in ms relative to the trigger                            |
 | `--width COLS`        | Plot width (default: terminal width, 100 when not a terminal)        |
 | `--height ROWS`       | Height of each analog plot (default 10)                              |
+
+### `check`
+
+```sh
+sprcmtrd check tests/data
+```
+
+```
+status     file                      channel  finding
+✗ ERROR    broken.cfg                         cfg line 2: channel count 5 does not match 2A + 1D
+✓ OK       combined_2013.cff
+✓ OK       fault_1999.cfg
+✓ OK       fault_2013.cfg
+✓ OK       fault_2013_uppercase.cfg
+! WARNING  old_1991.cfg              A1 IA    1 missing value (first at sample 51)
+✓ OK       reclose_1999_ascii.cfg
+✓ OK       test_ascii.cff
+✓ OK       test_ascii_uppercase.CFF
+
+9 recordings: 7 ok, 1 with warnings, 1 with errors
+```
+
+- A recording file, or a directory (all recordings in it and below,
+  `--no-recursive` for the directory only).
+- **error**: can't be read correctly (configuration, missing or wrong-sized
+  data file, sample count). **warning**: missing values, values at or beyond
+  the declared min/max (clipped?), times out of order, missing units, unusable
+  ratios, channel numbering, duplicate ids, trigger outside the recording.
+  **note**: unusual unit or line frequency.
+- Exit code **4** when a recording has an error (`--strict`: also a warning),
+  otherwise 0, so it can guard scripts and CI jobs. `--json` for details.
+- In a terminal the status is colored: OK cyan (blue on light backgrounds),
+  warnings yellow (magenta), errors bold red. Color is only an extra: the
+  symbols and words carry the meaning, so it reads in black and white and for
+  color blind readers. `--no-color` / `NO_COLOR` turn it off, `--theme light`
+  picks colors for light backgrounds.
 
 ### `events`
 
@@ -317,13 +354,13 @@ trees.
 
 ### Exit codes
 
-| Code | Meaning                                    |
-|------|--------------------------------------------|
-| 0    | Success                                    |
-| 1    | Other error (bad filter, unknown channel…) |
-| 2    | Invalid command line arguments             |
-| 3    | File not found or not readable             |
-| 4    | Invalid or unsupported COMTRADE content    |
+| Code | Meaning                                                 |
+|------|---------------------------------------------------------|
+| 0    | Success                                                 |
+| 1    | Other error (bad filter, unknown channel…)              |
+| 2    | Invalid command line arguments                          |
+| 3    | File not found or not readable                          |
+| 4    | Invalid or unsupported COMTRADE content, `check` failed |
 
 ## Interactive viewer
 

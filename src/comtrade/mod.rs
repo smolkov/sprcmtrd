@@ -5,6 +5,7 @@
 
 pub mod cff;
 pub mod cfg;
+pub mod check;
 pub mod dat;
 pub mod discover;
 pub mod events;

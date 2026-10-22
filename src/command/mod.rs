@@ -1,5 +1,6 @@
 //! Command dispatch and shared output formatting.
 
+pub mod check;
 pub mod completions;
 pub mod convert;
 pub mod cut;
@@ -8,6 +9,7 @@ pub mod export;
 pub mod info;
 pub mod list;
 pub mod stats;
+pub mod style;
 pub mod view;
 
 use anyhow::bail;
@@ -70,6 +72,12 @@ impl Command {
                     height,
                 },
             ),
+            Self::Check {
+                path,
+                no_recursive,
+                strict,
+                json,
+            } => check::run(ctx, &path, !no_recursive, strict, json),
             Self::Events {
                 file,
                 channels,

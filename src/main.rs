@@ -38,6 +38,9 @@ async fn main() -> ExitCode {
 }
 
 fn exit_code(e: &anyhow::Error) -> u8 {
+    if e.downcast_ref::<sprcmtrd::command::check::Failed>().is_some() {
+        return EXIT_CONTENT;
+    }
     match e.chain().find_map(|c| c.downcast_ref::<sprcmtrd::Error>()) {
         Some(err) if err.is_file_error() => EXIT_FILE,
         Some(_) => EXIT_CONTENT,
