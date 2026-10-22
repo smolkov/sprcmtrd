@@ -98,6 +98,15 @@ tests/cli.rs    CLI integration tests  tests/data/     sample recordings
   you work. Re-read a file before editing it, and run `git diff` before every
   commit to make sure only intended changes are included.
 
+## Sandbox
+
+`sbx/start.sh` runs Claude Code in a podman container (spec: `sandbox.md`,
+usage: `sbx/README.md`). Inside it the agent has no permission prompts; only
+the repository is mounted, git pushes over HTTPS with the tokens from
+`sbx/.env`, and force pushes and deletions are denied in `sbx/settings.json`.
+Never commit `sbx/.env`. Changes to `sbx/` should keep the image small: the
+host's podman uses `vfs` storage on a nearly full disk.
+
 ## Git workflow
 
 - Commit or push only when the user asks. Never amend or force-push.

@@ -1,0 +1,35 @@
+# Sandbox image for running Claude Code on this project; see sbx/README.md.
+# Few steps on purpose: start.sh builds with --layers=false, and with podman's
+# vfs storage every committed step would be a full copy of the image.
+FROM docker.io/library/debian:trixie-slim
+
+COPY --chmod=644 settings.json /etc/sbx/settings.json
+COPY --chmod=755 entrypoint.sh /usr/local/bin/sbx-entrypoint
+
+# Tools the agent uses: build (Rust needs a C linker), git hosting CLIs, and
+# tmux / zsh / fish / python3 to check the TUI and shell completion.
+# The host user is mapped to `agent` (podman run --userns=keep-id:uid=1000,gid=1000),
+# so files written in the mounted project belong to the host user.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential ca-certificates curl fish gh git glab jq less pkg-config procps python3 tmux zsh \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 1000 agent \
+    && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash agent
+
+USER agent
+WORKDIR /home/agent
+ENV PATH=/home/agent/.local/bin:/home/agent/.cargo/bin:$PATH \
+    CLAUDE_CONFIG_DIR=/home/agent/.claude
+
+# Rust (stable with clippy and rustfmt, and the minimum supported version
+# from agent.md) and Claude Code (native installer, to ~/.local/bin).
+RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --component clippy,rustfmt \
+    && rustup toolchain install 1.88 --profile minimal \
+    && rm -rf /home/agent/.rustup/downloads /home/agent/.rustup/tmp \
+    && mkdir -p /home/agent/.cargo/registry /home/agent/.claude \
+    && curl -fsSL https://claude.ai/install.sh | bash
+
+ENTRYPOINT ["/usr/local/bin/sbx-entrypoint"]
+CMD ["claude", "--dangerously-skip-permissions"]
