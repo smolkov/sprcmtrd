@@ -9,12 +9,14 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// A file could not be opened or read.
-    #[error("{}: {source}", path.display())]
+    // The reason is part of the message and not a `source`, so printing the
+    // error chain (`{:#}`) doesn't show it twice.
+    #[error("{}: {error}", path.display())]
     Io {
         /// File that failed.
         path: PathBuf,
         /// Underlying I/O error.
-        source: std::io::Error,
+        error: std::io::Error,
     },
 
     /// A file required for the recording does not exist.
@@ -46,10 +48,10 @@ pub enum Error {
 
 impl Error {
     /// Creates an [`Error::Io`] for `path`.
-    pub fn io(path: impl Into<PathBuf>, source: std::io::Error) -> Self {
+    pub fn io(path: impl Into<PathBuf>, error: std::io::Error) -> Self {
         Self::Io {
             path: path.into(),
-            source,
+            error,
         }
     }
 
