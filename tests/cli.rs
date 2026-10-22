@@ -122,7 +122,7 @@ fn list_shows_recordings_and_errors() {
         .success()
         .stdout(
             predicate::str::is_match(
-                r"(?s)broken\.cfg.*combined_2013\.cff.*fault_1999\.cfg.*fault_2013\.cfg.*old_1991\.cfg.*reclose_1999_ascii\.cfg",
+                r"(?s)broken\.cfg.*combined_2013\.cff.*fault_1999\.cfg.*fault_2013\.cfg.*fault_2013_uppercase\.cfg.*old_1991\.cfg.*reclose_1999_ascii\.cfg.*test_ascii\.cff.*test_ascii_uppercase\.CFF",
             )
             .unwrap(),
         )
@@ -679,7 +679,11 @@ fn dynamic_completion() {
         let got = complete(&[command, "tests/data/fa"]);
         assert_eq!(
             got,
-            ["tests/data/fault_1999.cfg", "tests/data/fault_2013.cfg"],
+            [
+                "tests/data/fault_1999.cfg",
+                "tests/data/fault_2013.cfg",
+                "tests/data/fault_2013_uppercase.cfg"
+            ],
             "{command}"
         );
     }
@@ -689,6 +693,12 @@ fn dynamic_completion() {
     assert!(
         !got.iter().any(|c| c.ends_with(".dat") || c.ends_with(".hdr")),
         "{got:?}"
+    );
+
+    // Upper case extensions are recordings too.
+    assert_eq!(
+        complete(&["view", "tests/data/test_"]),
+        ["tests/data/test_ascii.cff", "tests/data/test_ascii_uppercase.CFF"]
     );
 
     // Subcommands and option values come from the clap definitions.

@@ -395,6 +395,6 @@ mod tests {
             })
             .collect();
         names.sort();
-        assert_eq!(names, ["fault_1999.cfg", "fault_2013.cfg"]);
+        assert_eq!(names, ["fault_1999.cfg", "fault_2013.cfg", "fault_2013_uppercase.cfg"]);
     }
 }
