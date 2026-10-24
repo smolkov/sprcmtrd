@@ -61,21 +61,26 @@ jobs:
         shell: bash
         run: |
           name="sprcmtrd-${GITHUB_REF_NAME}-${{ matrix.target }}"
-          mkdir "$name"
-          cp README.md "$name/"
+          mkdir "$name" out
+          cp README.md LICENSE-MIT LICENSE-APACHE "$name/"
           if [ "$RUNNER_OS" = "Windows" ]; then
             cp "target/${{ matrix.target }}/release/sprcmtrd.exe" "$name/"
-            7z a "$name.zip" "$name" > /dev/null
-            echo "ASSET=$name.zip" >> "$GITHUB_ENV"
+            7z a "out/$name.zip" "$name" > /dev/null
           else
             cp "target/${{ matrix.target }}/release/sprcmtrd" "$name/"
-            tar czf "$name.tar.gz" "$name"
-            echo "ASSET=$name.tar.gz" >> "$GITHUB_ENV"
+            tar czf "out/$name.tar.gz" "$name"
           fi
+      # Debian packages for the Linux targets (settings in Cargo.toml).
+      - if: runner.os == 'Linux'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb
+      - if: runner.os == 'Linux'
+        run: cargo deb --no-build --no-strip --target ${{ matrix.target }} --output out/
       - uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.target }}
-          path: ${{ env.ASSET }}
+          path: out/*
           if-no-files-found: error
 
   release:

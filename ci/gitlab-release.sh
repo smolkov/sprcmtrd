@@ -28,7 +28,7 @@ links=${links%,}
 
 description="sprcmtrd $tag
 
-Binaries for Linux x86_64, Linux aarch64 and Windows x86_64. Verify downloads with \`sha256sum --check --ignore-missing SHA256SUMS\`."
+Binaries for Linux x86_64, Linux aarch64 and Windows x86_64, and Debian packages for Linux (\`sudo apt install ./sprcmtrd_*.deb\`). Verify downloads with \`sha256sum --check --ignore-missing SHA256SUMS\`."
 # JSON-escape the description (backslashes, quotes, newlines).
 description_json=$(printf '%s' "$description" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | awk 'BEGIN{ORS="\\n"} {print}' | sed 's/\\n$//')
 

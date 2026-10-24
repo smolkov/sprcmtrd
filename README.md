@@ -28,15 +28,23 @@ and disturbance recorders during power system faults.
 
 ## Installation
 
-Prebuilt binaries for Linux (x86_64, aarch64), macOS (Intel, Apple Silicon) and
-Windows (x86_64) are attached to each
-[GitHub release](https://github.com/smolkov/sprcmtrd/releases), with a
-`SHA256SUMS` file to verify them.
+Each [GitHub release](https://github.com/smolkov/sprcmtrd/releases) has
+prebuilt binaries for Linux (x86_64, aarch64), macOS (Intel, Apple Silicon) and
+Windows (x86_64), Debian packages for Linux, and a `SHA256SUMS` file to verify
+them (`sha256sum --check --ignore-missing SHA256SUMS`).
 
-Building from source requires Rust 1.88 or newer.
+**Debian / Ubuntu:** the package installs the binary, the documentation and
+tab completion for bash, zsh and fish:
 
 ```sh
-cargo install --path .
+sudo apt install ./sprcmtrd_0.4.0-1_amd64.deb     # arm64 for aarch64
+```
+
+**With Cargo** (Rust 1.88 or newer), from the repository or a checkout:
+
+```sh
+cargo install --git https://github.com/smolkov/sprcmtrd --locked
+cargo install --path . --locked
 ```
 
 or build and run from the repository:
@@ -534,7 +542,15 @@ Windows, and a build with the minimum Rust version.
 
 `.github/workflows/release.yml` checks that the tag matches the `Cargo.toml`
 version, runs the tests, builds the binaries for all platforms and publishes a
-GitHub release with the archives, `SHA256SUMS` and generated release notes.
+GitHub release with the archives (binary, README, licenses), Debian packages
+for the Linux targets, `SHA256SUMS` and generated release notes.
+
+Packaging settings live in `Cargo.toml`: the release profile (LTO, one codegen
+unit, stripped symbols), the crate metadata for crates.io (`include` keeps CI,
+sandbox and notes out of the package; check with `cargo package --list`), and
+`[package.metadata.deb]` for `cargo deb` (binary, README, licenses and the
+completion stubs from `packaging/completions/`). To publish on crates.io:
+`cargo publish --dry-run`, then `cargo publish` (needs a crates.io token).
 
 ### GitLab
 
@@ -569,3 +585,14 @@ used as a library on its own.
 
 The recordings in `tests/data/` are synthetic and generated for testing; they
 are not real disturbance records.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option. Unless you state otherwise, any contribution you submit for
+inclusion in this project, as defined in the Apache-2.0 license, is licensed
+as above, without any additional terms.

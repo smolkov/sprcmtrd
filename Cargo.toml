@@ -3,8 +3,23 @@ name = "sprcmtrd"
 version = "0.4.0"
 edition = "2024"
 rust-version = "1.88"
-repository = "https://github.com/smolkov/sprcmtrd"
+authors = ["Aleksandr Smolkov <aleksandr.smolkov@sprecher-automation.com>"]
 description = "Terminal viewer for COMTRADE (IEEE C37.111) power system recordings"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/smolkov/sprcmtrd"
+homepage = "https://github.com/smolkov/sprcmtrd"
+readme = "README.md"
+keywords = ["comtrade", "power-system", "oscillography", "tui", "disturbance"]
+categories = ["command-line-utilities", "science", "visualization", "parser-implementations"]
+# Only what building and testing the crate needs: no CI, sandbox or notes.
+include = [
+    "/src/**",
+    "/tests/**",
+    "/packaging/**",
+    "/README.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
 
 [dependencies]
 anyhow = "1"
@@ -30,3 +45,34 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
+
+# Smaller and faster release binaries: whole-program optimization and no
+# symbols. Unwinding stays, so a panic still restores the terminal.
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
+# Debian package, built with `cargo deb` (cargo-deb) by the release pipelines.
+[package.metadata.deb]
+maintainer = "Aleksandr Smolkov <aleksandr.smolkov@sprecher-automation.com>"
+copyright = "2026, Aleksandr Smolkov"
+license-file = ["LICENSE-MIT", "0"]
+section = "utils"
+priority = "optional"
+extended-description = """\
+Terminal viewer for COMTRADE (IEEE C37.111 / IEC 60255-24) recordings of power \
+system disturbances: an interactive TUI with plots, and commands to list, \
+check, analyse (statistics, events, phasors), export, cut and convert \
+recordings."""
+# Rust links the standard library statically; only the C library is needed.
+# Stated explicitly, so cross-built packages don't need dpkg-shlibdeps.
+depends = "libc6"
+assets = [
+    ["target/release/sprcmtrd", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/sprcmtrd/", "644"],
+    ["LICENSE-APACHE", "usr/share/doc/sprcmtrd/", "644"],
+    ["packaging/completions/sprcmtrd.bash", "usr/share/bash-completion/completions/sprcmtrd", "644"],
+    ["packaging/completions/sprcmtrd.fish", "usr/share/fish/vendor_completions.d/sprcmtrd.fish", "644"],
+    ["packaging/completions/_sprcmtrd", "usr/share/zsh/vendor-completions/_sprcmtrd", "644"],
+]

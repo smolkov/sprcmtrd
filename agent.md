@@ -138,11 +138,19 @@ host's podman uses `vfs` storage on a nearly full disk.
 2. Push `main` to both remotes, then an annotated tag to both:
    `git tag -a vX.Y.Z -m "sprcmtrd X.Y.Z" && git push origin vX.Y.Z && git push gitlab vX.Y.Z`.
 3. GitHub (`.github/workflows/release.yml`) builds Linux x86_64/aarch64, macOS
-   x86_64/aarch64 and Windows MSVC, and publishes a release with `SHA256SUMS`.
-   GitLab (`.gitlab-ci.yml`, `ci/*.sh`) builds Linux x86_64/aarch64 and Windows
-   MinGW on Linux runners and creates a release from the package registry.
+   x86_64/aarch64 and Windows MSVC (archives with binary, README, licenses),
+   Debian packages for both Linux targets (`cargo deb`), and publishes a release
+   with `SHA256SUMS`. GitLab (`.gitlab-ci.yml`, `ci/*.sh`) builds Linux
+   x86_64/aarch64 (with `.deb`) and Windows MinGW on Linux runners and creates a
+   release from the package registry.
 4. Verify: download an archive, `sha256sum --check --ignore-missing SHA256SUMS`,
-   run `--version`.
+   run `--version`; install the `.deb` in a clean container
+   (`podman run --rm -v ./dist:/deb:ro debian:trixie-slim …`).
+
+Packaging settings are in `Cargo.toml` (license `MIT OR Apache-2.0`, metadata,
+`include`, release profile, `[package.metadata.deb]`); completion stubs for the
+`.deb` are in `packaging/completions/`. Before publishing to crates.io run
+`cargo publish --dry-run --locked`; it also reports yanked dependencies.
 
 The tag must match `Cargo.toml` or both release pipelines stop. Test changes to
 `ci/*.sh` locally in the CI images with podman before pushing a tag.

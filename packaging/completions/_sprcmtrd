@@ -1,0 +1,7 @@
+#compdef sprcmtrd
+# zsh completion for sprcmtrd (autoloaded from vendor-completions). The
+# installed program prints its own completion script, so it always matches the
+# installed version; it defines _clap_dynamic_completer_sprcmtrd, which then
+# completes this and every later call.
+source <(COMPLETE=zsh sprcmtrd 2>/dev/null)
+_clap_dynamic_completer_sprcmtrd "$@"

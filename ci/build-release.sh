@@ -1,6 +1,7 @@
 #!/bin/sh
 # Builds the release binary for TARGET on Debian and packs it with the README
-# into dist/sprcmtrd-TAG-TARGET.tar.gz (Linux) or .zip (Windows).
+# and licenses into dist/sprcmtrd-TAG-TARGET.tar.gz (Linux) or .zip (Windows);
+# for Linux also a Debian package (cargo-deb, settings in Cargo.toml).
 #
 #   ci/build-release.sh x86_64-unknown-linux-gnu v0.2.0
 #
@@ -28,7 +29,7 @@ cargo build --release --locked --target "$target"
 
 rm -rf "dist/$name"
 mkdir -p "dist/$name"
-cp README.md "dist/$name/"
+cp README.md LICENSE-MIT LICENSE-APACHE "dist/$name/"
 cd dist
 case "$target" in
     *windows*)
@@ -41,4 +42,12 @@ case "$target" in
         ;;
 esac
 rm -rf "$name"
-ls -l
+cd ..
+
+case "$target" in
+    *linux*)
+        command -v cargo-deb > /dev/null || cargo install cargo-deb --locked --quiet
+        cargo deb --no-build --no-strip --target "$target" --output dist/
+        ;;
+esac
+ls -l dist
