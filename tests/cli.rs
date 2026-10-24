@@ -840,3 +840,62 @@ fn list_content_filters() {
         .code(1)
         .stderr(predicate::str::contains("invalid --station regular expression"));
 }
+
+#[test]
+fn phasors_before_and_during_the_fault() {
+    // Before the fault: balanced currents (450 A peak) and voltages (110 kV / √3).
+    cmd()
+        .args(["phasors", "tests/data/fault_2013.cfg", "--at", "-100"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("(1 cycle, 40 samples, 50 Hz)"))
+        .stdout(predicate::str::is_match(r"A2 IB +A +318\.2 +-120\.0°").unwrap())
+        .stdout(predicate::str::is_match(r"A4 IN +A +0\.000 +-\n").unwrap())
+        .stdout(predicate::str::is_match(r"VA VB VC +LINE 4 +kV +0 +63\.50 ∠ 0\.0° +0 +0\.0 %").unwrap());
+
+    // During the phase B to ground fault: zero and negative sequence current are equal.
+    let out = cmd()
+        .args([
+            "phasor",
+            "tests/data/fault_2013.cfg",
+            "--at",
+            "40",
+            "--channels",
+            "IA,IB,IC",
+        ])
+        .args(["--reference", "VA", "--json"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["reference"], "A5 VA");
+    assert_eq!(v["samples"], 40);
+    let ib = v["phasors"][1]["magnitude"].as_f64().unwrap();
+    assert!(ib > 3000.0, "{ib}");
+    let s = &v["sequences"][0];
+    assert_eq!(s["channels"], serde_json::json!(["IA", "IB", "IC"]));
+    let (zero, negative) = (
+        s["zero"]["magnitude"].as_f64().unwrap(),
+        s["negative"]["magnitude"].as_f64().unwrap(),
+    );
+    assert!((zero - negative).abs() < 1.0, "{zero} {negative}");
+
+    // A missing value is reported for its channel, not as an error.
+    cmd()
+        .args(["phasors", "tests/data/old_1991.cfg", "--at", "25", "--reference", "VA"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r"A1 IA +A +- +missing value at sample 51").unwrap());
+    cmd()
+        .args(["phasors", "tests/data/fault_2013.cfg", "--at", "-499"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "starts before the recording; use --at -480.5 or later",
+        ));
+    cmd()
+        .args(["phasors", "tests/data/fault_2013.cfg", "--channels", "TRIP_A"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("TRIP_A is a binary channel"));
+}

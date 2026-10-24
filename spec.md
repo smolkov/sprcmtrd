@@ -5,7 +5,7 @@
 `sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
 faces:
 
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
 - **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
   analog and binary channels as plots.
 
@@ -32,7 +32,8 @@ recorded during power system disturbances, faults and simulation tests.
 
 - Editing COMTRADE files. Writing is limited to `convert` and `cut` (a new
   recording in another revision, format or layout, or a part of one).
-- Signal analysis (RMS, phasors, harmonics, FFT). May come later.
+- Signal analysis beyond phasors (harmonics, FFT, impedances). Phasors of the
+  fundamental and symmetrical components are in scope: `phasors` command.
 - Comparing several recordings side by side.
 - Mouse-first interaction (keyboard is primary; mouse is optional).
 
@@ -101,6 +102,7 @@ sprcmtrd view <FILE>           # print summary and terminal plots to stdout
 sprcmtrd check <PATH>          # validate recordings (exit code 4 on errors)
 sprcmtrd events <FILE>         # timeline of binary channel changes
 sprcmtrd stats <FILE>          # min, max, mean, RMS, peak; binary changes
+sprcmtrd phasors <FILE>        # phasors and symmetrical components at a time
 sprcmtrd export <FILE>         # samples as CSV or JSON
 sprcmtrd cut <FILE> -o <OUT>   # time window / channels as a new recording
 sprcmtrd convert <FILE> -o <OUT> # write as another revision / format / .cff
@@ -261,6 +263,40 @@ Timeline of binary channel changes (start, trip, breaker open, reclose, ...).
   (1-based), `time` (s), `index`, `id`, `from`, `to` and `absolute`.
 - Library: `comtrade::events::events`.
 
+### `phasors` command
+
+Phasors of the fundamental frequency and symmetrical components at one moment
+(alias `phasor`).
+
+- Arguments: `<FILE>`, `--at <ms>` (window end relative to the trigger, default
+  0), `--cycles <N>` (window length, default 1), `--channels <LIST>` (analog;
+  naming a binary channel is an error), `--reference <CH>` (angle reference,
+  default the first selected channel; may be outside the selection),
+  `--frequency <Hz>` (default the line frequency of the `.cfg`; required when
+  it is 0), `--json`; the global `--secondary` selects secondary values.
+- Method: DFT over the samples of `N` cycles ending at the sample nearest
+  `--at`, as a protection relay sees the signals at that moment. The number of
+  samples comes from the sample spacing there (at least 4); the DFT uses the
+  sample times, so angles are right with any samples per cycle. DC is rejected
+  over whole cycles. Magnitudes are RMS (peak / √2), angles in degrees
+  relative to the reference, in (-180, 180].
+- Symmetrical components for every group of three selected channels with
+  phases A, B, C (also L1/L2/L3, R/S/T) of the same circuit and unit:
+  zero (A+B+C)/3, positive (A+aB+a²C)/3, negative (A+a²B+aC)/3 with a = 1∠120°,
+  and the unbalance negative / positive in %.
+- Text output: window, reference and side, a table `channel | unit | magnitude
+  | angle` (angle `-` for a signal that is zero), and a table of symmetrical
+  components (a component that is zero shows `0` without angle).
+- A channel with a missing value in the window shows the reason instead of a
+  value, and its group gets no symmetrical components. A window that starts
+  before the recording, too few samples, or a reference that can't be computed
+  are errors (exit 1).
+- JSON: `file`, `side`, `frequency`, `at_s`, `from_s`, `samples`, `reference`,
+  `phasors[]` (`index`, `id`, `unit`, `magnitude`, `angle` or `error`) and
+  `sequences[]` (`circuit`, `unit`, `channels`, `zero`, `positive`, `negative`,
+  `unbalance`).
+- Library: `comtrade::phasor` (`phasor`, `window`, `symmetrical`, `groups`).
+
 ### `stats` command
 
 Statistics per channel over a time window (alias `stat`).
@@ -372,7 +408,7 @@ completion of `clap_complete`, feature `unstable-dynamic`).
 - Subcommands, options and option values (`--theme`, `--sort`, `--format`,
   `--rev`, …) come from the clap definitions, so they are always in sync.
 - Recording arguments (`FILE` of `info`, `view`, `events`, `stats`, `export`,
-  `cut`, `convert`, `check`, and the TUI `PATH`) use `complete::recordings`:
+  `cut`, `convert`, `check`, `phasors`, and the TUI `PATH`) use `complete::recordings`:
   - the typed text up to the last `/` is the directory to search (relative,
     absolute or `~/`), the rest the start of a name in it;
   - offered: subdirectories whose name continues the typed text (ending with
@@ -421,6 +457,7 @@ src/
     write.rs         .cfg / .dat / .cff writer (convert)
     export.rs        samples as CSV / JSON (export)
     stats.rs         channel statistics (stats)
+    phasor.rs        phasors, symmetrical components (phasors)
     events.rs        binary channel changes (events)
     check.rs         validation of recordings (check)
     discover.rs      find sibling files / recordings in a directory
@@ -432,6 +469,7 @@ src/
     check.rs        Validate recordings
     events.rs       Timeline of binary channel changes
     stats.rs        Channel statistics
+    phasors.rs      Phasors and symmetrical components
     export.rs       Samples as CSV / JSON
     cut.rs          Time window / channels as a new recording
     convert.rs      Write a recording as another revision / format

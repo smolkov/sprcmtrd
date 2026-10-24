@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 ## Features
@@ -57,6 +57,7 @@ sprcmtrd view FILE          # summary and plots printed to stdout
 sprcmtrd check PATH         # validate recordings (exit code 4 on errors)
 sprcmtrd events FILE        # timeline of binary channel changes
 sprcmtrd stats FILE         # min, max, mean, RMS, peak; binary changes
+sprcmtrd phasors FILE       # phasors and symmetrical components at a time
 sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
 sprcmtrd convert FILE -o OUT  # other revision, data format or .cff
@@ -219,6 +220,42 @@ time      Δ         absolute                    channel       change
   trigger is a row of its own.
 - `--channels` (binary channels), `--from` / `--to` as in `view`; `--json` for
   scripts.
+
+### `phasors`
+
+```sh
+sprcmtrd phasors tests/data/fault_2013.cfg --at 40 --channels IA,IB,IC,VA,VB,VC --reference VA
+```
+
+```
+File       tests/data/fault_2013.cfg
+Window     20.50 ms .. 40.00 ms (1 cycle, 40 samples, 50 Hz)
+Reference  A5 VA
+Values     primary, RMS
+
+channel  unit  magnitude  angle
+A1 IA    A     318.2      0.0°
+A2 IB    A     3.458k     -117.7°
+A3 IC    A     318.2      120.0°
+A5 VA    kV    63.50      0.0°
+A6 VB    kV    17.68      -120.0°
+A7 VC    kV    63.50      120.0°
+
+Symmetrical components
+phases    circuit  unit  zero              positive       negative         unbalance
+IA IB IC  LINE 4   A     1.047k ∠ -117.5°  1.365k ∠ 1.9°  1.047k ∠ 122.5°  76.7 %
+VA VB VC  LINE 4   kV    15.27 ∠ 60.0°     48.22 ∠ 0.0°   15.27 ∠ -60.0°   31.7 %
+```
+
+- Phasors of the fundamental (line frequency of the recording, `--frequency`
+  to override) over `--cycles` cycles (default 1) ending at `--at` ms after the
+  trigger, as a relay sees them. RMS magnitudes, angles relative to
+  `--reference` (default: the first channel).
+- Symmetrical components (zero, positive, negative sequence and unbalance) for
+  each A/B/C set of one circuit and unit. In the example the phase B to ground
+  fault shows as equal zero and negative sequence currents.
+- `--secondary` for secondary values, `--json` for full values. `phasor`
+  works too.
 
 ### `stats`
 

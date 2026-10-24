@@ -8,6 +8,7 @@ pub mod events;
 pub mod export;
 pub mod info;
 pub mod list;
+pub mod phasors;
 pub mod stats;
 pub mod view;
 
@@ -107,6 +108,26 @@ impl Command {
                 to,
                 json,
             } => events::run(&file, &channels, from, to, json),
+            Self::Phasors {
+                file,
+                at,
+                cycles,
+                channels,
+                reference,
+                frequency,
+                json,
+            } => phasors::run(
+                ctx,
+                &phasors::Options {
+                    file,
+                    at_ms: at,
+                    cycles,
+                    channels,
+                    reference,
+                    frequency,
+                    json,
+                },
+            ),
             Self::Stats {
                 file,
                 channels,

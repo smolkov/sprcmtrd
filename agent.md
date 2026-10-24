@@ -31,8 +31,8 @@ cargo +1.88 check --locked --all-targets            # minimum supported Rust
 ## Architecture
 
 ```
-src/comtrade/   COMTRADE library: cfg.rs, dat.rs, cff.rs, check.rs, discover.rs, events.rs, export.rs, stats.rs, write.rs, mod.rs
-src/command/    info, list, check, view, events, stats, export, cut, convert, completions + shared formatting (si, time, table)
+src/comtrade/   COMTRADE library: cfg.rs, dat.rs, cff.rs, check.rs, discover.rs, events.rs, export.rs, phasor.rs, stats.rs, write.rs, mod.rs
+src/command/    info, list, check, view, events, stats, phasors, export, cut, convert, completions + shared formatting (si, time, table)
 src/tui/        app.rs (state, actions, key handling), event.rs, theme.rs, widgets/
 src/args.rs     clap definitions      src/config.rs   config.toml load/save
 src/complete.rs dynamic shell completion of recordings (COMPLETE=<shell> sprcmtrd)

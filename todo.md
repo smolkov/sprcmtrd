@@ -12,7 +12,7 @@
 * [ ] `diff <A> <B>`: compare two recordings: header fields, sample rates, channel lists (added, removed, changed scaling or units). Useful when relay settings or a recorder changed.
 * [ ] `watch <DIR>`: watch a directory (fault recorder output folder) and print a `list` row for each new recording as it appears; `--exec CMD` runs a command for it (e.g. `sprcmtrd view`).
 * [x] `list` filters: `--station REGEX`, `--since DATE`, `--until DATE`, `--min-duration`, so large archives can be searched by recording content, not only by file name.
-* [ ] `phasors <FILE> --at <ms>`: fundamental phasors (magnitude and angle) of the analog channels at a time, plus symmetrical components (positive, negative, zero sequence) for three-phase groups. Signal analysis is a non-goal for v1, so this needs a spec update first.
+* [x] `phasors <FILE> --at <ms>`: fundamental phasors (magnitude and angle) of the analog channels at a time, plus symmetrical components (positive, negative, zero sequence) for three-phase groups. Signal analysis is a non-goal for v1, so this needs a spec update first.
 
 ## Commands that write files (non-goal for v1, needs spec decision)
 
@@ -36,6 +36,7 @@
 * [ ] Separate TUI and CLI logic more cleanly to reduce coupling and improve testability.
 * [ ] App module is too large separate into smaller modules for better maintainability. Move key handling into its own module.
   `tui/app.rs` has 1500 lines. Natural cuts: `Action`, `Binding`, `BINDINGS`, `KeySpec`, `KeyMap` → `tui/keys.rs`; `Picker`, `PickerEntry`, `Matcher` and `scan` → `tui/picker.rs`; `Recording` (channel visibility, zoom, cursor) → `tui/recording.rs`. `App` keeps state and dispatch.
+* [ ] Spinner in stdout for long-running CLI commands (like `convert` or `export`) to indicate progress.
 
 ### Command line
 

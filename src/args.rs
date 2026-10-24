@@ -193,6 +193,41 @@ pub enum Command {
         json: bool,
     },
 
+    /// Phasors of the fundamental frequency and symmetrical components.
+    ///
+    /// A DFT over whole cycles ending at --at, as a protection relay sees the
+    /// signals at that moment. Magnitudes are RMS, angles in degrees relative
+    /// to the reference channel. Channels with phases A, B, C of one circuit
+    /// and unit also get zero, positive and negative sequence.
+    ///
+    /// Examples:
+    ///   sprcmtrd phasors fault.cfg --at -20
+    ///   sprcmtrd phasors fault.cfg --at 40 --channels IA,IB,IC --reference VA
+    #[command(visible_alias = "phasor", verbatim_doc_comment)]
+    Phasors {
+        /// Any file of the recording (.cfg, .dat, .cff, ...).
+        #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
+        file: PathBuf,
+        /// End of the window in ms relative to the trigger.
+        #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+        at: f64,
+        /// Window length in cycles of the fundamental frequency.
+        #[arg(long, default_value_t = 1.0)]
+        cycles: f64,
+        /// Analog channels: comma separated 1-based indices or ids. Default: all.
+        #[arg(long, value_delimiter = ',')]
+        channels: Vec<String>,
+        /// Channel the angles refer to (index or id). Default: the first channel.
+        #[arg(long)]
+        reference: Option<String>,
+        /// Fundamental frequency in Hz. Default: the line frequency of the recording.
+        #[arg(long)]
+        frequency: Option<f64>,
+        /// Print JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Statistics per channel: min, max, mean, RMS and peak of analog
     /// channels, state changes of binary channels.
     ///
