@@ -12,7 +12,22 @@
 * [ ] `diff <A> <B>`: compare two recordings: header fields, sample rates, channel lists (added, removed, changed scaling or units). Useful when relay settings or a recorder changed.
 * [ ] `watch <DIR>`: watch a directory (fault recorder output folder) and print a `list` row for each new recording as it appears; `--exec CMD` runs a command for it (e.g. `sprcmtrd view`).
 * [x] `list` filters: `--station REGEX`, `--since DATE`, `--until DATE`, `--min-duration`, so large archives can be searched by recording content, not only by file name.
-* [x] `phasors <FILE> --at <ms>`: fundamental phasors (magnitude and angle) of the analog channels at a time, plus symmetrical components (positive, negative, zero sequence) for three-phase groups. Signal analysis is a non-goal for v1, so this needs a spec update first.
+* [x] `phasors <FILE> --at <ms>`: fundamental phasors (magnitude and angle) of the analog channels at a time, plus symmetrical components (positive, negative, zero sequence) for three-phase groups.
+
+## Signal analysis ideas
+
+These build on `comtrade::phasor` (DFT over whole cycles ending at a sample) and `comtrade::stats`.
+
+* [ ] `trend <FILE>`: cycle-by-cycle values over time instead of at one moment: RMS, fundamental magnitude and angle, symmetrical components and frequency per channel or group, as a table or CSV (`--step` in cycles or ms, `--channels`, `--from`/`--to`). Shows how the fault develops and clears; the base for several commands below.
+* [ ] `harmonics <FILE> --at <ms>`: harmonic spectrum (2nd … 50th, magnitude in % of the fundamental and angle) and THD per channel, over `--cycles` cycles. Typical uses: transformer inrush (high 2nd harmonic), CT saturation, power quality.
+* [ ] `impedance <FILE> --at <ms>`: apparent impedance of the six fault loops (A-N, B-N, C-N with residual compensation `--k0`, A-B, B-C, C-A) from the voltage and current phasors, in Ω primary or secondary, as R + jX and |Z| ∠ φ. With `--trend`, the trajectory over time for comparing with distance relay zones.
+* [ ] `power <FILE>`: active, reactive and apparent power and power factor per three-phase group (from phasors; per phase and total), at `--at` or cycle by cycle. Shows load before the fault and power flow direction.
+* [ ] `frequency <FILE>`: system frequency over time from the zero crossings or the phasor angle change of a voltage channel, and the rate of change (ROCOF). For recordings of frequency events, not only short faults.
+* [ ] `fault <FILE>`: fault analysis summary: inception (first sample where current departs from the pre-fault cycle), faulted phases (from currents and sequence components: A-N, B-C, A-B-N, …), fault duration until the current is interrupted, peak current, and the operate times next to the binary events (start → trip → breaker open → current zero).
+* [ ] `locate <FILE> --line-impedance Z1,Z0 --length KM`: single-ended fault location (reactance method and Takagi) from the pre-fault and fault phasors, as distance in km and % of the line. Needs the line data from the user.
+* [ ] `dc-offset <FILE>`: DC component of the fault current and its decay time constant (fitted over the first cycles after inception), relevant for CT dimensioning and breaker duty.
+* [ ] `compare <A> <B>`: waveforms of two recordings of the same event (e.g. both line ends), aligned by trigger or absolute time; differences of magnitudes and angles per channel. Differential current for two-ended recordings.
+* [ ] TUI: show phasors and harmonics of the cursor position in an overlay (phasor diagram drawn with braille characters), sharing the library code with the commands.
 
 ## Commands that write files (non-goal for v1, needs spec decision)
 

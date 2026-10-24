@@ -26,14 +26,14 @@ recorded during power system disturbances, faults and simulation tests.
 - Open and display COMTRADE recordings quickly, also large ones (≥ 100 MB `.dat`).
 - Give a readable summary of a recording without leaving the terminal.
 - Plot analog channels and binary channel states with zoom and pan.
+- Analyse recordings: statistics, binary events, phasors and symmetrical
+  components, and further signal analysis (harmonics, impedances, …).
 - Work over SSH and in plain terminals (no GUI dependencies).
 
 ### Non-goals (for v1)
 
 - Editing COMTRADE files. Writing is limited to `convert` and `cut` (a new
   recording in another revision, format or layout, or a part of one).
-- Signal analysis beyond phasors (harmonics, FFT, impedances). Phasors of the
-  fundamental and symmetrical components are in scope: `phasors` command.
 - Comparing several recordings side by side.
 - Mouse-first interaction (keyboard is primary; mouse is optional).
 
