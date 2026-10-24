@@ -3,10 +3,10 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, bail};
+use anyhow::{Context as _, bail};
 
-use super::bytes;
-use crate::args::{FormatArg, RevisionArg};
+use super::{Context, bytes};
+use crate::args::{ConvertArgs, FormatArg, RevisionArg};
 use crate::comtrade::{Comtrade, DataFormat, Revision, write};
 
 impl From<FormatArg> for DataFormat {
@@ -30,37 +30,40 @@ impl From<RevisionArg> for Revision {
     }
 }
 
-/// Runs the `convert` command. `format` and `rev` default to the source's,
-/// except that revision 2013 is chosen when the format or a `.cff` output
-/// needs it. Existing files are only replaced with `force`, and never the
-/// source recording itself.
-pub fn run(
-    file: &Path,
-    output: &Path,
-    format: Option<FormatArg>,
-    rev: Option<RevisionArg>,
-    force: bool,
-) -> anyhow::Result<()> {
-    let src = Comtrade::open(file)?;
-    let saved = save(
-        &src,
-        &src,
-        output,
-        format.map(DataFormat::from),
-        rev.map(Revision::from),
-        force,
-    )?;
-    println!(
-        "{} ({} {}) -> {} ({} {})",
-        file.display(),
-        src.config.revision,
-        src.config.data_format,
-        output.display(),
-        saved.revision,
-        saved.format
-    );
-    saved.print();
-    Ok(())
+impl ConvertArgs {
+    /// Runs the `convert` command. `format` and `rev` default to the source's,
+    /// except that revision 2013 is chosen when the format or a `.cff` output
+    /// needs it. Existing files are only replaced with `force`, and never the
+    /// source recording itself.
+    pub fn run(self, _ctx: &Context) -> anyhow::Result<()> {
+        let Self {
+            file,
+            output,
+            format,
+            rev,
+            force,
+        } = self;
+        let src = Comtrade::open(&file)?;
+        let saved = save(
+            &src,
+            &src,
+            &output,
+            format.map(DataFormat::from),
+            rev.map(Revision::from),
+            force,
+        )?;
+        println!(
+            "{} ({} {}) -> {} ({} {})",
+            file.display(),
+            src.config.revision,
+            src.config.data_format,
+            output.display(),
+            saved.revision,
+            saved.format
+        );
+        saved.print();
+        Ok(())
+    }
 }
 
 /// A recording written by [`save`].

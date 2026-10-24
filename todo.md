@@ -56,7 +56,7 @@ These build on `comtrade::phasor` (DFT over whole cycles ending at a sample) and
 ### Command line
 
 * [ ] Shared clap argument groups: `--channels`, `--from` / `--to` are defined five times (view, stats, events, export, cut). One `#[command(flatten)] Selection` struct with `channels()` and `window()` methods instead of passing `select_channels` / `time_window` results around.
-* [ ] One `Args` struct per subcommand (`Stats(StatsArgs)`) with its own `run(self, ctx)`, instead of the big `match` in `command/mod.rs` that destructures every variant into separate parameters.
+* [x] One `Args` struct per subcommand (`Stats(StatsArgs)`) with its own `run(self, ctx)`, instead of the big `match` in `command/mod.rs` that destructures every variant into separate parameters.
 * [ ] Small helpers for repeated code: `GlobalOpts::side()` (the `if secondary { Side::Secondary } else { Side::Primary }` in view, stats, export and the TUI), `Comtrade::name()` (main file name, in view, stats, events), `Comtrade::absolute_time(t)` (trigger time + offset, in export, events, cut and the plot widget), and a serde name for `Side` (`primary` / `secondary`) instead of hand-written matches.
 * [ ] Overwrite protection exists twice (`convert::check_outputs`, `export::refuse_source`); move "is this path part of the recording" into the library (`RecordingPath::contains`) and use it in both.
 * [ ] Exit code policy: commands mix `bail!` strings (exit 1) with library `Unsupported` errors (exit 4), and `convert` strips the `unsupported:` prefix by hand. Decide which errors are usage errors and give them a type.

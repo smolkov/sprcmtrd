@@ -1,11 +1,11 @@
 //! `check` command: validates one recording or all recordings in a directory.
 
 use std::ops::ControlFlow;
-use std::path::Path;
 
 use serde::Serialize;
 
 use super::{Context, table};
+use crate::args::CheckArgs;
 use crate::comtrade::check::{self, Report, Severity};
 use crate::comtrade::discover::{self, RecordingPath, Visit};
 use crate::term::{Palette, Role, Spinner};
@@ -25,86 +25,95 @@ struct JsonReport<'a> {
     report: &'a Report,
 }
 
-/// Runs the `check` command on a recording file, or on all recordings in a
-/// directory (and its subdirectories when `recursive`). Fails when a
-/// recording has an error, or a warning with `strict`.
-pub fn run(ctx: &Context, path: &Path, recursive: bool, strict: bool, json: bool) -> anyhow::Result<()> {
-    // Searching and checking a large directory takes a while: show progress.
-    let mut spinner = Spinner::stderr();
-    let recordings: Vec<(String, RecordingPath)> = if path.is_dir() {
-        let mut found = Vec::new();
-        // The callback never breaks, so the flow is always Continue.
-        let _ = discover::walk(path, recursive, &mut |visit| {
-            if let Visit::Recording(rec) = visit {
-                let name = rec.main_file().strip_prefix(path).unwrap_or(rec.main_file());
-                found.push((name.display().to_string(), rec));
-            }
-            spinner.set(format!("searching · {} found", found.len()));
-            spinner.tick();
-            ControlFlow::Continue(())
-        })?;
-        found
-    } else {
-        let rec = RecordingPath::from_file(path)?;
-        vec![(rec.main_file().display().to_string(), rec)]
-    };
-    let total = recordings.len();
-    let mut reports: Vec<(String, Report)> = Vec::with_capacity(total);
-    for (i, (name, rec)) in recordings.into_iter().enumerate() {
-        spinner.set(format!("checking {}/{total} · {name}", i + 1));
-        spinner.tick();
-        reports.push((name, check::check(&rec)));
-    }
-    spinner.clear();
-    let count = |s: Option<Severity>| reports.iter().filter(|(_, r)| r.status() == s).count();
-    let (ok, warnings, errors) = (
-        count(None),
-        count(Some(Severity::Warning)),
-        count(Some(Severity::Error)),
-    );
-
-    if json {
-        let out: Vec<JsonReport> = reports
-            .iter()
-            .map(|(file, report)| JsonReport {
-                file: file.clone(),
-                status: status_name(report.status()),
-                report,
-            })
-            .collect();
-        println!("{}", serde_json::to_string_pretty(&out)?);
-    } else {
-        let palette = Palette::stdout(ctx.theme(), ctx.global.colors_disabled());
-        print!("{}", text(&reports, &palette));
-        if path.is_dir() && !reports.is_empty() {
-            let n = reports.len();
-            let recordings = if n == 1 { "recording" } else { "recordings" };
-            // Counts above zero in their color.
-            let count = |n: usize, what: &str, role: Role| {
-                let s = format!("{n} {what}");
-                if n > 0 { palette.paint(&s, role) } else { s }
-            };
-            println!(
-                "\n{n} {recordings}: {}, {}, {}",
-                count(ok, "ok", Role::Ok),
-                count(warnings, "with warnings", Role::Warning),
-                count(errors, "with errors", Role::Error)
-            );
-        }
-    }
-
-    if reports.is_empty() {
-        eprintln!("no COMTRADE recordings found in {}", path.display());
-    }
-    if errors > 0 || (strict && warnings > 0) {
-        let what = if errors > 0 {
-            format!("{errors} of {} with errors", reports.len())
+impl CheckArgs {
+    /// Runs the `check` command on a recording file, or on all recordings in a
+    /// directory (and its subdirectories when `recursive`). Fails when a
+    /// recording has an error, or a warning with `strict`.
+    pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
+        let Self {
+            path,
+            no_recursive,
+            strict,
+            json,
+        } = self;
+        let (path, recursive) = (path.as_path(), !no_recursive);
+        // Searching and checking a large directory takes a while: show progress.
+        let mut spinner = Spinner::stderr();
+        let recordings: Vec<(String, RecordingPath)> = if path.is_dir() {
+            let mut found = Vec::new();
+            // The callback never breaks, so the flow is always Continue.
+            let _ = discover::walk(path, recursive, &mut |visit| {
+                if let Visit::Recording(rec) = visit {
+                    let name = rec.main_file().strip_prefix(path).unwrap_or(rec.main_file());
+                    found.push((name.display().to_string(), rec));
+                }
+                spinner.set(format!("searching · {} found", found.len()));
+                spinner.tick();
+                ControlFlow::Continue(())
+            })?;
+            found
         } else {
-            format!("{warnings} of {} with warnings (--strict)", reports.len())
+            let rec = RecordingPath::from_file(path)?;
+            vec![(rec.main_file().display().to_string(), rec)]
         };
-        return Err(Failed(format!("check failed: {what}")).into());
+        let total = recordings.len();
+        let mut reports: Vec<(String, Report)> = Vec::with_capacity(total);
+        for (i, (name, rec)) in recordings.into_iter().enumerate() {
+            spinner.set(format!("checking {}/{total} · {name}", i + 1));
+            spinner.tick();
+            reports.push((name, check::check(&rec)));
+        }
+        spinner.clear();
+        let count = |s: Option<Severity>| reports.iter().filter(|(_, r)| r.status() == s).count();
+        let (ok, warnings, errors) = (
+            count(None),
+            count(Some(Severity::Warning)),
+            count(Some(Severity::Error)),
+        );
+
+        if json {
+            let out: Vec<JsonReport> = reports
+                .iter()
+                .map(|(file, report)| JsonReport {
+                    file: file.clone(),
+                    status: status_name(report.status()),
+                    report,
+                })
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&out)?);
+        } else {
+            let palette = Palette::stdout(ctx.theme(), ctx.global.colors_disabled());
+            print!("{}", text(&reports, &palette));
+            if path.is_dir() && !reports.is_empty() {
+                let n = reports.len();
+                let recordings = if n == 1 { "recording" } else { "recordings" };
+                // Counts above zero in their color.
+                let count = |n: usize, what: &str, role: Role| {
+                    let s = format!("{n} {what}");
+                    if n > 0 { palette.paint(&s, role) } else { s }
+                };
+                println!(
+                    "\n{n} {recordings}: {}, {}, {}",
+                    count(ok, "ok", Role::Ok),
+                    count(warnings, "with warnings", Role::Warning),
+                    count(errors, "with errors", Role::Error)
+                );
+            }
+        }
+
+        if reports.is_empty() {
+            eprintln!("no COMTRADE recordings found in {}", path.display());
+        }
+        if errors > 0 || (strict && warnings > 0) {
+            let what = if errors > 0 {
+                format!("{errors} of {} with errors", reports.len())
+            } else {
+                format!("{warnings} of {} with warnings (--strict)", reports.len())
+            };
+            return Err(Failed(format!("check failed: {what}")).into());
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 fn status_name(s: Option<Severity>) -> &'static str {

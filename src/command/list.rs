@@ -6,12 +6,12 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::Duration;
 
-use anyhow::Context;
+use anyhow::Context as _;
 use chrono::NaiveDateTime;
 use regex::{Regex, RegexBuilder};
 
-use super::{bytes, rate, table, time};
-use crate::args::SortKey;
+use super::{Context, bytes, rate, table, time};
+use crate::args::{ListArgs, SortKey};
 use crate::comtrade::discover::{self, Visit};
 use crate::comtrade::{Comtrade, Config, RecordingPath};
 use crate::term::{self, LiveTable, Spinner};
@@ -66,7 +66,7 @@ impl Filters {
 }
 
 /// Compiles the regular expression of the option `option`, if given.
-pub fn regex(pattern: Option<&str>, option: &str, case_insensitive: bool) -> anyhow::Result<Option<Regex>> {
+fn regex(pattern: Option<&str>, option: &str, case_insensitive: bool) -> anyhow::Result<Option<Regex>> {
     pattern
         .map(|p| RegexBuilder::new(p).case_insensitive(case_insensitive).build())
         .transpose()
@@ -92,14 +92,30 @@ const ERROR: usize = HEADERS.len() - 1;
 /// found (station … size); the file column takes 18 to 48 characters.
 const LIVE_WIDTHS: [usize; 9] = [12, 4, 8, 19, 8, 8, 3, 3, 8];
 
-/// Runs the `list` command. Subdirectories are searched when `recursive`;
-/// only recordings that pass `filters` are shown.
+impl ListArgs {
+    /// Runs the `list` command.
+    pub fn run(self, _ctx: &Context) -> anyhow::Result<()> {
+        let filters = Filters {
+            name: regex(self.filter.as_deref(), "--filter", false)?,
+            station: regex(self.station.as_deref(), "--station", true)?,
+            since: self.since,
+            until: self.until,
+            min_duration: self.min_duration,
+            max_duration: self.max_duration,
+            valid: self.valid,
+        };
+        list(&self.dir, !self.no_recursive, filters, self.sort)
+    }
+}
+
+/// Lists the recordings in `dir` (and its subdirectories when `recursive`)
+/// that pass `filters`.
 ///
 /// The search runs on its own thread. In a terminal without `sort`, rows are
 /// printed as they are found; otherwise they are sorted (by start time when
 /// `sort` is `None`) and printed as one table at the end. While searching, a
 /// spinner is shown on stderr when it is a terminal.
-pub fn run(dir: &Path, recursive: bool, filters: Filters, sort: Option<SortKey>) -> anyhow::Result<()> {
+fn list(dir: &Path, recursive: bool, filters: Filters, sort: Option<SortKey>) -> anyhow::Result<()> {
     let what = if filters.by_content() || filters.name.is_some() {
         "COMTRADE recordings matching the filters"
     } else if filters.valid {

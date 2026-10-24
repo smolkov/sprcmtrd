@@ -47,6 +47,10 @@ tests/cli.rs    CLI integration tests  tests/data/     sample recordings
 - **Async:** only the TUI event loop uses Tokio. Blocking work (loading a `.dat`,
   directory scans) runs in `spawn_blocking` and reports back through
   `event::Message`.
+- **Commands:** each subcommand has an `XxxArgs` struct in `args.rs`
+  (`Command::Stats(StatsArgs)`) and its behaviour in `command/xxx.rs` as
+  `impl StatsArgs { pub fn run(self, ctx: &Context) }`; `Command::run` only
+  dispatches. A new command adds a variant, its `Args` struct and the module.
 - **Key bindings:** one table, `BINDINGS` in `tui/app.rs`. Help overlay, footer
   hints, configuration overlay and `config.toml` names are generated from it.
   Add new actions there; never hard-code key hints elsewhere.

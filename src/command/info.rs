@@ -4,7 +4,8 @@ use std::path::Path;
 
 use serde::Serialize;
 
-use super::{rate, si, table, time, trim_float};
+use super::{Context, rate, si, table, time, trim_float};
+use crate::args::InfoArgs;
 use crate::comtrade::{Comtrade, Config, RecordingPath};
 
 /// Key/value summary of a configuration, shared by `info`, `view` and the TUI.
@@ -123,43 +124,46 @@ struct Json<'a> {
     info: Option<String>,
 }
 
-/// Runs the `info` command.
-pub fn run(file: &Path, json: bool, no_extra: bool) -> anyhow::Result<()> {
-    let rec = RecordingPath::from_file(file)?;
-    let config = Comtrade::config_of(&rec)?;
-    let (header, info) = if no_extra { (None, None) } else { extras(&rec)? };
-    let name = rec.main_file().display().to_string();
+impl InfoArgs {
+    /// Runs the `info` command.
+    pub fn run(self, _ctx: &Context) -> anyhow::Result<()> {
+        let Self { file, json, no_extra } = self;
+        let rec = RecordingPath::from_file(&file)?;
+        let config = Comtrade::config_of(&rec)?;
+        let (header, info) = if no_extra { (None, None) } else { extras(&rec)? };
+        let name = rec.main_file().display().to_string();
 
-    if json {
-        let out = Json {
-            file: name,
-            config: &config,
-            samples: config.total_samples(),
-            duration_s: config.duration(),
-            trigger_offset_s: config.trigger_offset(),
-            header,
-            info,
-        };
-        println!("{}", serde_json::to_string_pretty(&out)?);
-        return Ok(());
-    }
-
-    let mut out = key_values(&summary(&name, &config));
-    if !config.analog.is_empty() {
-        let (h, rows) = analog_rows(&config);
-        out += &format!("\nAnalog channels\n{}", table(&h, &rows));
-    }
-    if !config.binary.is_empty() {
-        let (h, rows) = binary_rows(&config);
-        out += &format!("\nBinary channels\n{}", table(&h, &rows));
-    }
-    for (title, text) in [("Header (.hdr)", header), ("Information (.inf)", info)] {
-        if let Some(text) = text.filter(|t| !t.trim().is_empty()) {
-            out += &format!("\n{title}\n{}\n", text.trim_end());
+        if json {
+            let out = Json {
+                file: name,
+                config: &config,
+                samples: config.total_samples(),
+                duration_s: config.duration(),
+                trigger_offset_s: config.trigger_offset(),
+                header,
+                info,
+            };
+            println!("{}", serde_json::to_string_pretty(&out)?);
+            return Ok(());
         }
+
+        let mut out = key_values(&summary(&name, &config));
+        if !config.analog.is_empty() {
+            let (h, rows) = analog_rows(&config);
+            out += &format!("\nAnalog channels\n{}", table(&h, &rows));
+        }
+        if !config.binary.is_empty() {
+            let (h, rows) = binary_rows(&config);
+            out += &format!("\nBinary channels\n{}", table(&h, &rows));
+        }
+        for (title, text) in [("Header (.hdr)", header), ("Information (.inf)", info)] {
+            if let Some(text) = text.filter(|t| !t.trim().is_empty()) {
+                out += &format!("\n{title}\n{}\n", text.trim_end());
+            }
+        }
+        print!("{out}");
+        Ok(())
     }
-    print!("{out}");
-    Ok(())
 }
 
 /// Reads `.hdr` and `.inf` content (from files or the `.cff`).

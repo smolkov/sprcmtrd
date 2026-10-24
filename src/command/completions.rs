@@ -9,28 +9,34 @@
 
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use anyhow::{Context, anyhow};
+use anyhow::{Context as _, anyhow};
 use clap_complete::Shell;
 use clap_complete::env::Shells;
+
+use super::Context;
+use crate::args::CompletionsArgs;
 
 /// Variable the shell script sets to ask for completions.
 pub const VAR: &str = "COMPLETE";
 
-/// Runs the `completions` command: writes the script for `shell` to
-/// `output`, or to stdout.
-pub fn run(shell: Shell, output: Option<&Path>) -> anyhow::Result<()> {
-    match output {
-        Some(path) => {
-            let file = File::create(path).with_context(|| format!("creating {}", path.display()))?;
-            let mut out = BufWriter::new(file);
-            write(shell, &mut out)?;
-            out.flush().with_context(|| format!("writing {}", path.display()))?;
-            eprintln!("wrote {shell} completions to {}", path.display());
-            Ok(())
+impl CompletionsArgs {
+    /// Runs the `completions` command: writes the script for `shell` to
+    /// `output`, or to stdout.
+    pub fn run(self, _ctx: &Context) -> anyhow::Result<()> {
+        let Self { shell, output } = self;
+        match output.as_deref() {
+            Some(path) => {
+                let file = File::create(path).with_context(|| format!("creating {}", path.display()))?;
+                let mut out = BufWriter::new(file);
+                write(shell, &mut out)?;
+                out.flush().with_context(|| format!("writing {}", path.display()))?;
+                eprintln!("wrote {shell} completions to {}", path.display());
+                Ok(())
+            }
+            None => write(shell, &mut io::stdout().lock()),
         }
-        None => write(shell, &mut io::stdout().lock()),
     }
 }
 

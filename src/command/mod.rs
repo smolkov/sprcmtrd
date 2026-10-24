@@ -53,126 +53,17 @@ impl Command {
     /// Runs the command. CLI commands do synchronous work.
     pub async fn run(self, ctx: &Context) -> anyhow::Result<()> {
         match self {
-            Self::Info { file, json, no_extra } => info::run(&file, json, no_extra),
-            Self::List {
-                dir,
-                no_recursive,
-                filter,
-                valid,
-                station,
-                since,
-                until,
-                min_duration,
-                max_duration,
-                sort,
-            } => {
-                let filters = list::Filters {
-                    name: list::regex(filter.as_deref(), "--filter", false)?,
-                    station: list::regex(station.as_deref(), "--station", true)?,
-                    since,
-                    until,
-                    min_duration,
-                    max_duration,
-                    valid,
-                };
-                list::run(&dir, !no_recursive, filters, sort)
-            }
-            Self::View {
-                file,
-                channels,
-                from,
-                to,
-                width,
-                height,
-            } => view::run(
-                ctx,
-                &view::Options {
-                    file,
-                    channels,
-                    from_ms: from,
-                    to_ms: to,
-                    width,
-                    height,
-                },
-            ),
-            Self::Check {
-                path,
-                no_recursive,
-                strict,
-                json,
-            } => check::run(ctx, &path, !no_recursive, strict, json),
-            Self::Events {
-                file,
-                channels,
-                from,
-                to,
-                json,
-            } => events::run(&file, &channels, from, to, json),
-            Self::Phasors {
-                file,
-                at,
-                cycles,
-                channels,
-                reference,
-                frequency,
-                json,
-            } => phasors::run(
-                ctx,
-                &phasors::Options {
-                    file,
-                    at_ms: at,
-                    cycles,
-                    channels,
-                    reference,
-                    frequency,
-                    json,
-                },
-            ),
-            Self::Stats {
-                file,
-                channels,
-                from,
-                to,
-                json,
-            } => stats::run(ctx, &file, &channels, from, to, json),
-            Self::Export {
-                file,
-                format,
-                channels,
-                from,
-                to,
-                every,
-                absolute,
-                output,
-            } => export::run(
-                ctx,
-                &export::Options {
-                    file,
-                    format,
-                    channels,
-                    from_ms: from,
-                    to_ms: to,
-                    every: every as usize,
-                    absolute,
-                    output,
-                },
-            ),
-            Self::Cut {
-                file,
-                output,
-                from,
-                to,
-                channels,
-                force,
-            } => cut::run(&file, &output, from, to, &channels, force),
-            Self::Convert {
-                file,
-                output,
-                format,
-                rev,
-                force,
-            } => convert::run(&file, &output, format, rev, force),
-            Self::Completions { shell, output } => completions::run(shell, output.as_deref()),
+            Self::Info(a) => a.run(ctx),
+            Self::List(a) => a.run(ctx),
+            Self::View(a) => a.run(ctx),
+            Self::Check(a) => a.run(ctx),
+            Self::Events(a) => a.run(ctx),
+            Self::Phasors(a) => a.run(ctx),
+            Self::Stats(a) => a.run(ctx),
+            Self::Export(a) => a.run(ctx),
+            Self::Cut(a) => a.run(ctx),
+            Self::Convert(a) => a.run(ctx),
+            Self::Completions(a) => a.run(ctx),
         }
     }
 }

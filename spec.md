@@ -440,7 +440,8 @@ completion of `clap_complete`, feature `unstable-dynamic`).
 src/
   main.rs            entry point: parse args, set up logging, dispatch
   lib.rs             library root, re-exports public API
-  args.rs            clap definitions (Cli, Command, global options)
+  args.rs            clap definitions (Cli, Command, one XxxArgs per subcommand,
+                     global options); each XxxArgs::run lives in command/xxx.rs
   error.rs           error types (thiserror)
   config.rs          application configuration (parsing, loading, defaults)
   logging.rs          logging setup (env_logger, log levels)
