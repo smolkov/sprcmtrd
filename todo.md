@@ -58,3 +58,8 @@
 * [ ] `tests/cli.rs` has 700 lines; split per command (`tests/cli/list.rs`, …) with a shared helper module.
 * [ ] Tests that list all of `tests/data` break whenever a sample file is added (happened with the `*_uppercase` files). Give them their own temporary directory with the files they need.
 * [ ] The scripts that generated the synthetic recordings were lost. Generate them reproducibly instead, e.g. a small `xtask` or test helper that builds them with `comtrade::write`, so they can be changed and recreated.
+
+
+### Sandbox
+
+* [x] Create podman container for sandboxing claude agent. 

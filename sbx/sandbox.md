@@ -1,4 +1,4 @@
-# Sandbox
+# sandbox - specification
 
 Run the Claude Code agent in a rootless podman container, so it can work
 without permission prompts (`--dangerously-skip-permissions`) while only the

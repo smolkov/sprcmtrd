@@ -100,7 +100,7 @@ tests/cli.rs    CLI integration tests  tests/data/     sample recordings
 
 ## Sandbox
 
-`sbx/start.sh` runs Claude Code in a podman container (spec: `sandbox.md`,
+`sbx/start.sh` runs Claude Code in a podman container (spec: `sbx/sandbox.md`,
 usage: `sbx/README.md`). Inside it the agent has no permission prompts; only
 the repository is mounted, git pushes over HTTPS with the tokens from
 `sbx/.env`, and force pushes and deletions are denied in `sbx/settings.json`.

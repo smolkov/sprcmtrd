@@ -3,7 +3,7 @@
 Runs the Claude Code agent in a rootless podman container, so it can work on
 this project without permission prompts while it only reaches the project
 directory. The container is the security boundary; the specification is in
-[`../sandbox.md`](../sandbox.md).
+[`sandbox.md`](sandbox.md).
 
 ## Requirements
 
