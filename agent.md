@@ -36,6 +36,8 @@ src/command/    info, list, check, view, events, stats, export, cut, convert, co
 src/tui/        app.rs (state, actions, key handling), event.rs, theme.rs, widgets/
 src/args.rs     clap definitions      src/config.rs   config.toml load/save
 src/complete.rs dynamic shell completion of recordings (COMPLETE=<shell> sprcmtrd)
+src/term/       terminal output for commands: Spinner, LiveTable, Palette colors (only on a terminal,
+                never color alone), fit, terminal_width
 src/error.rs    comtrade::Error       src/logging.rs  tracing setup
 tests/cli.rs    CLI integration tests  tests/data/     sample recordings
 ```

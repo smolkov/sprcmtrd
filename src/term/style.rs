@@ -10,7 +10,6 @@ use std::io::IsTerminal;
 
 use crossterm::style::{Color, Stylize};
 
-use super::Context;
 use crate::args::ThemeChoice;
 use crate::tui::theme::ThemeKind;
 
@@ -37,13 +36,12 @@ pub struct Palette {
 }
 
 impl Palette {
-    /// Palette for stdout: colors when it is a terminal and colors are not
-    /// disabled; the theme from `--theme` or the configuration.
-    pub fn stdout(ctx: &Context) -> Self {
-        let choice = ctx.global.theme.or(ctx.config.theme).unwrap_or(ThemeChoice::Auto);
+    /// Palette for stdout: colors when it is a terminal and not
+    /// `colors_disabled` (`--no-color`, `NO_COLOR`), light or dark from `theme`.
+    pub fn stdout(theme: ThemeChoice, colors_disabled: bool) -> Self {
         Self {
-            enabled: std::io::stdout().is_terminal() && !ctx.global.colors_disabled(),
-            kind: ThemeKind::resolve(choice),
+            enabled: std::io::stdout().is_terminal() && !colors_disabled,
+            kind: ThemeKind::resolve(theme),
         }
     }
 

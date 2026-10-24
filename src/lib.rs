@@ -7,6 +7,7 @@ pub mod comtrade;
 pub mod config;
 pub mod error;
 pub mod logging;
+pub mod term;
 pub mod tui;
 
 pub use comtrade::Comtrade;

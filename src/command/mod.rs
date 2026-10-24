@@ -9,12 +9,11 @@ pub mod export;
 pub mod info;
 pub mod list;
 pub mod stats;
-pub mod style;
 pub mod view;
 
 use anyhow::bail;
 
-use crate::args::{Cli, Command, GlobalOpts};
+use crate::args::{Cli, Command, GlobalOpts, ThemeChoice};
 use crate::comtrade::Comtrade;
 use crate::config::AppConfig;
 
@@ -27,6 +26,13 @@ pub struct Context {
     pub config: AppConfig,
     /// Where the configuration overlay saves settings (`None`: no config directory).
     pub config_path: Option<std::path::PathBuf>,
+}
+
+impl Context {
+    /// The theme: `--theme`, else the configuration file, else `auto`.
+    pub fn theme(&self) -> ThemeChoice {
+        self.global.theme.or(self.config.theme).unwrap_or(ThemeChoice::Auto)
+    }
 }
 
 /// Runs the subcommand given on the command line, or the TUI when there is none.

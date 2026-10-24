@@ -877,7 +877,7 @@ impl App {
     /// Creates the app from command line and configuration settings.
     pub fn new(ctx: &Context, tx: UnboundedSender<Message>) -> anyhow::Result<Self> {
         let keymap = KeyMap::new(&ctx.config.keys)?;
-        let choice = ctx.global.theme.or(ctx.config.theme).unwrap_or(ThemeChoice::Auto);
+        let choice = ctx.theme();
         let theme_kind = ThemeKind::resolve(choice);
         Ok(Self {
             keymap,

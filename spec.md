@@ -231,9 +231,11 @@ Validates recordings, for scripts and CI.
   header bold. The 16 ANSI colors follow the terminal's scheme; light or dark
   comes from `--theme` / the configuration / `COLORFGBG`, like the TUI. Colors
   only on a terminal, never with `--no-color` or `NO_COLOR`
-  (`command::style::Palette`).
+  (`term::Palette`).
 - JSON: an array of `{file, status, issues: [{severity, channel, message}],
   samples}`.
+- For a directory, a spinner on stderr shows the search and the recording
+  being checked (only when stderr is a terminal).
 - Exit code 4 when a recording has an error, or a warning with `--strict`;
   0 otherwise (also for a directory without recordings, with a message). A
   missing path exits with 3.
@@ -406,6 +408,11 @@ src/
   error.rs           error types (thiserror)
   config.rs          application configuration (parsing, loading, defaults)
   logging.rs          logging setup (env_logger, log levels)
+  term/              terminal output shared by the commands
+    mod.rs           terminal_width, fit
+    spinner.rs       progress line on stderr (list, check)
+    table.rs         table printed row by row (list)
+    style.rs         colors (Palette: check)
   comtrade/
     mod.rs           Comtrade, AnalogChannel, BinaryChannel, public API
     cfg.rs           .cfg parser (all revisions)

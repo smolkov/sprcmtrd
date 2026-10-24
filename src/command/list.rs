@@ -4,7 +4,7 @@ use std::io::{IsTerminal, Write};
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Context;
 use chrono::NaiveDateTime;
@@ -14,6 +14,7 @@ use super::{bytes, rate, table, time};
 use crate::args::SortKey;
 use crate::comtrade::discover::{self, Visit};
 use crate::comtrade::{Comtrade, Config, RecordingPath};
+use crate::term::{self, LiveTable, Spinner};
 
 struct Row {
     name: String,
@@ -88,10 +89,8 @@ const HEADERS: [&str; 11] = [
 const ERROR: usize = HEADERS.len() - 1;
 
 /// Widths of the columns after the file name in rows printed as they are
-/// found. The full table can't be measured in advance.
+/// found (station … size); the file column takes 18 to 48 characters.
 const LIVE_WIDTHS: [usize; 9] = [12, 4, 8, 19, 8, 8, 3, 3, 8];
-
-const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 /// Runs the `list` command. Subdirectories are searched when `recursive`;
 /// only recordings that pass `filters` are shown.
@@ -109,8 +108,10 @@ pub fn run(dir: &Path, recursive: bool, filters: Filters, sort: Option<SortKey>)
         "COMTRADE recordings"
     };
     let live = sort.is_none() && std::io::stdout().is_terminal();
-    let mut spinner = Spinner::new(std::io::stderr().is_terminal());
-    let width = crossterm::terminal::size().map_or(usize::MAX, |(w, _)| w as usize);
+    let table_live = LiveTable::new(&LIVE_WIDTHS, 18..=48, term::terminal_width());
+    let mut spinner = Spinner::stderr();
+    let mut found = 0;
+    let mut current = String::from(".");
 
     let (tx, rx) = mpsc::channel();
     let search = {
@@ -121,38 +122,45 @@ pub fn run(dir: &Path, recursive: bool, filters: Filters, sort: Option<SortKey>)
     let mut rows = Vec::new();
     let mut out = std::io::stdout().lock();
     loop {
+        // A printed row cleared the spinner; draw it again right away.
+        let mut redraw = false;
         match rx.recv_timeout(Duration::from_millis(80)) {
             Ok(Found::Dir(d)) => {
-                spinner.dir = d.strip_prefix(dir).unwrap_or(&d).display().to_string();
-                // Messages can keep arriving faster than the timeout below.
-                spinner.tick();
+                current = d.strip_prefix(dir).unwrap_or(&d).display().to_string();
+                if current.is_empty() {
+                    current = ".".into();
+                }
             }
             Ok(Found::Row(row)) if live => {
                 spinner.clear();
-                if spinner.found == 0 {
+                if found == 0 {
                     // Errors follow the file name, the error column is not used.
-                    let mut header = HEADERS.map(String::from);
-                    header[ERROR].clear();
-                    writeln!(out, "{}", live_line(&header, width))?;
+                    writeln!(out, "{}", table_live.row(&HEADERS[..ERROR]))?;
                 }
-                writeln!(out, "{}", live_line(&row_cells(&row, true), width))?;
+                writeln!(out, "{}", live_line(&table_live, &row_cells(&row, true)))?;
                 out.flush()?;
-                spinner.found += 1;
-                spinner.draw();
+                found += 1;
+                redraw = true;
             }
             Ok(Found::Row(row)) => {
                 rows.push(*row);
-                spinner.found += 1;
-                spinner.tick();
+                found += 1;
             }
-            Err(mpsc::RecvTimeoutError::Timeout) => spinner.tick(),
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        }
+        spinner.set(format!("searching · {found} found · {current}"));
+        if redraw {
+            spinner.draw();
+        } else {
+            // Also when messages keep arriving faster than the timeout above.
+            spinner.tick();
         }
     }
     spinner.clear();
     search.join().expect("search thread panicked")?;
 
-    if spinner.found == 0 {
+    if found == 0 {
         eprintln!("no {what} found in {}", dir.display());
         return Ok(());
     }
@@ -259,102 +267,13 @@ fn row_cells(r: &Row, live: bool) -> Vec<String> {
     }
 }
 
-/// Formats a row for a terminal `width` columns wide. The file column takes
-/// what the others leave (within limits) and keeps the end of long paths. A
-/// recording that failed to parse shows its error right after the file name
-/// instead of empty columns. The line is cut at `width` so it never wraps; the
-/// full text is in the sorted table.
-fn live_line(cells: &[String], width: usize) -> String {
-    let others: usize = LIVE_WIDTHS.iter().map(|w| w + 2).sum();
-    let file_width = width.saturating_sub(others).clamp(18, 48);
-    let mut s = String::new();
-    push_cell(&mut s, &cells[0], file_width, true);
+/// A live row of `cells`. A recording that failed to parse shows its error
+/// right after the file name instead of empty columns; the full text is in
+/// the sorted table.
+fn live_line(table: &LiveTable, cells: &[String]) -> String {
     match cells.get(ERROR).filter(|e| !e.is_empty()) {
-        Some(error) => s.push_str(error),
-        None => {
-            for (cell, &w) in cells[1..].iter().zip(&LIVE_WIDTHS) {
-                push_cell(&mut s, cell, w, false);
-            }
-        }
-    }
-    fit(s.trim_end(), width, false)
-}
-
-/// Appends `cell` fitted and padded to `width`, then the column gap.
-fn push_cell(s: &mut String, cell: &str, width: usize, keep_end: bool) {
-    let cell = fit(cell, width, keep_end);
-    let pad = width.saturating_sub(cell.chars().count());
-    s.push_str(&cell);
-    s.extend(std::iter::repeat_n(' ', pad + 2));
-}
-
-/// Shortens `s` to `width` characters with `…`, cutting its start when
-/// `keep_end`.
-fn fit(s: &str, width: usize, keep_end: bool) -> String {
-    let n = s.chars().count();
-    if n <= width {
-        return s.to_owned();
-    }
-    let keep = width.saturating_sub(1);
-    if keep_end {
-        format!("…{}", s.chars().skip(n - keep).collect::<String>())
-    } else {
-        format!("{}…", s.chars().take(keep).collect::<String>())
-    }
-}
-
-/// Search progress on one stderr line, redrawn in place.
-struct Spinner {
-    enabled: bool,
-    frame: usize,
-    last: Instant,
-    found: usize,
-    dir: String,
-}
-
-impl Spinner {
-    fn new(enabled: bool) -> Self {
-        Self {
-            enabled,
-            frame: 0,
-            last: Instant::now(),
-            found: 0,
-            dir: String::new(),
-        }
-    }
-
-    /// Advances the animation, at most every 80 ms however often it's called.
-    fn tick(&mut self) {
-        if self.last.elapsed() >= Duration::from_millis(80) {
-            self.last = Instant::now();
-            self.frame += 1;
-            self.draw();
-        }
-    }
-
-    fn draw(&self) {
-        if !self.enabled {
-            return;
-        }
-        let dir = if self.dir.is_empty() { "." } else { &self.dir };
-        let text = format!(
-            "{} searching · {} found · {dir}",
-            SPINNER[self.frame % SPINNER.len()],
-            self.found
-        );
-        // A wrapped line could not be cleared with \r.
-        let width = crossterm::terminal::size().map_or(80, |(w, _)| w as usize);
-        let mut err = std::io::stderr().lock();
-        let _ = write!(err, "\r\x1b[2K{}", fit(&text, width.saturating_sub(1), false));
-        let _ = err.flush();
-    }
-
-    fn clear(&self) {
-        if self.enabled {
-            let mut err = std::io::stderr().lock();
-            let _ = write!(err, "\r\x1b[2K");
-            let _ = err.flush();
-        }
+        Some(error) => table.row_with_text(&cells[0], error),
+        None => table.row(&cells[..ERROR]),
     }
 }
 
@@ -364,10 +283,6 @@ mod tests {
 
     #[test]
     fn live_lines_have_fixed_columns() {
-        assert_eq!(fit("abc", 3, true), "abc");
-        assert_eq!(fit("station/2024/fault.cfg", 10, true), "…fault.cfg");
-        assert_eq!(fit("SUBSTATION NORTH 1", 10, false), "SUBSTATIO…");
-
         let row = |name: &str, error: &str, width: usize| {
             let mut cells = vec![name.to_owned()];
             cells.extend(
@@ -385,17 +300,13 @@ mod tests {
                 .map(String::from),
             );
             cells.push(error.to_owned());
-            live_line(&cells, width)
+            live_line(&LiveTable::new(&LIVE_WIDTHS, 18..=48, Some(width)), &cells)
         };
         let short = row("a.cfg", "", 120);
-        let long = row(&format!("{}/a.cfg", "x".repeat(60)), "", 120);
-        // Columns after the file name line up whatever its length.
-        assert_eq!(short.chars().count(), long.chars().count());
-        assert!(long.starts_with('…') && long.contains("/a.cfg  S  "));
         assert!(short.ends_with("7.2 kB"));
+        assert!(short.contains("  1999  BINARY32  2024-03-15"));
         // A 110 column terminal shows the whole row.
         assert!(row("a.cfg", "", 110).ends_with("7.2 kB"));
-        assert!(short.contains("  1999  BINARY32  2024-03-15"));
         // Errors follow the file name and never make the line wrap.
         let broken = row("broken.cfg", &"bad ".repeat(40), 80);
         assert!(broken.starts_with("broken.cfg   "));

@@ -45,7 +45,8 @@
 * [ ] Overwrite protection exists twice (`convert::check_outputs`, `export::refuse_source`); move "is this path part of the recording" into the library (`RecordingPath::contains`) and use it in both.
 * [ ] Exit code policy: commands mix `bail!` strings (exit 1) with library `Unsupported` errors (exit 4), and `convert` strips the `unsupported:` prefix by hand. Decide which errors are usage errors and give them a type.
 * [ ] JSON output: every command has its own structs and naming (`time` vs `time_s`, `from_s`). One documented schema style (units in names, times always in seconds) and a `version` field so scripts can rely on it.
-* [ ] `list.rs` mixes search, sorting and terminal drawing (spinner, fixed-width live rows). Move the spinner and live table into a small output module that `check` and `watch` could use too.
+* [x] `list.rs` mixes search, sorting and terminal drawing (spinner, fixed-width live rows). Move the spinner and live table into a small output module that `check` and `watch` could use too.
+* [x] Move terminal style and widgets (spinner, live table, colors) into their own module: `src/term/` (`Spinner`, `LiveTable`, `Palette`).
 
 ### Library
 

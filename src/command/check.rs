@@ -1,13 +1,14 @@
 //! `check` command: validates one recording or all recordings in a directory.
 
+use std::ops::ControlFlow;
 use std::path::Path;
 
 use serde::Serialize;
 
-use super::style::{Palette, Role};
 use super::{Context, table};
 use crate::comtrade::check::{self, Report, Severity};
-use crate::comtrade::discover::{self, RecordingPath};
+use crate::comtrade::discover::{self, RecordingPath, Visit};
+use crate::term::{Palette, Role, Spinner};
 
 /// Returned when a recording failed the check, so `main` exits with the
 /// code for invalid content (4).
@@ -28,22 +29,33 @@ struct JsonReport<'a> {
 /// directory (and its subdirectories when `recursive`). Fails when a
 /// recording has an error, or a warning with `strict`.
 pub fn run(ctx: &Context, path: &Path, recursive: bool, strict: bool, json: bool) -> anyhow::Result<()> {
+    // Searching and checking a large directory takes a while: show progress.
+    let mut spinner = Spinner::stderr();
     let recordings: Vec<(String, RecordingPath)> = if path.is_dir() {
-        discover::find_recordings(path, recursive)?
-            .into_iter()
-            .map(|rec| {
+        let mut found = Vec::new();
+        // The callback never breaks, so the flow is always Continue.
+        let _ = discover::walk(path, recursive, &mut |visit| {
+            if let Visit::Recording(rec) = visit {
                 let name = rec.main_file().strip_prefix(path).unwrap_or(rec.main_file());
-                (name.display().to_string(), rec)
-            })
-            .collect()
+                found.push((name.display().to_string(), rec));
+            }
+            spinner.set(format!("searching · {} found", found.len()));
+            spinner.tick();
+            ControlFlow::Continue(())
+        })?;
+        found
     } else {
         let rec = RecordingPath::from_file(path)?;
         vec![(rec.main_file().display().to_string(), rec)]
     };
-    let reports: Vec<(String, Report)> = recordings
-        .into_iter()
-        .map(|(name, rec)| (name, check::check(&rec)))
-        .collect();
+    let total = recordings.len();
+    let mut reports: Vec<(String, Report)> = Vec::with_capacity(total);
+    for (i, (name, rec)) in recordings.into_iter().enumerate() {
+        spinner.set(format!("checking {}/{total} · {name}", i + 1));
+        spinner.tick();
+        reports.push((name, check::check(&rec)));
+    }
+    spinner.clear();
     let count = |s: Option<Severity>| reports.iter().filter(|(_, r)| r.status() == s).count();
     let (ok, warnings, errors) = (
         count(None),
@@ -62,7 +74,7 @@ pub fn run(ctx: &Context, path: &Path, recursive: bool, strict: bool, json: bool
             .collect();
         println!("{}", serde_json::to_string_pretty(&out)?);
     } else {
-        let palette = Palette::stdout(ctx);
+        let palette = Palette::stdout(ctx.theme(), ctx.global.colors_disabled());
         print!("{}", text(&reports, &palette));
         if path.is_dir() && !reports.is_empty() {
             let n = reports.len();

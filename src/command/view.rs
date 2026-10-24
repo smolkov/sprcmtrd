@@ -1,6 +1,5 @@
 //! `view` command: summary and plots printed to stdout.
 
-use std::io::IsTerminal;
 use std::path::PathBuf;
 
 use textplots::{Chart, LabelBuilder, LabelFormat, Plot, Shape};
@@ -8,6 +7,7 @@ use textplots::{Chart, LabelBuilder, LabelFormat, Plot, Shape};
 use super::info::{key_values, summary};
 use super::{Context, select_channels, si, time, time_window};
 use crate::comtrade::{Cell, Comtrade, Side};
+use crate::term;
 
 /// Options of the `view` command.
 #[derive(Debug, Clone)]
@@ -39,7 +39,7 @@ pub fn run(ctx: &Context, opts: &Options) -> anyhow::Result<()> {
     };
     let (analog, binary) = select_channels(&c, &opts.channels)?;
     let (t0, t1) = time_window(&c, opts.from_ms, opts.to_ms)?;
-    let width = opts.width.map(usize::from).unwrap_or_else(terminal_width);
+    let width = opts.width.map(usize::from).or_else(term::terminal_width).unwrap_or(100);
     let plot_cols = width.saturating_sub(LABEL_WIDTH).max(16);
     let range = c.index_range(t0, t1);
 
@@ -133,13 +133,4 @@ fn plot(segments: &[Vec<(f64, f64)>], (t0, t1): (f64, f64), cols: usize, rows: u
     c.figures();
     // textplots pads with U+2800 (blank braille); plain spaces copy better.
     c.to_string().replace('\u{2800}', " ")
-}
-
-fn terminal_width() -> usize {
-    if std::io::stdout().is_terminal()
-        && let Ok((w, _)) = crossterm::terminal::size()
-    {
-        return w as usize;
-    }
-    100
 }
