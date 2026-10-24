@@ -21,6 +21,11 @@ recorded during power system disturbances, faults and simulation tests.
 | Async runtime     | Tokio (used for TUI event loop only)    |
 | Target platforms  | Linux, macOS, Windows terminals         |
 
+### Instructions
+
+- Project language: Rust, English
+- Do not use number in markdown headings
+
 ### Goals
 
 - Open and display COMTRADE recordings quickly, also large ones (≥ 100 MB `.dat`).
@@ -451,11 +456,6 @@ src/
     spinner.rs       progress line on stderr (list, check)
     table.rs         table printed row by row (list)
     style.rs         colors (Palette: check)
-  comtrade/
-    mod.rs           Comtrade, AnalogChannel, BinaryChannel, public API
-    cfg.rs           .cfg parser (all revisions)
-    dat.rs           .dat reader (ASCII, BINARY, BINARY32, FLOAT32)
-    cff.rs           .cff splitter (2013)
   analysis/          signal analysis of loaded recordings (uses comtrade)
     mod.rs           overview, re-exports
     complex.rs       complex numbers for phasors
@@ -463,6 +463,11 @@ src/
     sequence.rs      symmetrical components, three-phase groups (phasors)
     stats.rs         channel statistics (stats)
     events.rs        binary channel changes (events)
+  comtrade/
+    mod.rs           Comtrade, AnalogChannel, BinaryChannel, public API
+    cfg.rs           .cfg parser (all revisions)
+    dat.rs           .dat reader (ASCII, BINARY, BINARY32, FLOAT32)
+    cff.rs           .cff splitter (2013)
     write.rs         .cfg / .dat / .cff writer (convert)
     export.rs        samples as CSV / JSON (export)
     check.rs         validation of recordings (check)
