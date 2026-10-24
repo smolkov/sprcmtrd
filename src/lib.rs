@@ -1,5 +1,6 @@
 //! `sprcmtrd`: terminal viewer for COMTRADE (IEEE C37.111) recordings.
 
+pub mod analysis;
 pub mod args;
 pub mod command;
 pub mod complete;

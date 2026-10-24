@@ -1,14 +1,14 @@
 //! Statistics of channels over a range of samples: min, max, mean, RMS and
 //! peak of analog channels, state changes of binary channels.
 //!
-//! Results are rounded to 12 significant digits ([`round12`]), so float
+//! Results are rounded to 12 significant digits ([`round12`](crate::comtrade::round12)), so float
 //! noise from scaling and summing does not show.
 
 use std::ops::Range;
 
 use serde::Serialize;
 
-use super::{AnalogChannel, BinaryChannel, Side, round12};
+use crate::comtrade::{AnalogChannel, BinaryChannel, Side, round12};
 
 /// Statistics of an analog channel. Missing samples are left out; the
 /// values are `None` when no sample has a value.

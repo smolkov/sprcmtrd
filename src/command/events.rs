@@ -6,9 +6,9 @@ use serde::Serialize;
 
 use super::info::key_values;
 use super::{Context, select_channels, table, time, time_window};
+use crate::analysis::events::{self, Event};
 use crate::args::EventsArgs;
 use crate::comtrade::Comtrade;
-use crate::comtrade::events::{self, Event};
 
 #[derive(Serialize)]
 struct JsonEvent<'a> {

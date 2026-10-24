@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use serde::Serialize;
 
-use super::{BinaryChannel, round12};
+use crate::comtrade::{BinaryChannel, round12};
 
 /// A state change of a binary channel.
 #[derive(Debug, Clone, PartialEq, Serialize)]

@@ -1,12 +1,13 @@
 //! `phasors` command: fundamental phasors and symmetrical components at a time.
 
-use anyhow::{Context as _, bail};
+use anyhow::{Context as _, anyhow, bail};
 use serde::Serialize;
 
 use super::info::key_values;
 use super::{Context, rate, select_channels, si, table, time};
+use crate::analysis::phasor::{self, Polar, Window, WindowError};
+use crate::analysis::sequence;
 use crate::args::PhasorsArgs;
-use crate::comtrade::phasor::{self, Complex, Polar};
 use crate::comtrade::{Comtrade, Side, round12};
 
 #[derive(Serialize)]
@@ -74,29 +75,27 @@ impl PhasorsArgs {
             bail!("--cycles must be above 0");
         }
 
-        let end = c.index_at(self.at / 1e3).context("the recording has no samples")?;
-        let samples = phasor::window(c.time(), end, self.cycles, frequency).unwrap_or(0);
-        if samples < 4 {
-            bail!(
-                "{} cycles at {frequency} Hz are only {samples} samples here; use more --cycles",
+        // The library's reasons, with the option that fixes them.
+        let window = Window::ending_at(&c, self.at / 1e3, self.cycles, frequency).map_err(|e| match e {
+            WindowError::TooShort(n) => anyhow!(
+                "{} cycles at {frequency} Hz are only {n} samples here; use more --cycles",
                 self.cycles
-            );
-        }
-        let Some(start) = (end + 1).checked_sub(samples) else {
-            let earliest = c.time().get(samples - 1).copied().unwrap_or(0.0);
-            bail!(
+            ),
+            WindowError::BeforeStart { samples, earliest } => anyhow!(
                 "the window of {samples} samples starts before the recording; use --at {:.1} or later",
                 earliest * 1e3
-            );
-        };
+            ),
+            e => anyhow!(e),
+        })?;
+        let (start, end, samples) = (window.start(), window.end, window.samples);
 
         let channels: Vec<_> = analog
             .iter()
             .map(|&i| c.analog(i).expect("selected index is valid"))
             .collect();
-        let values: Vec<Result<Complex, phasor::PhasorError>> = channels
+        let values: Vec<_> = channels
             .iter()
-            .map(|ch| phasor::phasor(ch, c.time(), end, samples, frequency, side))
+            .map(|ch| phasor::phasor(ch, c.time(), &window, side))
             .collect();
 
         // The reference: the given channel (also outside the selection), else
@@ -108,8 +107,8 @@ impl PhasorsArgs {
                     bail!("the reference {r} is not an analog channel");
                 };
                 let ch = c.analog(i).expect("selected index is valid");
-                let p = phasor::phasor(ch, c.time(), end, samples, frequency, side)
-                    .with_context(|| format!("reference {}", ch.info.id))?;
+                let p =
+                    phasor::phasor(ch, c.time(), &window, side).with_context(|| format!("reference {}", ch.info.id))?;
                 (format!("A{} {}", ch.info.index, ch.info.id), p)
             }
             None => {
@@ -121,21 +120,17 @@ impl PhasorsArgs {
         let angle0 = reference.arg();
 
         let infos: Vec<_> = channels.iter().map(|ch| &ch.info).collect();
-        let sequences: Vec<JsonSequence> = phasor::groups(&infos)
+        let found: Vec<_> = values.iter().map(|v| v.as_ref().ok().copied()).collect();
+        let sequences: Vec<JsonSequence> = sequence::sequences(&infos, &found)
             .into_iter()
-            .filter_map(|g| {
-                let [a, b, c] = g.phases.map(|i| values[i].clone().ok());
-                let s = phasor::symmetrical(a?, b?, c?);
-                let positive = s.positive.abs();
-                Some(JsonSequence {
-                    circuit: g.circuit,
-                    unit: g.unit,
-                    channels: g.phases.map(|i| channels[i].info.id.clone()),
-                    zero: rounded(Polar::new(s.zero, angle0)),
-                    positive: rounded(Polar::new(s.positive, angle0)),
-                    negative: rounded(Polar::new(s.negative, angle0)),
-                    unbalance: (positive > 0.0).then(|| round12(s.negative.abs() / positive * 100.0)),
-                })
+            .map(|(g, s)| JsonSequence {
+                channels: g.phases.map(|i| channels[i].info.id.clone()),
+                circuit: g.circuit,
+                unit: g.unit,
+                zero: rounded(Polar::new(s.zero, angle0)),
+                positive: rounded(Polar::new(s.positive, angle0)),
+                negative: rounded(Polar::new(s.negative, angle0)),
+                unbalance: s.unbalance().map(round12),
             })
             .collect();
         let phasors: Vec<JsonPhasor> = channels

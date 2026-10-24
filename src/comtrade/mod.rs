@@ -8,10 +8,7 @@ pub mod cfg;
 pub mod check;
 pub mod dat;
 pub mod discover;
-pub mod events;
 pub mod export;
-pub mod phasor;
-pub mod stats;
 pub mod write;
 
 use std::fs::File;

@@ -17,7 +17,7 @@
 
 ## Signal analysis ideas
 
-These build on `comtrade::phasor` (DFT over whole cycles ending at a sample) and `comtrade::stats`.
+These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `analysis::sequence` and `analysis::stats`.
 
 * [ ] `trend <FILE>`: cycle-by-cycle values over time instead of at one moment: RMS, fundamental magnitude and angle, symmetrical components and frequency per channel or group, as a table or CSV (`--step` in cycles or ms, `--channels`, `--from`/`--to`). Shows how the fault develops and clears; the base for several commands below.
 * [ ] `harmonics <FILE> --at <ms>`: harmonic spectrum (2nd … 50th, magnitude in % of the fundamental and angle) and THD per channel, over `--cycles` cycles. Typical uses: transformer inrush (high 2nd harmonic), CT saturation, power quality.

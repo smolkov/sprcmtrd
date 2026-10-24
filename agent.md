@@ -31,7 +31,8 @@ cargo +1.88 check --locked --all-targets            # minimum supported Rust
 ## Architecture
 
 ```
-src/comtrade/   COMTRADE library: cfg.rs, dat.rs, cff.rs, check.rs, discover.rs, events.rs, export.rs, phasor.rs, stats.rs, write.rs, mod.rs
+src/comtrade/   COMTRADE library: cfg.rs, dat.rs, cff.rs, check.rs, discover.rs, export.rs, write.rs, mod.rs
+src/analysis/   signal analysis: phasor.rs (Window, DFT), sequence.rs, complex.rs, stats.rs, events.rs
 src/command/    info, list, check, view, events, stats, phasors, export, cut, convert, completions + shared formatting (si, time, table)
 src/tui/        app.rs (state, actions, key handling), event.rs, theme.rs, widgets/
 src/args.rs     clap definitions      src/config.rs   config.toml load/save
@@ -43,7 +44,9 @@ tests/cli.rs    CLI integration tests  tests/data/     sample recordings
 ```
 
 - **Layering:** `comtrade` is a plain synchronous library and must not depend on
-  `command` or `tui`. `tui` may use `command` helpers (e.g. `command::info::summary`).
+  `analysis`, `command` or `tui`. `analysis` builds on `comtrade` only: put
+  signal analysis there (with tests) and let commands only format results.
+  `tui` may use `command` helpers (e.g. `command::info::summary`).
 - **Async:** only the TUI event loop uses Tokio. Blocking work (loading a `.dat`,
   directory scans) runs in `spawn_blocking` and reports back through
   `event::Message`.

@@ -261,7 +261,7 @@ Timeline of binary channel changes (start, trip, breaker open, reclose, ...).
   changes" when there are none.
 - JSON: `file`, `trigger_time`, `from_s`, `to_s`, `events[]` with `sample`
   (1-based), `time` (s), `index`, `id`, `from`, `to` and `absolute`.
-- Library: `comtrade::events::events`.
+- Library: `analysis::events::events`.
 
 ### `phasors` command
 
@@ -295,7 +295,8 @@ Phasors of the fundamental frequency and symmetrical components at one moment
   `phasors[]` (`index`, `id`, `unit`, `magnitude`, `angle` or `error`) and
   `sequences[]` (`circuit`, `unit`, `channels`, `zero`, `positive`, `negative`,
   `unbalance`).
-- Library: `comtrade::phasor` (`phasor`, `window`, `symmetrical`, `groups`).
+- Library: `analysis::phasor` (`Window::ending_at`, `phasor`, `Polar`) and
+  `analysis::sequence` (`symmetrical`, `groups`, `sequences`).
 
 ### `stats` command
 
@@ -315,7 +316,7 @@ Statistics per channel over a time window (alias `stat`).
   `binary[]` with full values (times in s).
 - Results are rounded to 12 significant digits, and a mean below 1e-12 of the
   peak counts as 0, so float noise doesn't show.
-- Library: `comtrade::stats` (`analog`, `binary`).
+- Library: `analysis::stats` (`analog`, `binary`).
 
 ### `export` command
 
@@ -455,11 +456,15 @@ src/
     cfg.rs           .cfg parser (all revisions)
     dat.rs           .dat reader (ASCII, BINARY, BINARY32, FLOAT32)
     cff.rs           .cff splitter (2013)
+  analysis/          signal analysis of loaded recordings (uses comtrade)
+    mod.rs           overview, re-exports
+    complex.rs       complex numbers for phasors
+    phasor.rs        Window, DFT phasor, Polar (phasors)
+    sequence.rs      symmetrical components, three-phase groups (phasors)
+    stats.rs         channel statistics (stats)
+    events.rs        binary channel changes (events)
     write.rs         .cfg / .dat / .cff writer (convert)
     export.rs        samples as CSV / JSON (export)
-    stats.rs         channel statistics (stats)
-    phasor.rs        phasors, symmetrical components (phasors)
-    events.rs        binary channel changes (events)
     check.rs         validation of recordings (check)
     discover.rs      find sibling files / recordings in a directory
   command/
@@ -493,8 +498,10 @@ tests/
   cli.rs             integration tests for commands
 ```
 
-Layering rule: `comtrade` knows nothing about `command` or `tui`. It is a plain,
-synchronous library and could be published as its own crate later.
+Layering rule: `comtrade` knows nothing about `analysis`, `command` or `tui`. It
+is a plain, synchronous library and could be published as its own crate later.
+`analysis` builds on `comtrade` only; signal analysis logic lives there and the
+commands (and later the TUI) only format its results.
 
 ## Comtrade module
 
