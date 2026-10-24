@@ -715,20 +715,26 @@ fn dynamic_completion() {
 
 #[test]
 fn check_files_and_directories() {
+    // The file as found on disk, with the platform's separator before its name.
+    let found = |name: &str| std::path::Path::new("tests/data").join(name).display().to_string();
     cmd()
         .args(["check", "tests/data/fault_2013.cfg"])
         .assert()
         .success()
-        .stdout("status  file                       channel  finding\n✓ OK    tests/data/fault_2013.cfg\n");
+        .stdout(format!(
+            "status  file                       channel  finding\n✓ OK    {}\n",
+            found("fault_2013.cfg")
+        ));
 
     // A warning passes, unless --strict.
     cmd()
         .args(["check", "tests/data/old_1991.cfg"])
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "! WARNING  tests/data/old_1991.cfg  A1 IA    1 missing value (first at sample 51)\n",
-        ));
+        .stdout(predicate::str::contains(format!(
+            "! WARNING  {}  A1 IA    1 missing value (first at sample 51)\n",
+            found("old_1991.cfg")
+        )));
     cmd()
         .args(["check", "tests/data/old_1991.cfg", "--strict"])
         .assert()
