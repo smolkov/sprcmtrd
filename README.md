@@ -106,6 +106,17 @@ reclose_1999_ascii.cfg  SUBSTATION C  1999  ASCII     2026-10-20 15:30:00  4.000
 - Subdirectories are searched by default; `--no-recursive` searches only `DIR`.
   Hidden directories and symbolic links to directories are skipped.
 - `--filter REGEX` keeps recordings whose file name matches.
+- Search by content:
+  - `--station REGEX`: station name, ignoring case.
+  - `--since DATE` / `--until DATE`: start time, e.g. `2024-03-15` or
+    `2024-03-15 08:30`; a date alone is the whole day.
+  - `--min-duration` / `--max-duration`: e.g. `500ms`, `2s`, `1min`.
+
+  ```sh
+  sprcmtrd list /data/recorder --station "line 4" --since 2026-10-01 --min-duration 1s
+  ```
+
+  Recordings that can't be parsed are left out when one of these is set.
 - In a terminal, recordings are printed as they are found, with a spinner
   showing the progress of the search. `--sort time|name|size` prints a sorted
   table when the search is done instead. Piped output is always a table sorted

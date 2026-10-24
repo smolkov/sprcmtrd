@@ -7,7 +7,8 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use regex::Regex;
+use chrono::NaiveDateTime;
+use regex::{Regex, RegexBuilder};
 
 use super::{bytes, rate, table, time};
 use crate::args::SortKey;
@@ -19,6 +20,56 @@ struct Row {
     rec: RecordingPath,
     config: Result<Config, String>,
     size: Option<u64>,
+}
+
+/// Which recordings `list` shows. The content filters (station, time,
+/// duration) need the configuration, so recordings that fail to parse are
+/// left out when one of them is set.
+#[derive(Debug, Clone, Default)]
+pub struct Filters {
+    /// Regular expression on the file name.
+    pub name: Option<Regex>,
+    /// Regular expression on the station name.
+    pub station: Option<Regex>,
+    /// Earliest start time.
+    pub since: Option<NaiveDateTime>,
+    /// Latest start time.
+    pub until: Option<NaiveDateTime>,
+    /// Shortest duration in s; recordings without a known duration are left out.
+    pub min_duration: Option<f64>,
+    /// Longest duration in s; recordings without a known duration are left out.
+    pub max_duration: Option<f64>,
+    /// Only recordings that load completely (configuration and data).
+    pub valid: bool,
+}
+
+impl Filters {
+    /// Whether a filter on the configuration's content is set.
+    fn by_content(&self) -> bool {
+        self.station.is_some()
+            || self.since.is_some()
+            || self.until.is_some()
+            || self.min_duration.is_some()
+            || self.max_duration.is_some()
+    }
+
+    /// Whether the configuration `c` passes the content filters.
+    fn matches(&self, c: &Config) -> bool {
+        let duration = c.duration();
+        self.station.as_ref().is_none_or(|re| re.is_match(&c.station_name))
+            && self.since.is_none_or(|t| c.start_time >= t)
+            && self.until.is_none_or(|t| c.start_time <= t)
+            && self.min_duration.is_none_or(|d| duration.is_some_and(|x| x >= d))
+            && self.max_duration.is_none_or(|d| duration.is_some_and(|x| x <= d))
+    }
+}
+
+/// Compiles the regular expression of the option `option`, if given.
+pub fn regex(pattern: Option<&str>, option: &str, case_insensitive: bool) -> anyhow::Result<Option<Regex>> {
+    pattern
+        .map(|p| RegexBuilder::new(p).case_insensitive(case_insensitive).build())
+        .transpose()
+        .with_context(|| format!("invalid {option} regular expression"))
 }
 
 /// Something the search thread found.
@@ -42,25 +93,21 @@ const LIVE_WIDTHS: [usize; 9] = [12, 4, 8, 19, 8, 8, 3, 3, 8];
 
 const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-/// Runs the `list` command. Subdirectories are searched when `recursive`.
-/// With `valid`, only recordings that load completely (configuration and
-/// sample data) are shown.
+/// Runs the `list` command. Subdirectories are searched when `recursive`;
+/// only recordings that pass `filters` are shown.
 ///
 /// The search runs on its own thread. In a terminal without `sort`, rows are
 /// printed as they are found; otherwise they are sorted (by start time when
 /// `sort` is `None`) and printed as one table at the end. While searching, a
 /// spinner is shown on stderr when it is a terminal.
-pub fn run(
-    dir: &Path,
-    recursive: bool,
-    filter: Option<&str>,
-    valid: bool,
-    sort: Option<SortKey>,
-) -> anyhow::Result<()> {
-    let filter = filter
-        .map(Regex::new)
-        .transpose()
-        .context("invalid --filter regular expression")?;
+pub fn run(dir: &Path, recursive: bool, filters: Filters, sort: Option<SortKey>) -> anyhow::Result<()> {
+    let what = if filters.by_content() || filters.name.is_some() {
+        "COMTRADE recordings matching the filters"
+    } else if filters.valid {
+        "valid COMTRADE recordings"
+    } else {
+        "COMTRADE recordings"
+    };
     let live = sort.is_none() && std::io::stdout().is_terminal();
     let mut spinner = Spinner::new(std::io::stderr().is_terminal());
     let width = crossterm::terminal::size().map_or(usize::MAX, |(w, _)| w as usize);
@@ -68,7 +115,7 @@ pub fn run(
     let (tx, rx) = mpsc::channel();
     let search = {
         let dir = dir.to_path_buf();
-        std::thread::spawn(move || search(&dir, recursive, filter.as_ref(), valid, &tx))
+        std::thread::spawn(move || search(&dir, recursive, &filters, &tx))
     };
 
     let mut rows = Vec::new();
@@ -106,11 +153,6 @@ pub fn run(
     search.join().expect("search thread panicked")?;
 
     if spinner.found == 0 {
-        let what = if valid {
-            "valid COMTRADE recordings"
-        } else {
-            "COMTRADE recordings"
-        };
         eprintln!("no {what} found in {}", dir.display());
         return Ok(());
     }
@@ -139,13 +181,7 @@ pub fn run(
 
 /// Walks `dir` and sends the directories entered and the recordings to list.
 /// Stops when the receiver is gone.
-fn search(
-    dir: &Path,
-    recursive: bool,
-    filter: Option<&Regex>,
-    valid: bool,
-    tx: &mpsc::Sender<Found>,
-) -> anyhow::Result<()> {
+fn search(dir: &Path, recursive: bool, filters: &Filters, tx: &mpsc::Sender<Found>) -> anyhow::Result<()> {
     let flow = |sent: Result<(), _>| match sent {
         Ok(()) => ControlFlow::Continue(()),
         Err(_) => ControlFlow::Break(()),
@@ -154,7 +190,7 @@ fn search(
     let _ = discover::walk(dir, recursive, &mut |visit| match visit {
         Visit::Dir(d) => flow(tx.send(Found::Dir(d.to_path_buf()))),
         Visit::Recording(rec) => {
-            if filter.is_some_and(|f| !f.is_match(&rec.name())) {
+            if filters.name.as_ref().is_some_and(|f| !f.is_match(&rec.name())) {
                 return ControlFlow::Continue(());
             }
             let row = Row {
@@ -168,9 +204,12 @@ fn search(
                 size: rec.data_size(),
                 rec,
             };
+            if filters.by_content() && !row.config.as_ref().is_ok_and(|c| filters.matches(c)) {
+                return ControlFlow::Continue(());
+            }
             // A parsable configuration is not enough: the data must load too,
             // so the recording opens in the viewer.
-            if valid && (row.config.is_err() || Comtrade::open_recording(&row.rec).is_err()) {
+            if filters.valid && (row.config.is_err() || Comtrade::open_recording(&row.rec).is_err()) {
                 return ControlFlow::Continue(());
             }
             flow(tx.send(Found::Row(Box::new(row))))
@@ -384,8 +423,11 @@ mod tests {
     fn search_sends_filtered_rows() {
         let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data");
         let (tx, rx) = mpsc::channel();
-        let filter = Regex::new("^fault").unwrap();
-        search(&data, false, Some(&filter), false, &tx).unwrap();
+        let filters = Filters {
+            name: Some(Regex::new("^fault").unwrap()),
+            ..Filters::default()
+        };
+        search(&data, false, &filters, &tx).unwrap();
         drop(tx);
         let mut names: Vec<String> = rx
             .iter()

@@ -788,3 +788,55 @@ fn check_files_and_directories() {
         .code(3)
         .stderr("error: tests/data/nope.cfg: no such file\n");
 }
+
+#[test]
+fn list_content_filters() {
+    // File names listed for `args`, without the header.
+    let names = |args: &[&str]| -> Vec<String> {
+        let out = cmd()
+            .args(["list", "tests/data", "--sort", "name"])
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        String::from_utf8(out.stdout)
+            .unwrap()
+            .lines()
+            .skip(1)
+            .map(|l| l.split_whitespace().next().unwrap().to_owned())
+            .collect()
+    };
+    let station_b = names(&["--station", "substation b"]);
+    assert!(station_b.contains(&"fault_2013.cfg".to_owned()), "{station_b:?}");
+    assert!(
+        !station_b
+            .iter()
+            .any(|n| n.starts_with("fault_1999") || n.starts_with("broken"))
+    );
+
+    // A date alone covers the whole day.
+    let day = names(&["--since", "2026-10-20", "--until", "2026-10-20"]);
+    assert!(day.contains(&"reclose_1999_ascii.cfg".to_owned()) && day.contains(&"fault_2013.cfg".to_owned()));
+    assert!(!day.contains(&"old_1991.cfg".to_owned()));
+    assert_eq!(names(&["--since", "2026-10-20 15:00"]), ["reclose_1999_ascii.cfg"]);
+    assert_eq!(names(&["--until", "2000-01-01"]), ["old_1991.cfg"]);
+
+    assert_eq!(names(&["--min-duration", "3s"]), ["reclose_1999_ascii.cfg"]);
+    assert_eq!(names(&["--max-duration", "150ms"]), ["old_1991.cfg"]);
+
+    cmd()
+        .args(["list", "tests/data", "--station", "nowhere"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("no COMTRADE recordings matching the filters"));
+    cmd()
+        .args(["list", "tests/data", "--since", "yesterday"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("expected a date like 2024-03-15"));
+    cmd()
+        .args(["list", "tests/data", "--station", "("])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("invalid --station regular expression"));
+}

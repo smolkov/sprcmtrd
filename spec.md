@@ -147,7 +147,21 @@ Option `--json` prints the same data as JSON for scripting.
 Searches for recordings in a directory and prints one row per recording.
 
 - Arguments: `[DIR]` (default `.`), `--no-recursive`, `--filter <REGEX>` (on file name),
-  `--valid`.
+  `--valid`, and the content filters below.
+- Content filters, to search large archives by what the recordings contain:
+  - `--station <REGEX>`: station name, case-insensitive.
+  - `--since <DATE>` / `--until <DATE>`: start time as written in the
+    recording (no time zone conversion). `2024-03-15`, `2024-03-15 08:30`,
+    `2024-03-15T08:30:00(.fff)`; a date alone means the start of the day for
+    `--since` and its end for `--until`, so one date for both is that day.
+  - `--min-duration <D>` / `--max-duration <D>`: `500ms`, `2s`, `1.5min`, `1h`;
+    a bare number is ms (like `--from` / `--to`).
+  - They need the configuration: recordings that fail to parse, and for the
+    duration filters recordings without a known duration (timestamps only),
+    are left out when such a filter is set.
+  - Invalid dates and durations are command line errors (exit 2), an invalid
+    `--station` regex exits with 1 (like `--filter`). Nothing found:
+    "no COMTRADE recordings matching the filters found in DIR" (exit 0).
 - Subdirectories are searched recursively by default; `--no-recursive` limits the
   search to `DIR`. Hidden directories and symbolic links to directories are skipped
   (no endless loops on link cycles). File names are shown relative to `DIR`.

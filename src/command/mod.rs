@@ -52,8 +52,24 @@ impl Command {
                 no_recursive,
                 filter,
                 valid,
+                station,
+                since,
+                until,
+                min_duration,
+                max_duration,
                 sort,
-            } => list::run(&dir, !no_recursive, filter.as_deref(), valid, sort),
+            } => {
+                let filters = list::Filters {
+                    name: list::regex(filter.as_deref(), "--filter", false)?,
+                    station: list::regex(station.as_deref(), "--station", true)?,
+                    since,
+                    until,
+                    min_duration,
+                    max_duration,
+                    valid,
+                };
+                list::run(&dir, !no_recursive, filters, sort)
+            }
             Self::View {
                 file,
                 channels,

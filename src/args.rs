@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use clap::{Args, Parser, Subcommand, ValueEnum, ValueHint};
 use clap_complete::engine::ArgValueCompleter;
 
@@ -95,6 +96,25 @@ pub enum Command {
         /// Only show recordings that load without errors (configuration and data).
         #[arg(long)]
         valid: bool,
+        /// Only show recordings whose station name matches this regular
+        /// expression (case-insensitive).
+        #[arg(long)]
+        station: Option<String>,
+        /// Only recordings that start at or after this time
+        /// (`2024-03-15`, `2024-03-15 08:30`, `2024-03-15T08:30:00`).
+        #[arg(long, value_parser = parse_since)]
+        since: Option<NaiveDateTime>,
+        /// Only recordings that start at or before this time; a date alone
+        /// includes the whole day.
+        #[arg(long, value_parser = parse_until)]
+        until: Option<NaiveDateTime>,
+        /// Only recordings at least this long (`500ms`, `2s`, `1min`; a bare
+        /// number is ms).
+        #[arg(long, value_parser = parse_duration)]
+        min_duration: Option<f64>,
+        /// Only recordings at most this long.
+        #[arg(long, value_parser = parse_duration)]
+        max_duration: Option<f64>,
         /// Sort order. Default: in a terminal, rows are shown as they are
         /// found; otherwise sorted by start time.
         #[arg(long, value_enum)]
@@ -355,6 +375,54 @@ pub enum RevisionArg {
     Rev2013,
 }
 
+/// Parses a date or date and time for `--since`; a date alone is its start.
+fn parse_since(s: &str) -> Result<NaiveDateTime, String> {
+    parse_datetime(s, NaiveTime::MIN)
+}
+
+/// Parses a date or date and time for `--until`; a date alone is its end, so
+/// the whole day is included.
+fn parse_until(s: &str) -> Result<NaiveDateTime, String> {
+    let end_of_day = NaiveTime::from_hms_nano_opt(23, 59, 59, 999_999_999).expect("valid time");
+    parse_datetime(s, end_of_day)
+}
+
+/// `2024-03-15`, `2024-03-15 08:30`, `2024-03-15 08:30:00(.fff)`, also with
+/// `T` between date and time. A date alone gets `day_time`.
+fn parse_datetime(s: &str, day_time: NaiveTime) -> Result<NaiveDateTime, String> {
+    let s = s.trim();
+    if let Ok(date) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+        return Ok(date.and_time(day_time));
+    }
+    let s = s.replacen('T', " ", 1);
+    ["%Y-%m-%d %H:%M:%S%.f", "%Y-%m-%d %H:%M"]
+        .iter()
+        .find_map(|f| NaiveDateTime::parse_from_str(&s, f).ok())
+        .ok_or_else(|| format!("expected a date like 2024-03-15 or 2024-03-15 08:30, got '{s}'"))
+}
+
+/// Parses a duration in seconds: `500ms`, `2s`, `1.5min`, `1h`; a bare number is ms.
+fn parse_duration(s: &str) -> Result<f64, String> {
+    let s = s.trim();
+    let split = s.find(|c: char| c.is_ascii_alphabetic()).unwrap_or(s.len());
+    let (number, unit) = s.split_at(split);
+    let value: f64 = number
+        .trim()
+        .parse()
+        .map_err(|_| format!("expected a duration like 500ms or 2s, got '{s}'"))?;
+    let factor = match unit.trim() {
+        "" | "ms" => 1e-3,
+        "s" => 1.0,
+        "min" => 60.0,
+        "h" => 3600.0,
+        u => return Err(format!("unknown unit '{u}' (ms, s, min, h)")),
+    };
+    if value < 0.0 {
+        return Err("a duration can't be negative".into());
+    }
+    Ok(value * factor)
+}
+
 /// Sort order for `list`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum SortKey {
@@ -374,6 +442,23 @@ mod tests {
     fn cli_is_valid() {
         use clap::CommandFactory;
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn parses_dates_and_durations() {
+        let t = |s| NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f").unwrap();
+        assert_eq!(parse_since("2024-03-15"), Ok(t("2024-03-15 00:00:00")));
+        assert_eq!(parse_until("2024-03-15"), Ok(t("2024-03-15 23:59:59.999999999")));
+        assert_eq!(parse_since("2024-03-15 08:30"), Ok(t("2024-03-15 08:30:00")));
+        assert_eq!(parse_until("2024-03-15T08:30:01.5"), Ok(t("2024-03-15 08:30:01.5")));
+        assert!(parse_since("15.03.2024").is_err());
+
+        assert_eq!(parse_duration("500ms"), Ok(0.5));
+        assert_eq!(parse_duration("2s"), Ok(2.0));
+        assert_eq!(parse_duration("1.5 min"), Ok(90.0));
+        assert_eq!(parse_duration("250"), Ok(0.25));
+        assert!(parse_duration("2 days").is_err());
+        assert!(parse_duration("-1s").is_err());
     }
 
     #[test]
