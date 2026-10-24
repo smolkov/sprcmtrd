@@ -2,6 +2,7 @@
 
 * [x] Improve command 'list' with option to show only not broken comtrade files can be parsed successfully. 
 * [x] Improve file picker to switch between show only working comtrade files and show all files. Use keyboard `ctrl`+ `b` shortcuts for toggling. 
+* [ ] Improve cargo.toml for release packaging and distribution.
 
 ## Command ideas
 
