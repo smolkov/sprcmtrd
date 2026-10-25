@@ -11,6 +11,7 @@ pub mod info;
 pub mod list;
 pub mod phasors;
 pub mod stats;
+pub mod trend;
 pub mod view;
 
 use anyhow::bail;
@@ -30,6 +31,7 @@ impl Command {
             Self::Check(a) => a.run(ctx),
             Self::Events(a) => a.run(ctx),
             Self::Phasors(a) => a.run(ctx),
+            Self::Trend(a) => a.run(ctx),
             Self::Stats(a) => a.run(ctx),
             Self::Export(a) => a.run(ctx),
             Self::Cut(a) => a.run(ctx),

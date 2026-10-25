@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 ## Features
@@ -66,6 +66,7 @@ sprcmtrd check PATH         # validate recordings (exit code 4 on errors)
 sprcmtrd events FILE        # timeline of binary channel changes
 sprcmtrd stats FILE         # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors FILE       # phasors and symmetrical components at a time
+sprcmtrd trend FILE         # the same over time, cycle by cycle
 sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
 sprcmtrd convert FILE -o OUT  # other revision, data format or .cff
@@ -228,6 +229,36 @@ time      Δ         absolute                    channel       change
   trigger is a row of its own.
 - `--channels` (binary channels), `--from` / `--to` as in `view`; `--json` for
   scripts.
+
+### `trend`
+
+```sh
+sprcmtrd trend tests/data/fault_2013.cfg --from -20 --to 60 --channels IA,IB,IC
+```
+
+The table shows the currents cycle by cycle: balanced before the trigger, then
+phase B rising to 3.4 kA, with equal negative and zero sequence current.
+
+```
+File       tests/data/fault_2013.cfg
+Window     1 cycle (40 samples) at 50 Hz, every 1 cycle (5 rows)
+Reference  A1 IA
+Values     primary, RMS of the fundamental
+
+time       f [Hz]  IA [A]  IB [A]  IC [A]  I1 [A]  I2 [A]  I0 [A]  I2/1
+-20.00 ms  -       318.2   318.2   318.2   318.2   0.000   0.000   0.0 %
+0.00 ms    50.000  318.2   347.4   318.2   327.8   11.08   11.08   3.4 %
+20.00 ms   50.000  318.2   3.411k  318.2   1.349k  1.031k  1.031k  76.5 %
+40.00 ms   50.000  318.2   3.458k  318.2   1.365k  1.047k  1.047k  76.7 %
+60.00 ms   50.000  318.2   3.488k  318.2   1.375k  1.057k  1.057k  76.9 %
+```
+
+- One row per `--step` (default 1 cycle; `10ms` for a time), each the window
+  of `--cycles` cycles ending there, like `phasors` at one moment.
+- Columns: frequency, the fundamental (RMS) of each channel (`--angles` adds
+  angles, `--rms` the true RMS with harmonics and DC), and for each A/B/C group
+  the positive `1`, negative `2` and zero `0` sequence and the unbalance `2/1`.
+- `--format csv` or `json` for spreadsheets and scripts.
 
 ### `phasors`
 

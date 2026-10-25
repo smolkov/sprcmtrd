@@ -111,6 +111,19 @@ pub enum Command {
     #[command(visible_alias = "phasor", verbatim_doc_comment)]
     Phasors(PhasorsArgs),
 
+    /// Values over time, cycle by cycle: fundamental magnitude per channel,
+    /// symmetrical components per three-phase group and the system frequency.
+    ///
+    /// Each row is a window of --cycles cycles ending at that time, like the
+    /// phasors command at one moment. Group columns: 1 positive, 2 negative,
+    /// 0 zero sequence, 2/1 unbalance in %.
+    ///
+    /// Examples:
+    ///   sprcmtrd trend fault.cfg --from -40 --to 120 --channels IA,IB,IC
+    ///   sprcmtrd trend fault.cfg --step 5ms --format csv > trend.csv
+    #[command(verbatim_doc_comment)]
+    Trend(TrendArgs),
+
     /// Statistics per channel: min, max, mean, RMS and peak of analog
     /// channels, state changes of binary channels.
     ///
@@ -310,6 +323,77 @@ pub struct PhasorsArgs {
     /// Print JSON instead of text.
     #[arg(long)]
     pub json: bool,
+}
+
+/// Arguments of `trend`.
+#[derive(Debug, Args)]
+pub struct TrendArgs {
+    /// Any file of the recording (.cfg, .dat, .cff, ...).
+    #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
+    pub file: PathBuf,
+    /// Analog channels: comma separated 1-based indices or ids. Default: all.
+    #[arg(long, value_delimiter = ',')]
+    pub channels: Vec<String>,
+    /// Start of the time range in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub from: Option<f64>,
+    /// End of the time range in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub to: Option<f64>,
+    /// Distance between rows: cycles (`1`, `0.5`) or a time (`10ms`, `1s`).
+    #[arg(long, default_value = "1", value_parser = parse_step)]
+    pub step: TrendStep,
+    /// Window length in cycles of the fundamental frequency.
+    #[arg(long, default_value_t = 1.0)]
+    pub cycles: f64,
+    /// Channel the angles and the frequency refer to (one of the shown
+    /// channels). Default: the first channel.
+    #[arg(long)]
+    pub reference: Option<String>,
+    /// Fundamental frequency in Hz. Default: the line frequency of the recording.
+    #[arg(long)]
+    pub frequency: Option<f64>,
+    /// Also show the angle of each channel.
+    #[arg(long)]
+    pub angles: bool,
+    /// Also show the true RMS of each channel (with harmonics and DC).
+    #[arg(long)]
+    pub rms: bool,
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = TrendFormat::Text)]
+    pub format: TrendFormat,
+}
+
+/// Distance between the rows of `trend`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TrendStep {
+    /// In cycles of the fundamental frequency.
+    Cycles(f64),
+    /// In seconds.
+    Seconds(f64),
+}
+
+/// Output format of `trend`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum TrendFormat {
+    /// Aligned table.
+    Text,
+    /// Comma separated values with a header row.
+    Csv,
+    /// One JSON object.
+    Json,
+}
+
+/// Parses `--step`: a bare number is cycles, with a unit a time (`10ms`).
+fn parse_step(s: &str) -> Result<TrendStep, String> {
+    let step = match s.trim().parse::<f64>() {
+        Ok(cycles) => TrendStep::Cycles(cycles),
+        Err(_) => TrendStep::Seconds(parse_duration(s)?),
+    };
+    match step {
+        TrendStep::Cycles(v) | TrendStep::Seconds(v) if v > 0.0 => Ok(step),
+        _ => Err("the step must be above 0".into()),
+    }
 }
 
 /// Arguments of `stats`.
@@ -537,6 +621,12 @@ mod tests {
         assert_eq!(parse_duration("1.5 min"), Ok(90.0));
         assert_eq!(parse_duration("250"), Ok(0.25));
         assert!(parse_duration("2 days").is_err());
+
+        assert_eq!(parse_step("1"), Ok(TrendStep::Cycles(1.0)));
+        assert_eq!(parse_step("0.5"), Ok(TrendStep::Cycles(0.5)));
+        assert_eq!(parse_step("10ms"), Ok(TrendStep::Seconds(0.01)));
+        assert!(parse_step("0").is_err());
+        assert!(parse_step("10 apples").is_err());
         assert!(parse_duration("-1s").is_err());
     }
 

@@ -899,3 +899,79 @@ fn phasors_before_and_during_the_fault() {
         .code(1)
         .stderr(predicate::str::contains("TRIP_A is a binary channel"));
 }
+
+#[test]
+fn trend_through_the_fault() {
+    cmd()
+        .args(["trend", "tests/data/fault_2013.cfg", "--from", "-40", "--to", "140"])
+        .args(["--channels", "IA,IB,IC,VA,VB,VC"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "1 cycle (40 samples) at 50 Hz, every 1 cycle (10 rows)",
+        ))
+        // Balanced before the fault, residue shown as 0.
+        .stdout(
+            predicate::str::is_match(
+                r"\n-20\.0 ms +50\.000 +318\.2 +318\.2 +318\.2 +63\.50 +63\.50 +63\.50 +318\.2 +0\.000 +0\.000 +0\.0 %",
+            )
+            .unwrap(),
+        )
+        // Phase B to ground: equal negative and zero sequence current.
+        .stdout(predicate::str::is_match(r"\n40\.0 ms +50\.000 +318\.2 +3\.458k .* 1\.047k +1\.047k +76\.7 %").unwrap())
+        // Breaker open: no frequency.
+        .stdout(predicate::str::is_match(r"\n120\.0 ms +- +0\.000").unwrap());
+
+    let out = cmd()
+        .args([
+            "trend",
+            "tests/data/fault_2013.cfg",
+            "--from",
+            "-20",
+            "--to",
+            "20",
+            "--channels",
+            "IB",
+        ])
+        .args(["--step", "5ms", "--angles", "--rms", "--format", "csv"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let text = String::from_utf8(out.stdout).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines[0], "time_ms,frequency_hz,IB_A,IB_deg,IB_rms_A");
+    assert_eq!(lines.len(), 10, "{text}");
+    assert!(lines[1].starts_with("-20,,318.19"), "{text}");
+
+    let out = cmd()
+        .args(["trend", "tests/data/fault_2013.cfg", "--to", "0", "--format", "json"])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["samples"], 40);
+    assert_eq!(v["groups"][0]["label"], "I");
+    assert_eq!(v["groups"][1]["channels"], serde_json::json!(["VA", "VB", "VC"]));
+    assert_eq!(v["steps"].as_array().unwrap().len(), 25);
+
+    cmd()
+        .args(["trend", "tests/data/fault_2013.cfg", "--channels", "TRIP_A"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("TRIP_A is a binary channel"));
+    cmd()
+        .args([
+            "trend",
+            "tests/data/fault_2013.cfg",
+            "--channels",
+            "IA",
+            "--reference",
+            "VA",
+        ])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("must be one of the shown channels"));
+    cmd()
+        .args(["trend", "tests/data/fault_2013.cfg", "--step", "0"])
+        .assert()
+        .code(2);
+}

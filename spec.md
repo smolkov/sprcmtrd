@@ -5,7 +5,7 @@
 `sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
 faces:
 
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
 - **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
   analog and binary channels as plots.
 
@@ -108,6 +108,7 @@ sprcmtrd check <PATH>          # validate recordings (exit code 4 on errors)
 sprcmtrd events <FILE>         # timeline of binary channel changes
 sprcmtrd stats <FILE>          # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors <FILE>        # phasors and symmetrical components at a time
+sprcmtrd trend <FILE>          # the same over time, cycle by cycle
 sprcmtrd export <FILE>         # samples as CSV or JSON
 sprcmtrd cut <FILE> -o <OUT>   # time window / channels as a new recording
 sprcmtrd convert <FILE> -o <OUT> # write as another revision / format / .cff
@@ -268,6 +269,37 @@ Timeline of binary channel changes (start, trip, breaker open, reclose, ...).
   (1-based), `time` (s), `index`, `id`, `from`, `to` and `absolute`.
 - Library: `analysis::events::events`.
 
+### `trend` command
+
+Values over time, cycle by cycle: the phasors command for a series of moments.
+
+- Arguments: `<FILE>`, `--channels <LIST>` (analog; naming a binary channel is
+  an error), `--from` / `--to` (time range in ms relative to the trigger,
+  default the whole recording), `--step <S>` (distance between rows: a bare
+  number is cycles, default 1; with a unit a time, `10ms`), `--cycles <N>`
+  (window length, default 1), `--reference <CH>` (one of the shown channels;
+  angles and frequency refer to it; default the first), `--frequency <Hz>`,
+  `--angles`, `--rms`, `--format text|csv|json`; global `--secondary`.
+- Each row is the window of `N` cycles ending at the row's time (same method as
+  `phasors`); the first row is the first window that fits in the range. The
+  number of samples per window and step comes from the sample spacing.
+- Columns: time, frequency, per channel the fundamental magnitude (RMS), with
+  `--angles` its angle relative to the reference at the same step, with `--rms`
+  the true RMS of all window samples (including harmonics and DC). Per
+  three-phase group (as in `phasors`) the positive `1`, negative `2` and zero
+  `0` sequence magnitudes and the unbalance `2/1` in %; the column label is the
+  common start of the group's channel ids (`I1` for IA, IB, IC), else `G1`, ….
+- Frequency: from the turn of the reference phasor between consecutive steps,
+  f = f₀ + Δφ / (2π Δt); missing for the first row and where the reference is
+  zero or missing. Valid while |f − f₀| · Δt < ½ (±25 Hz at a 1-cycle step).
+- A sequence component below 1e-6 of the group's largest is shown as 0 (residue
+  of integer samples). Missing values: `-` (text), empty (CSV), `null` (JSON).
+- Text: header lines (window, step, rows, reference, side) and an aligned
+  table. CSV: header `time_ms,frequency_hz,IA_A,IA_deg,IA_rms_A,…,I1_A,…,
+  I_unbalance_pct`. JSON: `channels`, `groups`, `steps[]` with `time_s`,
+  `frequency`, `phasors`, `rms`, `sequences`.
+- Library: `analysis::trend::trend`.
+
 ### `phasors` command
 
 Phasors of the fundamental frequency and symmetrical components at one moment
@@ -414,7 +446,7 @@ completion of `clap_complete`, feature `unstable-dynamic`).
 - Subcommands, options and option values (`--theme`, `--sort`, `--format`,
   `--rev`, …) come from the clap definitions, so they are always in sync.
 - Recording arguments (`FILE` of `info`, `view`, `events`, `stats`, `export`,
-  `cut`, `convert`, `check`, `phasors`, and the TUI `PATH`) use `complete::recordings`:
+  `cut`, `convert`, `check`, `phasors`, `trend`, and the TUI `PATH`) use `complete::recordings`:
   - the typed text up to the last `/` is the directory to search (relative,
     absolute or `~/`), the rest the start of a name in it;
   - offered: subdirectories whose name continues the typed text (ending with
@@ -468,6 +500,7 @@ src/
     sequence.rs      symmetrical components, three-phase groups (phasors)
     stats.rs         channel statistics (stats)
     events.rs        binary channel changes (events)
+    trend.rs         values over time, step by step (trend)
   comtrade/
     mod.rs           Comtrade, AnalogChannel, BinaryChannel, public API
     cfg.rs           .cfg parser (all revisions)
@@ -486,6 +519,7 @@ src/
     events.rs       Timeline of binary channel changes
     stats.rs        Channel statistics
     phasors.rs      Phasors and symmetrical components
+    trend.rs        Values over time, cycle by cycle
     export.rs       Samples as CSV / JSON
     cut.rs          Time window / channels as a new recording
     convert.rs      Write a recording as another revision / format

@@ -10,6 +10,7 @@ pub mod events;
 pub mod phasor;
 pub mod sequence;
 pub mod stats;
+pub mod trend;
 
 pub use complex::Complex;
 pub use events::Event;
