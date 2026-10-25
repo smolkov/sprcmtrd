@@ -34,7 +34,9 @@ cargo +1.88 check --locked --all-targets            # minimum supported Rust
 src/comtrade/   COMTRADE library: cfg.rs, dat.rs, cff.rs, check.rs, discover.rs, export.rs, write.rs, mod.rs
 src/analysis/   signal analysis: phasor.rs (Window, DFT), sequence.rs, complex.rs, stats.rs, events.rs
 src/command/    info, list, check, view, events, stats, phasors, export, cut, convert, completions + shared formatting (si, time, table)
-src/tui/        app.rs (state, actions, key handling), event.rs, theme.rs, widgets/
+src/tui/        app.rs (state, key and action dispatch), keys.rs (Action, BINDINGS, KeyMap),
+                picker.rs (file picker, directory scan), recording.rs (channels, zoom, cursor),
+                event.rs, theme.rs, widgets/
 src/args.rs     clap definitions      src/config.rs   config.toml load/save
 src/context.rs  Context (global options, config) for commands and TUI
 src/format/     shared text formatting: si, time, rate, bytes, table, key_values, summary
@@ -58,7 +60,7 @@ tests/cli.rs    CLI integration tests  tests/data/     sample recordings
   (`Command::Stats(StatsArgs)`) and its behaviour in `command/xxx.rs` as
   `impl StatsArgs { pub fn run(self, ctx: &Context) }`; `Command::run` only
   dispatches. A new command adds a variant, its `Args` struct and the module.
-- **Key bindings:** one table, `BINDINGS` in `tui/app.rs`. Help overlay, footer
+- **Key bindings:** one table, `BINDINGS` in `tui/keys.rs`. Help overlay, footer
   hints, configuration overlay and `config.toml` names are generated from it.
   Add new actions there; never hard-code key hints elsewhere.
 - **Errors and exit codes:** library errors are `comtrade::Error`; commands use

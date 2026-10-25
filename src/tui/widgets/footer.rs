@@ -6,7 +6,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::format::bytes;
-use crate::tui::app::{App, BINDINGS, Overlay, StatusKind};
+use crate::tui::app::{App, Overlay, StatusKind};
+use crate::tui::keys::BINDINGS;
 
 const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 

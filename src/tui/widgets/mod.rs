@@ -229,7 +229,8 @@ mod tests {
     fn config_overlay_creates_file_and_saves_changes() {
         use crate::config::AppConfig;
         use crate::term::ThemeKind;
-        use crate::tui::app::{Action, BINDINGS, Overlay};
+        use crate::tui::app::Overlay;
+        use crate::tui::keys::{Action, BINDINGS};
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("sprcmtrd/config.toml");
@@ -278,7 +279,7 @@ mod tests {
         press(&mut app, KeyCode::Esc, KeyModifiers::NONE);
         assert!(app.overlay.is_none());
         let saved = AppConfig::load_from(&path).unwrap();
-        crate::tui::app::KeyMap::new(&saved.keys).unwrap();
+        crate::tui::keys::KeyMap::new(&saved.keys).unwrap();
     }
 
     #[test]

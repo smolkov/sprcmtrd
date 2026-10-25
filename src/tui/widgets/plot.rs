@@ -11,7 +11,9 @@ use ratatui::widgets::{Block, Paragraph};
 
 use crate::comtrade::Cell;
 use crate::format::{si, time};
-use crate::tui::app::{Action, App, Focus, Recording};
+use crate::tui::app::{App, Focus};
+use crate::tui::keys::Action;
+use crate::tui::recording::Recording;
 
 /// Width of the label column left of each plot.
 const GUTTER: u16 = 16;

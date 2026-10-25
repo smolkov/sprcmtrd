@@ -8,7 +8,7 @@ use futures::StreamExt;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::{Interval, MissedTickBehavior};
 
-use super::app::PickerEntry;
+use super::picker::PickerEntry;
 use crate::comtrade::Comtrade;
 
 /// Result of a background task.

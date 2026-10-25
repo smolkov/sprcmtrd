@@ -7,7 +7,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Row, Table, TableState};
 
 use super::{centered, overlay_block};
-use crate::tui::app::{App, Picker, PickerEntry};
+use crate::tui::app::App;
+use crate::tui::picker::{Picker, PickerEntry};
 
 const SPINNER: [char; 4] = ['◐', '◓', '◑', '◒'];
 

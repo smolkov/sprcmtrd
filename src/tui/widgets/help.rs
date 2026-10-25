@@ -5,7 +5,8 @@ use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 
 use super::{centered, overlay_block, scrolled_text};
-use crate::tui::app::{App, BINDINGS};
+use crate::tui::app::App;
+use crate::tui::keys::BINDINGS;
 
 pub fn render(f: &mut Frame, area: Rect, app: &App, scroll: u16) {
     let inner = overlay_block(f, centered(area, 70, 80), app, "Help");

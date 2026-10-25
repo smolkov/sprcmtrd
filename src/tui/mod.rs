@@ -2,6 +2,9 @@
 
 pub mod app;
 pub mod event;
+pub mod keys;
+pub mod picker;
+pub mod recording;
 pub mod theme;
 pub mod widgets;
 

@@ -492,7 +492,10 @@ src/
     completions.rs  Generate tab-completion scripts for your shell
   tui/
     mod.rs           run(): terminal setup/teardown, event loop
-    app.rs           App state, actions, key handling
+    app.rs           App state, key and action dispatch
+    keys.rs          Action, BINDINGS table, KeySpec, KeyMap (configured keys)
+    picker.rs        file picker state and background directory scan
+    recording.rs     loaded recording: visible channels, zoom, pan, cursor
     event.rs         event stream (keys, resize, tick, background load results)
     theme.rs         dark / light theme
     widgets/
@@ -672,7 +675,7 @@ runs the event loop and always restores the terminal, also on panic
 | `Esc`               | Close overlay                            |
 
 Note: `Ctrl+Shift+P` is not used because most terminals cannot tell it apart from
-`Ctrl+P`. Key bindings are defined in one table in `app.rs` so footer hints and
+`Ctrl+P`. Key bindings are defined in one table in `keys.rs` so footer hints and
 help overlay are generated from it.
 
 ### File picker overlay

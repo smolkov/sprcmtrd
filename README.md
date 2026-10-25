@@ -572,13 +572,15 @@ release linking to them.
 The GitLab release needs the package registry enabled for the project
 (Settings → General → Visibility → Package registry).
 
-| Path               | Content                                                                 |
-|--------------------|-------------------------------------------------------------------------|
-| `src/comtrade/`    | COMTRADE library: reading, writing, export, statistics, events, ...     |
-| `src/command/`     | Commands (`info`, `list`, `view`, `stats`, ...) and output formatting   |
-| `src/tui/`         | TUI: state and keys (`app.rs`), events, theme, widgets                  |
-| `tests/data/`      | Synthetic sample recordings (all revisions and formats)                 |
-| `spec.md`          | Specification                                                           |
+| Path                       | Content                                                              |
+|----------------------------|----------------------------------------------------------------------|
+| `src/comtrade/`            | COMTRADE library: reading, writing, export, validation, discovery    |
+| `src/analysis/`            | Signal analysis: statistics, events, phasors, symmetrical components |
+| `src/command/`             | The commands (`info`, `list`, `view`, `stats`, …)                    |
+| `src/tui/`                 | TUI: state (`app.rs`), keys, file picker, recording view, widgets    |
+| `src/format/`, `src/term/` | Shared by commands and TUI: text formatting, terminal output         |
+| `tests/data/`              | Synthetic sample recordings (all revisions and formats)              |
+| `spec.md`                  | Specification                                                        |
 
 The `comtrade` module does not depend on the command or TUI code and could be
 used as a library on its own.

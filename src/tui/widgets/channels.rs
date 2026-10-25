@@ -6,7 +6,8 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, List, ListItem, ListState};
 
-use crate::tui::app::{App, Focus, Recording};
+use crate::tui::app::{App, Focus};
+use crate::tui::recording::Recording;
 
 /// Preferred sidebar width for `rec`.
 pub fn width(rec: &Recording) -> u16 {
