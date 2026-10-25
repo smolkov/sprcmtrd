@@ -9,18 +9,18 @@ use ratatui::widgets::Paragraph;
 use crate::command::rate;
 use crate::tui::app::App;
 
-const BANNER: [&str; 4] = [
-    " ▄▄▄ ▄▄▄  ▄ ▄▄  ▄▄▄ ▄▄▄▄   ▄▄█ ▄ ▄▄  ▄▄█ ",
-    "▀▀▄▄ █  █ █▀   █    █ █ █ █  █ █▀   █  █ ",
-    "▀▀▀  █▀▀  ▀     ▀▀▀ ▀ ▀ ▀  ▀▀▀ ▀     ▀▀▀ ",
-    "     ▀                                   ",
-];
-
-// const BANNER: [&str; 3] = [
-//     "┌─┐┌─┐┬─┐┌─┐┌┬┐┌┬┐┬─┐┌┬┐",
-//     "└─┐├─┘├┬┘│  │││ │ ├┬┘ ││",
-//     "└─┘┴  ┴└─└─┘┴ ┴ ┴ ┴└──┴┘",
+// const BANNER: [&str; 4] = [
+//     " ▄▄▄ ▄▄▄  ▄ ▄▄  ▄▄▄ ▄▄▄▄   ▄▄█ ▄ ▄▄  ▄▄█ ",
+//     "▀▀▄▄ █  █ █▀   █    █ █ █ █  █ █▀   █  █ ",
+//     "▀▀▀  █▀▀  ▀     ▀▀▀ ▀ ▀ ▀  ▀▀▀ ▀     ▀▀▀ ",
+//     "     ▀                                   ",
 // ];
+
+const BANNER: [&str; 3] = [
+    "┌─┐┌─┐┬─┐┌─┐┌┬┐┌┬┐┬─┐┌┬┐",
+    "└─┐├─┘├┬┘│  │││ │ ├┬┘ ││",
+    "└─┘┴  ┴└─└─┘┴ ┴ ┴ ┴└──┴┘",
+];
 const VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 
 pub fn render(f: &mut Frame, area: Rect, app: &App) {
