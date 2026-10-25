@@ -120,8 +120,8 @@ mod tests {
 
     use super::*;
     use crate::args::{GlobalOpts, ThemeChoice};
-    use crate::command::Context;
     use crate::comtrade::Comtrade;
+    use crate::context::Context;
 
     fn app() -> App {
         app_with_config(None)
@@ -228,8 +228,8 @@ mod tests {
     #[test]
     fn config_overlay_creates_file_and_saves_changes() {
         use crate::config::AppConfig;
+        use crate::term::ThemeKind;
         use crate::tui::app::{Action, BINDINGS, Overlay};
-        use crate::tui::theme::ThemeKind;
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("sprcmtrd/config.toml");

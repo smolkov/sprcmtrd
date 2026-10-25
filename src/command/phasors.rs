@@ -3,12 +3,13 @@
 use anyhow::{Context as _, anyhow, bail};
 use serde::Serialize;
 
-use super::info::key_values;
-use super::{Context, rate, select_channels, si, table, time};
+use super::select_channels;
 use crate::analysis::phasor::{self, Polar, Window, WindowError};
 use crate::analysis::sequence;
 use crate::args::PhasorsArgs;
 use crate::comtrade::{Comtrade, Side, round12};
+use crate::context::Context;
+use crate::format::{key_values, rate, si, table, time};
 
 #[derive(Serialize)]
 struct JsonPhasor {

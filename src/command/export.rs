@@ -7,10 +7,12 @@ use std::path::Path;
 
 use anyhow::{Context as _, bail};
 
-use super::{Context, bytes, select_channels, time_window};
+use super::{select_channels, time_window};
 use crate::args::{ExportArgs, ExportFormat};
 use crate::comtrade::export::{Export, Format};
 use crate::comtrade::{Comtrade, Side};
+use crate::context::Context;
+use crate::format::bytes;
 
 impl From<ExportFormat> for Format {
     fn from(f: ExportFormat) -> Self {

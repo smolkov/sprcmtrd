@@ -12,7 +12,7 @@ use tokio::sync::mpsc;
 
 use self::app::App;
 use self::event::{Event, Events};
-use crate::command::Context;
+use crate::context::Context;
 
 /// Runs the TUI. `path` may be a recording file, a directory to browse, or
 /// `None` to browse the current directory.

@@ -4,6 +4,7 @@ use clap::{CommandFactory, Parser};
 use clap_complete::CompleteEnv;
 use sprcmtrd::args::Cli;
 use sprcmtrd::config::AppConfig;
+use sprcmtrd::context::Context;
 use sprcmtrd::logging::{self, Target};
 
 /// Exit code for a missing or unreadable file.
@@ -25,7 +26,7 @@ async fn main() -> ExitCode {
     logging::init(cli.global.verbose, target);
 
     let result = match AppConfig::load() {
-        Ok(config) => sprcmtrd::command::run(cli, config).await,
+        Ok(config) => run(cli, config).await,
         Err(e) => Err(e),
     };
     match result {
@@ -34,6 +35,16 @@ async fn main() -> ExitCode {
             eprintln!("error: {e:#}");
             ExitCode::from(exit_code(&e))
         }
+    }
+}
+
+/// Runs the subcommand, or the TUI when there is none. The two sides only
+/// share the context, so neither depends on the other.
+async fn run(cli: Cli, config: AppConfig) -> anyhow::Result<()> {
+    let ctx = Context::new(cli.global, config);
+    match cli.command {
+        Some(cmd) => cmd.run(&ctx),
+        None => sprcmtrd::tui::run(cli.path, &ctx).await,
     }
 }
 

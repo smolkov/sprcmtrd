@@ -451,8 +451,13 @@ src/
   error.rs           error types (thiserror)
   config.rs          application configuration (parsing, loading, defaults)
   logging.rs          logging setup (env_logger, log levels)
-  term/              terminal output shared by the commands
+  context.rs         Context: global options and configuration (commands, TUI)
+  format/            text formatting shared by the commands and the TUI
+    mod.rs           si, time, rate, bytes, table, key_values
+    summary.rs       recording summary (info, view, TUI info overlay)
+  term/              terminal output shared by the commands and the TUI
     mod.rs           terminal_width, fit
+    theme.rs         light / dark background (ThemeKind)
     spinner.rs       progress line on stderr (list, check)
     table.rs         table printed row by row (list)
     style.rs         colors (Palette: check)
@@ -507,6 +512,11 @@ Layering rule: `comtrade` knows nothing about `analysis`, `command` or `tui`. It
 is a plain, synchronous library and could be published as its own crate later.
 `analysis` builds on `comtrade` only; signal analysis logic lives there and the
 commands (and later the TUI) only format its results.
+
+The commands (`command`) and the TUI (`tui`) never use each other: both build on
+the shared modules (`comtrade`, `analysis`, `format`, `term`, `context`), and
+`main.rs` chooses between them. `tests/layering.rs` checks these rules from the
+`crate::…` paths in the sources.
 
 ## Comtrade module
 

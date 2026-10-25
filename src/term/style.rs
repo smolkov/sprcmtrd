@@ -10,8 +10,8 @@ use std::io::IsTerminal;
 
 use crossterm::style::{Color, Stylize};
 
+use super::ThemeKind;
 use crate::args::ThemeChoice;
-use crate::tui::theme::ThemeKind;
 
 /// What a piece of text stands for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

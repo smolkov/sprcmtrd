@@ -2,10 +2,11 @@
 
 use textplots::{Chart, LabelBuilder, LabelFormat, Plot, Shape};
 
-use super::info::{key_values, summary};
-use super::{Context, select_channels, si, time, time_window};
+use super::{select_channels, time_window};
 use crate::args::ViewArgs;
 use crate::comtrade::{Cell, Comtrade, Side};
+use crate::context::Context;
+use crate::format::{key_values, si, summary, time};
 use crate::term;
 
 /// Width reserved right of the plot for textplots' y labels.

@@ -9,8 +9,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::canvas::{Canvas, Line as CanvasLine, Points};
 use ratatui::widgets::{Block, Paragraph};
 
-use crate::command::{si, time};
 use crate::comtrade::Cell;
+use crate::format::{si, time};
 use crate::tui::app::{Action, App, Focus, Recording};
 
 /// Width of the label column left of each plot.

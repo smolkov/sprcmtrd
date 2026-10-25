@@ -5,12 +5,14 @@
 mod spinner;
 mod style;
 mod table;
+mod theme;
 
 use std::io::IsTerminal;
 
 pub use spinner::Spinner;
 pub use style::{Palette, Role};
 pub use table::LiveTable;
+pub use theme::ThemeKind;
 
 /// Width of the terminal stdout is connected to, `None` when it is not a
 /// terminal.

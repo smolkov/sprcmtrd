@@ -2,11 +2,12 @@
 
 use serde::Serialize;
 
-use super::info::key_values;
-use super::{Context, select_channels, si, table, time, time_window};
+use super::{select_channels, time_window};
 use crate::analysis::stats::{self, AnalogStats, BinaryStats};
 use crate::args::StatsArgs;
 use crate::comtrade::{Comtrade, Side};
+use crate::context::Context;
+use crate::format::{key_values, si, table, time};
 
 #[derive(Serialize)]
 struct Json {

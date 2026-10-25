@@ -14,12 +14,14 @@ use regex::{Regex, RegexBuilder};
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::event::Message;
-use super::theme::{Theme, ThemeKind};
+use super::theme::Theme;
 use crate::args::ThemeChoice;
-use crate::command::{self, Context};
 use crate::comtrade::discover::{self, Visit};
 use crate::comtrade::{Comtrade, RecordingPath, Side};
 use crate::config::AppConfig;
+use crate::context::Context;
+use crate::format;
+use crate::term::ThemeKind;
 
 /// Something the user can do with a key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -954,7 +956,7 @@ impl App {
     /// Shows `data` as the current recording.
     pub fn set_recording(&mut self, data: Comtrade) {
         let rec = Recording::new(data);
-        let size = rec.size.map(command::bytes).unwrap_or_default();
+        let size = rec.size.map(format::bytes).unwrap_or_default();
         self.set_status(format!("loaded {} {size}", rec.name), StatusKind::Info);
         self.recording = Some(rec);
         self.selected = 0;

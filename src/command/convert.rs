@@ -5,9 +5,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, bail};
 
-use super::{Context, bytes};
 use crate::args::{ConvertArgs, FormatArg, RevisionArg};
 use crate::comtrade::{Comtrade, DataFormat, Revision, write};
+use crate::context::Context;
+use crate::format::bytes;
 
 impl From<FormatArg> for DataFormat {
     fn from(f: FormatArg) -> Self {

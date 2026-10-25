@@ -10,10 +10,11 @@ use anyhow::Context as _;
 use chrono::NaiveDateTime;
 use regex::{Regex, RegexBuilder};
 
-use super::{Context, bytes, rate, table, time};
 use crate::args::{ListArgs, SortKey};
 use crate::comtrade::discover::{self, Visit};
 use crate::comtrade::{Comtrade, Config, RecordingPath};
+use crate::context::Context;
+use crate::format::{bytes, rate, table, time};
 use crate::term::{self, LiveTable, Spinner};
 
 struct Row {

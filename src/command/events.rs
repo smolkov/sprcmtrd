@@ -4,11 +4,12 @@ use anyhow::bail;
 use chrono::{NaiveDateTime, TimeDelta};
 use serde::Serialize;
 
-use super::info::key_values;
-use super::{Context, select_channels, table, time, time_window};
+use super::{select_channels, time_window};
 use crate::analysis::events::{self, Event};
 use crate::args::EventsArgs;
 use crate::comtrade::Comtrade;
+use crate::context::Context;
+use crate::format::{key_values, table, time};
 
 #[derive(Serialize)]
 struct JsonEvent<'a> {

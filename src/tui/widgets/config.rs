@@ -6,8 +6,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 
 use super::{centered, overlay_block};
+use crate::term::ThemeKind;
 use crate::tui::app::{App, BINDINGS, ConfigState, StatusKind};
-use crate::tui::theme::ThemeKind;
 
 pub fn render(f: &mut Frame, area: Rect, app: &App, state: &ConfigState) {
     let theme = &app.theme;

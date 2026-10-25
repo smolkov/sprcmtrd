@@ -57,7 +57,7 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 
 ## Refactoring ideas
 
-* [ ] Separate TUI and CLI logic more cleanly to reduce coupling and improve testability.
+* [x] Separate TUI and CLI logic more cleanly to reduce coupling and improve testability.
 * [ ] App module is too large separate into smaller modules for better maintainability. Move key handling into its own module.
   `tui/app.rs` has 1500 lines. Natural cuts: `Action`, `Binding`, `BINDINGS`, `KeySpec`, `KeyMap` → `tui/keys.rs`; `Picker`, `PickerEntry`, `Matcher` and `scan` → `tui/picker.rs`; `Recording` (channel visibility, zoom, cursor) → `tui/recording.rs`. `App` keeps state and dispatch.
 * [ ] Spinner in stdout for long-running CLI commands (like `convert` or `export`) to indicate progress.

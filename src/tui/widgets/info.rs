@@ -5,8 +5,7 @@ use ratatui::layout::Rect;
 use ratatui::text::Line;
 
 use super::{centered, overlay_block, scrolled_text};
-use crate::command::info::{analog_rows, binary_rows, key_values, summary};
-use crate::command::table;
+use crate::format::{analog_rows, binary_rows, key_values, summary, table};
 use crate::tui::app::App;
 
 pub fn render(f: &mut Frame, area: Rect, app: &App, scroll: u16) {

@@ -3,9 +3,11 @@
 
 use anyhow::bail;
 
-use super::{Context, convert, select_channels, time, time_window};
+use super::{convert, select_channels, time_window};
 use crate::args::CutArgs;
 use crate::comtrade::Comtrade;
+use crate::context::Context;
+use crate::format::time;
 
 impl CutArgs {
     /// Runs the `cut` command. The new recording keeps the source's revision and

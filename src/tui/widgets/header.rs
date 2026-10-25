@@ -6,7 +6,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-use crate::command::rate;
+use crate::format::rate;
 use crate::tui::app::App;
 
 // const BANNER: [&str; 4] = [

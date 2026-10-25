@@ -36,9 +36,11 @@ src/analysis/   signal analysis: phasor.rs (Window, DFT), sequence.rs, complex.r
 src/command/    info, list, check, view, events, stats, phasors, export, cut, convert, completions + shared formatting (si, time, table)
 src/tui/        app.rs (state, actions, key handling), event.rs, theme.rs, widgets/
 src/args.rs     clap definitions      src/config.rs   config.toml load/save
+src/context.rs  Context (global options, config) for commands and TUI
+src/format/     shared text formatting: si, time, rate, bytes, table, key_values, summary
 src/complete.rs dynamic shell completion of recordings (COMPLETE=<shell> sprcmtrd)
-src/term/       terminal output for commands: Spinner, LiveTable, Palette colors (only on a terminal,
-                never color alone), fit, terminal_width
+src/term/       terminal output: Spinner, LiveTable, Palette colors (only on a terminal, never color
+                alone), ThemeKind (light / dark), fit, terminal_width
 src/error.rs    comtrade::Error       src/logging.rs  tracing setup
 tests/cli.rs    CLI integration tests  tests/data/     sample recordings
 ```
@@ -46,7 +48,9 @@ tests/cli.rs    CLI integration tests  tests/data/     sample recordings
 - **Layering:** `comtrade` is a plain synchronous library and must not depend on
   `analysis`, `command` or `tui`. `analysis` builds on `comtrade` only: put
   signal analysis there (with tests) and let commands only format results.
-  `tui` may use `command` helpers (e.g. `command::info::summary`).
+  `command` (CLI) and `tui` never use each other; shared code goes into
+  `format`, `term`, `context` or `analysis`, and `main.rs` picks the side.
+  `tests/layering.rs` fails when a layer uses a module it must not.
 - **Async:** only the TUI event loop uses Tokio. Blocking work (loading a `.dat`,
   directory scans) runs in `spawn_blocking` and reports back through
   `event::Message`.

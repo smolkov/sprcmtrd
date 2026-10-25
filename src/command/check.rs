@@ -4,10 +4,11 @@ use std::ops::ControlFlow;
 
 use serde::Serialize;
 
-use super::{Context, table};
 use crate::args::CheckArgs;
 use crate::comtrade::check::{self, Report, Severity};
 use crate::comtrade::discover::{self, RecordingPath, Visit};
+use crate::context::Context;
+use crate::format::table;
 use crate::term::{Palette, Role, Spinner};
 
 /// Returned when a recording failed the check, so `main` exits with the
