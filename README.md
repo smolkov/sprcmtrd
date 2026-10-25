@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `harmonics`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `harmonics`, `impedance`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 ## Features
@@ -68,6 +68,7 @@ sprcmtrd stats FILE         # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors FILE       # phasors and symmetrical components at a time
 sprcmtrd trend FILE         # the same over time, cycle by cycle
 sprcmtrd harmonics FILE     # harmonic spectrum and THD at a time
+sprcmtrd impedance FILE     # apparent impedance of the fault loops
 sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
 sprcmtrd convert FILE -o OUT  # other revision, data format or .cff
@@ -230,6 +231,39 @@ time      Δ         absolute                    channel       change
   trigger is a row of its own.
 - `--channels` (binary channels), `--from` / `--to` as in `view`; `--json` for
   scripts.
+
+### `impedance`
+
+```sh
+sprcmtrd impedance tests/data/fault_2013.cfg --at 40
+```
+
+During the phase B to ground fault, the B-N loop drops from the load
+impedance (about 200 Ω) to about 5 Ω; the healthy loops stay at the load.
+
+```
+File          tests/data/fault_2013.cfg
+Window        20.50 ms .. 40.00 ms (1 cycle, 40 samples, 50 Hz)
+Channels      VA VB VC [kV] · IA IB IC [A]
+Compensation  none (k0 = 0; give the line's k0 with --k0)
+Values        primary Ω
+
+loop  V [kV]  I [A]   R [Ω]  X [Ω]    |Z| [Ω]  φ
+A-N   63.50   318.2   199.6  0.000    199.6    0.0°
+B-N   17.68   3.458k  5.108  -204.5m  5.112    -2.3°
+C-N   63.50   318.2   199.6  0.000    199.6    0.0°
+A-B   73.94   3.617k  14.23  -14.67   20.44    -45.9°
+B-C   73.94   3.638k  15.22  13.47    20.32    41.5°
+C-A   110.0   551.1   199.6  0.000    199.6    0.0°
+```
+
+- The six loops a distance relay measures: A-N, B-N, C-N as V / (I + k0·3I0)
+  and A-B, B-C, C-A as (V₁ − V₂) / (I₁ − I₂), in Ω primary (`--secondary` for
+  secondary). Give the line's residual compensation with `--k0 0.8@-5`.
+- Voltage and current channels are found by unit; `--voltage VA,VB,VC
+  --current IA,IB,IC` chooses them. `--loops BN,BC` limits the loops.
+- `--trend` gives R and X per loop over time (`--from`, `--to`, `--step`), to
+  compare with the relay's zones; `--format csv` or `json` for other tools.
 
 ### `harmonics`
 

@@ -111,6 +111,18 @@ pub enum Command {
     #[command(visible_alias = "phasor", verbatim_doc_comment)]
     Phasors(PhasorsArgs),
 
+    /// Apparent impedance of the six fault loops, as a distance relay sees it.
+    ///
+    /// Phase to ground V / (I + k0·3I0), phase to phase (V1 − V2) / (I1 − I2),
+    /// from the phasors of a voltage and a current A/B/C group (found by unit,
+    /// or --voltage / --current). With --trend, R and X per loop over time.
+    ///
+    /// Examples:
+    ///   sprcmtrd impedance fault.cfg --at 40 --k0 0.8@-5
+    ///   sprcmtrd impedance fault.cfg --trend --loops BN,BC --format csv
+    #[command(verbatim_doc_comment)]
+    Impedance(ImpedanceArgs),
+
     /// Harmonic spectrum and THD per channel at one moment.
     ///
     /// A DFT over whole cycles ending at --at, like phasors. Harmonics and DC
@@ -337,6 +349,78 @@ pub struct PhasorsArgs {
     pub json: bool,
 }
 
+/// Arguments of `impedance`.
+#[derive(Debug, Args)]
+pub struct ImpedanceArgs {
+    /// Any file of the recording (.cfg, .dat, .cff, ...).
+    #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
+    pub file: PathBuf,
+    /// End of the window in ms relative to the trigger (without --trend).
+    #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+    pub at: f64,
+    /// Window length in cycles of the fundamental frequency.
+    #[arg(long, default_value_t = 1.0)]
+    pub cycles: f64,
+    /// Voltage channels of phases A, B, C (indices or ids). Default: found by unit.
+    #[arg(long, value_delimiter = ',', num_args = 1)]
+    pub voltage: Vec<String>,
+    /// Current channels of phases A, B, C (indices or ids). Default: found by unit.
+    #[arg(long, value_delimiter = ',', num_args = 1)]
+    pub current: Vec<String>,
+    /// Residual compensation k0 = (Z0 − Z1) / (3·Z1) as magnitude, optionally
+    /// with angle in degrees (`0.8` or `0.8@-5`). Default 0: no compensation.
+    #[arg(long, default_value = "0", value_parser = parse_k0, allow_hyphen_values = true)]
+    pub k0: K0,
+    /// Loops to show (`AN,BN,CN,AB,BC,CA`). Default: all six.
+    #[arg(long, value_delimiter = ',')]
+    pub loops: Vec<String>,
+    /// R and X of each loop over time instead of at one moment.
+    #[arg(long)]
+    pub trend: bool,
+    /// Start of the time range in ms relative to the trigger (with --trend).
+    #[arg(long, allow_hyphen_values = true)]
+    pub from: Option<f64>,
+    /// End of the time range in ms relative to the trigger (with --trend).
+    #[arg(long, allow_hyphen_values = true)]
+    pub to: Option<f64>,
+    /// Distance between rows with --trend: cycles (`1`) or a time (`10ms`).
+    #[arg(long, default_value = "1", value_parser = parse_step)]
+    pub step: TrendStep,
+    /// Fundamental frequency in Hz. Default: the line frequency of the recording.
+    #[arg(long)]
+    pub frequency: Option<f64>,
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = TableFormat::Text)]
+    pub format: TableFormat,
+}
+
+/// Residual compensation factor of `impedance`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct K0 {
+    /// Magnitude.
+    pub magnitude: f64,
+    /// Angle in degrees.
+    pub angle: f64,
+}
+
+/// Parses `--k0`: `MAG` or `MAG@ANGLE` (degrees).
+fn parse_k0(s: &str) -> Result<K0, String> {
+    let (m, a) = s.split_once('@').unwrap_or((s, "0"));
+    let parse = |v: &str| {
+        v.trim()
+            .parse::<f64>()
+            .map_err(|_| format!("expected MAG or MAG@ANGLE, got '{s}'"))
+    };
+    let k0 = K0 {
+        magnitude: parse(m)?,
+        angle: parse(a)?,
+    };
+    if k0.magnitude < 0.0 {
+        return Err("the magnitude of k0 can't be negative".into());
+    }
+    Ok(k0)
+}
+
 /// Arguments of `harmonics`.
 #[derive(Debug, Args)]
 pub struct HarmonicsArgs {
@@ -401,8 +485,8 @@ pub struct TrendArgs {
     #[arg(long)]
     pub rms: bool,
     /// Output format.
-    #[arg(long, value_enum, default_value_t = TrendFormat::Text)]
-    pub format: TrendFormat,
+    #[arg(long, value_enum, default_value_t = TableFormat::Text)]
+    pub format: TableFormat,
 }
 
 /// Distance between the rows of `trend`.
@@ -414,9 +498,9 @@ pub enum TrendStep {
     Seconds(f64),
 }
 
-/// Output format of `trend`.
+/// Output format of `trend` and `impedance`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum TrendFormat {
+pub enum TableFormat {
     /// Aligned table.
     Text,
     /// Comma separated values with a header row.
@@ -662,6 +746,22 @@ mod tests {
         assert_eq!(parse_duration("1.5 min"), Ok(90.0));
         assert_eq!(parse_duration("250"), Ok(0.25));
         assert!(parse_duration("2 days").is_err());
+
+        assert_eq!(
+            parse_k0("0.8"),
+            Ok(K0 {
+                magnitude: 0.8,
+                angle: 0.0
+            })
+        );
+        assert_eq!(
+            parse_k0("0.8@-5"),
+            Ok(K0 {
+                magnitude: 0.8,
+                angle: -5.0
+            })
+        );
+        assert!(parse_k0("x").is_err() && parse_k0("-1").is_err());
 
         assert_eq!(parse_step("1"), Ok(TrendStep::Cycles(1.0)));
         assert_eq!(parse_step("0.5"), Ok(TrendStep::Cycles(0.5)));

@@ -5,7 +5,7 @@
 `sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
 faces:
 
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `harmonics`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `harmonics`, `impedance`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
 - **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
   analog and binary channels as plots.
 
@@ -110,6 +110,7 @@ sprcmtrd stats <FILE>          # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors <FILE>        # phasors and symmetrical components at a time
 sprcmtrd trend <FILE>          # the same over time, cycle by cycle
 sprcmtrd harmonics <FILE>      # harmonic spectrum and THD at a time
+sprcmtrd impedance <FILE>      # apparent impedance of the fault loops
 sprcmtrd export <FILE>         # samples as CSV or JSON
 sprcmtrd cut <FILE> -o <OUT>   # time window / channels as a new recording
 sprcmtrd convert <FILE> -o <OUT> # write as another revision / format / .cff
@@ -269,6 +270,33 @@ Timeline of binary channel changes (start, trip, breaker open, reclose, ...).
 - JSON: `file`, `trigger_time`, `from_s`, `to_s`, `events[]` with `sample`
   (1-based), `time` (s), `index`, `id`, `from`, `to` and `absolute`.
 - Library: `analysis::events::events`.
+
+### `impedance` command
+
+Apparent impedance of the six fault loops, as a distance relay measures it.
+
+- Arguments: `<FILE>`, `--at <ms>` (default 0), `--cycles <N>` (default 1),
+  `--voltage <A,B,C>` and `--current <A,B,C>` (both or neither), `--k0
+  <MAG[@ANGLE]>` (default 0), `--loops <LIST>` (`AN,BN,CN,AB,BC,CA`, default
+  all), `--trend` with `--from` / `--to` / `--step` (as in `trend`),
+  `--frequency <Hz>`, `--format text|csv|json`; global `--secondary`.
+- Channels: without `--voltage` / `--current`, the first voltage A/B/C group
+  (unit V, kV, mV, MV) and a current group (A, kA, mA), preferably of the same
+  circuit (`analysis::impedance::find_pair`). Without them it is an error that
+  names the options.
+- Loops from the fundamental phasors (same window as `phasors`), scaled to V and
+  A: phase to ground Z = V / (I + k0·3I0) with 3I0 = I_A + I_B + I_C, phase to
+  phase Z = (V₁ − V₂) / (I₁ − I₂). k0 = (Z0 − Z1) / (3·Z1) of the line; 0 means
+  no compensation, which the output says. Ω are primary, or secondary with
+  `--secondary` (each channel converted with its ratios).
+- At one moment: a table `loop | V | I | R | X | |Z| | φ` with the loop voltage
+  and current in the channels' units, so it can be judged whether a loop
+  carries fault current; no loop current gives a row without values.
+- `--trend`: R and X of each loop per step (text, CSV `time_ms,BN_r_ohm,…`,
+  JSON), the trajectory to compare with relay zones.
+- R or X below 1e-6 of |Z| is shown as 0 (residue of integer samples).
+- Library: `analysis::impedance` (`Loop`, `loop_quantities`, `impedance`,
+  `find_pair`, `unit_factor`).
 
 ### `harmonics` command
 
@@ -474,7 +502,7 @@ completion of `clap_complete`, feature `unstable-dynamic`).
 - Subcommands, options and option values (`--theme`, `--sort`, `--format`,
   `--rev`, …) come from the clap definitions, so they are always in sync.
 - Recording arguments (`FILE` of `info`, `view`, `events`, `stats`, `export`,
-  `cut`, `convert`, `check`, `phasors`, `trend`, `harmonics`, and the TUI `PATH`) use `complete::recordings`:
+  `cut`, `convert`, `check`, `phasors`, `trend`, `harmonics`, `impedance`, and the TUI `PATH`) use `complete::recordings`:
   - the typed text up to the last `/` is the directory to search (relative,
     absolute or `~/`), the rest the start of a name in it;
   - offered: subdirectories whose name continues the typed text (ending with
@@ -530,6 +558,7 @@ src/
     events.rs        binary channel changes (events)
     trend.rs         values over time, step by step (trend)
     harmonics.rs     harmonic spectrum, THD (harmonics)
+    impedance.rs     fault loop impedances (impedance)
   comtrade/
     mod.rs           Comtrade, AnalogChannel, BinaryChannel, public API
     cfg.rs           .cfg parser (all revisions)
@@ -550,6 +579,7 @@ src/
     phasors.rs      Phasors and symmetrical components
     trend.rs        Values over time, cycle by cycle
     harmonics.rs    Harmonic spectrum and THD
+    impedance.rs    Apparent impedance of the fault loops
     export.rs       Samples as CSV / JSON
     cut.rs          Time window / channels as a new recording
     convert.rs      Write a recording as another revision / format

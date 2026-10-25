@@ -1,6 +1,6 @@
 //! Complex numbers, as far as phasors need them.
 
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 
 /// A complex number: the phasor of a signal (peak value).
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -66,5 +66,32 @@ impl Mul for Complex {
             re: self.re * o.re - self.im * o.im,
             im: self.re * o.im + self.im * o.re,
         }
+    }
+}
+
+impl Div for Complex {
+    type Output = Self;
+    /// Division; dividing by 0 gives infinite or NaN parts, as for `f64`.
+    fn div(self, o: Self) -> Self {
+        let d = o.re * o.re + o.im * o.im;
+        Self {
+            re: (self.re * o.re + self.im * o.im) / d,
+            im: (self.im * o.re - self.re * o.im) / d,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn arithmetic() {
+        let a = Complex { re: 3.0, im: 4.0 };
+        let b = Complex { re: 1.0, im: -2.0 };
+        assert_eq!(a.abs(), 5.0);
+        assert_eq!(a * b, Complex { re: 11.0, im: -2.0 });
+        assert_eq!((a * b) / b, a);
+        assert_eq!(a - a, Complex::default());
     }
 }

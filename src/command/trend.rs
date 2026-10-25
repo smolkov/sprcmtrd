@@ -7,7 +7,7 @@ use super::{select_channels, time_window};
 use crate::analysis::phasor::{Polar, Window, WindowError};
 use crate::analysis::sequence::Group;
 use crate::analysis::trend::{self, Step};
-use crate::args::{TrendArgs, TrendFormat, TrendStep};
+use crate::args::{TableFormat, TrendArgs, TrendStep};
 use crate::comtrade::{AnalogChannel, Comtrade, Side, round12};
 use crate::context::Context;
 use crate::format::{key_values, rate, si, table, time};
@@ -103,12 +103,12 @@ impl TrendArgs {
             rms: self.rms,
         };
         match self.format {
-            TrendFormat::Csv => print!("{}", table.csv(&result.steps, reference)),
-            TrendFormat::Json => {
+            TableFormat::Csv => print!("{}", table.csv(&result.steps, reference)),
+            TableFormat::Json => {
                 let json = table.json(&c, &result.steps, reference, frequency, samples, step_samples, side);
                 println!("{}", serde_json::to_string_pretty(&json)?);
             }
-            TrendFormat::Text => {
+            TableFormat::Text => {
                 let name = c
                     .path
                     .as_ref()

@@ -1056,3 +1056,80 @@ fn harmonics_of_the_fault_current() {
         .assert()
         .code(2);
 }
+
+#[test]
+fn impedance_of_the_fault_loops() {
+    // Load before the fault: every loop sees 63.5 kV / 318.2 A.
+    cmd()
+        .args(["impedance", "tests/data/fault_2013.cfg", "--at", "-100"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Channels      VA VB VC [kV] · IA IB IC [A]"))
+        .stdout(predicate::str::contains("none (k0 = 0; give the line's k0 with --k0)"))
+        .stdout(predicate::str::is_match(r"\nA-N +63\.50 +318\.2 +199\.6 +0\.000 +199\.6 +0\.0°\n").unwrap());
+
+    // Phase B to ground: the B-N loop drops to about 5 Ω.
+    cmd()
+        .args(["impedance", "tests/data/fault_2013.cfg", "--at", "40"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r"\nB-N +17\.68 +3\.458k +5\.108 +-204\.5m +5\.112 +-2\.3°\n").unwrap());
+
+    // Residual compensation and explicit channels give the same loop.
+    let out = cmd()
+        .args([
+            "impedance",
+            "tests/data/fault_2013.cfg",
+            "--at",
+            "40",
+            "--loops",
+            "BN",
+            "--k0",
+            "0.5",
+        ])
+        .args(["--voltage", "VA,VB,VC", "--current", "IA,IB,IC", "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["k0_magnitude"], 0.5);
+    assert_eq!(v["loops"][0]["loop"], "B-N");
+    let z = v["loops"][0]["magnitude"].as_f64().unwrap();
+    assert!(z < 5.112, "compensation lowers the B-N impedance: {z}");
+
+    // Trend: from the load into the fault, nothing once the breaker is open.
+    cmd()
+        .args([
+            "impedance",
+            "tests/data/fault_2013.cfg",
+            "--trend",
+            "--from",
+            "-20",
+            "--to",
+            "140",
+        ])
+        .args(["--loops", "BN"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r"\n-20\.0 ms +199\.6 +0\.000\n").unwrap())
+        .stdout(predicate::str::is_match(r"\n40\.0 ms +5\.108 +-204\.5m\n").unwrap())
+        .stdout(predicate::str::is_match(r"\n120\.0 ms +- +-\n").unwrap());
+
+    cmd()
+        .args(["impedance", "tests/data/fault_2013.cfg", "--voltage", "VA,VB,VC"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("give both --voltage and --current"));
+    cmd()
+        .args(["impedance", "tests/data/fault_2013.cfg", "--loops", "XY"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("unknown loop 'XY'"));
+    cmd()
+        .args(["impedance", "tests/data/fault_1999.cfg"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "no voltage and current A/B/C channel groups found",
+        ));
+}

@@ -8,6 +8,7 @@ pub mod cut;
 pub mod events;
 pub mod export;
 pub mod harmonics;
+pub mod impedance;
 pub mod info;
 pub mod list;
 pub mod phasors;
@@ -33,6 +34,7 @@ impl Command {
             Self::Check(a) => a.run(ctx),
             Self::Events(a) => a.run(ctx),
             Self::Phasors(a) => a.run(ctx),
+            Self::Impedance(a) => a.run(ctx),
             Self::Harmonics(a) => a.run(ctx),
             Self::Trend(a) => a.run(ctx),
             Self::Stats(a) => a.run(ctx),
