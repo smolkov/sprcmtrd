@@ -1,0 +1,12 @@
+[book]
+title = "sprcmtrd"
+description = "Terminal viewer and analysis tool for COMTRADE (IEEE C37.111) recordings"
+authors = ["Aleksandr Smolkov"]
+language = "en"
+src = "src"
+
+[output.html]
+# Published at https://smolkov.github.io/sprcmtrd/ (.github/workflows/docs.yml).
+site-url = "/sprcmtrd/"
+git-repository-url = "https://github.com/smolkov/sprcmtrd"
+edit-url-template = "https://github.com/smolkov/sprcmtrd/edit/main/docs/{path}"

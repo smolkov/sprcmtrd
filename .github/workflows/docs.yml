@@ -1,0 +1,50 @@
+# Build the mdBook in docs/ and publish it on GitHub Pages:
+# https://smolkov.github.io/sprcmtrd/
+#
+# Pull requests only build it (a check that the book still builds). Needs
+# Settings → Pages → Build and deployment → Source: "GitHub Actions".
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**", ".github/workflows/docs.yml"]
+  pull_request:
+    paths: ["docs/**", ".github/workflows/docs.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build book
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook@0.5.4
+      - run: mdbook build docs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/book
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    # One deployment at a time; a newer one waits instead of cancelling.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

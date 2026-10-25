@@ -6,8 +6,10 @@ COMTRADE (IEEE C37.111) recordings: CLI commands plus a ratatui TUI.
 - `spec.md` is the source of truth for behaviour. The user edits it directly;
   re-read it before starting a task ("reload spec"), implement what it says, and
   update it in the same change when behaviour changes or a decision is made.
-- `README.md` is the user documentation. Update it when commands, options, keys,
-  configuration or the release process change.
+- `README.md` and the book in `docs/` (mdBook, `docs/src/`) are the user
+  documentation. Update both when commands, options, keys, configuration or the
+  release process change: a new command gets a page in `docs/src/commands/`
+  and a line in `docs/src/SUMMARY.md`. Check with `mdbook build docs`.
 
 ## Commands
 
