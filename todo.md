@@ -48,6 +48,12 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 
 * [ ] Write log to a file in TUI mode (already in spec, not implemented).
 * [ ] Two measurement cursors: show Δt and the value difference of each channel between them.
+* [ ] Scroll the plot area when the shown channels don't fit. Today `widgets/plot.rs` leaves out what doesn't fit and only says `+N hidden` (analog plots need at least 3 rows, binary strips 1, so at 80×24 only a few analog channels fit).
+  * Scroll by whole channel rows with keys from `BINDINGS` (e.g. `PageUp` / `PageDown`, also in help, footer and configuration overlay or mouse scroll); Selecting a channel in the sidebar scrolls its plot into view.
+  * The time axis stays fixed on the bottom row, outside the scrolled area, and so does the plot title (cursor time, window), so the time context is always visible.
+  * Show the position instead of `+N hidden`: a scrollbar at the right edge (ratatui `Scrollbar`) and `channels 4–9 of 18` in the title.
+  * Keep analog plots readable: a fixed minimum height per analog plot (now 3 rows, maybe configurable), instead of squeezing all channels into the window.
+* [ ] Show the scroll position in the long lists too: the sidebar channel list and the file picker already scroll with the selection, but nothing shows that more entries are above or below. Add a scrollbar or `12 / 340` to both.
 * [ ] Allow more than one key per action in the configuration overlay (rebinding currently replaces all keys).
 
 ## Webserver ui ideas
