@@ -3,6 +3,14 @@
 * [x] Improve command 'list' with option to show only not broken comtrade files can be parsed successfully. 
 * [x] Improve file picker to switch between show only working comtrade files and show all files. Use keyboard `ctrl`+ `b` shortcuts for toggling. 
 * [x] Improve cargo.toml for release packaging and distribution.
+* [ ] Make the README short and accessible. It has 599 lines: hard to scan for new users, slow to navigate with a screen reader, and wide blocks scroll sideways on GitHub and phones.
+  * Keep only what a new user needs: what sprcmtrd is, install, a quick start for the viewer and the most used commands, and links to the rest.
+  * Move the command reference (~360 lines: example, full output and options for each of the 11 commands) to `docs/commands.md`; the README lists each command in one line and points to `sprcmtrd <command> --help`.
+  * Move development, releasing and GitLab (~60 lines) to `CONTRIBUTING.md` / `docs/releasing.md`.
+  * No code block wider than 80 columns: 10 example outputs are 84–160 columns wide. Shorten them (fewer `--channels`, short paths) or show an excerpt.
+  * Introduce each example output with one sentence saying what it shows, so the text makes sense without reading the ASCII table; keep headings short and meaningful, so screen readers can jump between them.
+  * Wrap prose at about 80 columns (10 lines are longer than 100, e.g. the command list in the introduction).
+  * Check the result on GitHub at phone width and in a text browser such as `lynx`.
 
 ## Command ideas
 
