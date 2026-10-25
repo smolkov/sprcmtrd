@@ -975,3 +975,84 @@ fn trend_through_the_fault() {
         .assert()
         .code(2);
 }
+
+#[test]
+fn harmonics_of_the_fault_current() {
+    // During the fault, IB carries a decaying DC offset; the healthy phases
+    // are pure sines. 2 kHz at 50 Hz shows orders up to 19.
+    cmd()
+        .args([
+            "harmonics",
+            "tests/data/fault_2013.cfg",
+            "--at",
+            "40",
+            "--channels",
+            "IA,IB",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Orders  up to 19 (higher orders are above half the sample rate, 1 kHz)",
+        ))
+        .stdout(predicate::str::is_match(r"\nfundamental +318\.2 +3\.458k\n").unwrap())
+        .stdout(predicate::str::is_match(r"\nDC +0\.0 % +29\.1 %\n").unwrap())
+        .stdout(predicate::str::is_match(r"\nTHD 2–19 +0\.0 % +3\.7 %\n").unwrap());
+
+    // Angles only where there is a harmonic.
+    cmd()
+        .args([
+            "harmonics",
+            "tests/data/fault_2013.cfg",
+            "--at",
+            "40",
+            "--channels",
+            "IB,VB",
+        ])
+        .args(["--max-order", "3", "--angles"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r"\n2 +2\.3 % +-41\.3° +0\.0 % +-\n").unwrap());
+
+    let out = cmd()
+        .args([
+            "harmonics",
+            "tests/data/fault_2013.cfg",
+            "--at",
+            "40",
+            "--channels",
+            "IB",
+            "--max-order",
+            "3",
+        ])
+        .arg("--json")
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["max_order"], 3);
+    let ib = &v["channels"][0];
+    assert_eq!(ib["harmonics"].as_array().unwrap().len(), 2);
+    assert_eq!(ib["harmonics"][0]["order"], 2);
+
+    // A missing value is reported for its channel.
+    cmd()
+        .args([
+            "harmonics",
+            "tests/data/old_1991.cfg",
+            "--at",
+            "25",
+            "--channels",
+            "IA,IB",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("A1 IA: missing value at sample 51"));
+    cmd()
+        .args(["harmonics", "tests/data/fault_2013.cfg", "--channels", "TRIP_A"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("TRIP_A is a binary channel"));
+    cmd()
+        .args(["harmonics", "tests/data/fault_2013.cfg", "--max-order", "1"])
+        .assert()
+        .code(2);
+}

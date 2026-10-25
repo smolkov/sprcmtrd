@@ -7,6 +7,7 @@
 
 pub mod complex;
 pub mod events;
+pub mod harmonics;
 pub mod phasor;
 pub mod sequence;
 pub mod stats;

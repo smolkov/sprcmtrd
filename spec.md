@@ -5,7 +5,7 @@
 `sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
 faces:
 
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `harmonics`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
 - **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
   analog and binary channels as plots.
 
@@ -109,6 +109,7 @@ sprcmtrd events <FILE>         # timeline of binary channel changes
 sprcmtrd stats <FILE>          # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors <FILE>        # phasors and symmetrical components at a time
 sprcmtrd trend <FILE>          # the same over time, cycle by cycle
+sprcmtrd harmonics <FILE>      # harmonic spectrum and THD at a time
 sprcmtrd export <FILE>         # samples as CSV or JSON
 sprcmtrd cut <FILE> -o <OUT>   # time window / channels as a new recording
 sprcmtrd convert <FILE> -o <OUT> # write as another revision / format / .cff
@@ -268,6 +269,33 @@ Timeline of binary channel changes (start, trip, breaker open, reclose, ...).
 - JSON: `file`, `trigger_time`, `from_s`, `to_s`, `events[]` with `sample`
   (1-based), `time` (s), `index`, `id`, `from`, `to` and `absolute`.
 - Library: `analysis::events::events`.
+
+### `harmonics` command
+
+Harmonic spectrum and total harmonic distortion per channel at one moment.
+
+- Arguments: `<FILE>`, `--at <ms>` (window end relative to the trigger,
+  default 0), `--cycles <N>` (window length, default 1), `--channels <LIST>`
+  (analog; naming a binary channel is an error), `--max-order <N>` (default
+  50, at least 2), `--frequency <Hz>`, `--angles`, `--json`; global
+  `--secondary`.
+- Method: DFT at each order of the fundamental over the same window as
+  `phasors` (`analysis::phasor::dft`); exact over whole cycles. The highest
+  order is limited to below half the sample rate (40 samples per cycle → 19th);
+  the output says so when `--max-order` is above it.
+- Values: the fundamental as RMS; DC (mean over the window) and each harmonic
+  in % of the fundamental peak; THD = RMS of the harmonics 2…max / fundamental,
+  labelled with the orders it covers (`THD 2–19`). Angles (with `--angles`)
+  relative to the channel's fundamental shifted by the order, φₕ − h·φ₁, so they
+  describe the waveform's shape wherever the window starts; `-` for a harmonic
+  below 0.05 %.
+- Text: header lines (window, orders, side) and a table with a row per value
+  (fundamental, DC, 2 … max, THD) and a column per channel (unit in the
+  header). A channel with a missing value in the window shows `-` and a note.
+- JSON: `file`, `side`, `frequency`, `from_s`, `at_s`, `samples`, `max_order`,
+  `channels[]` with `fundamental`, `dc`, `thd`, `harmonics[]` (`order`,
+  `magnitude` RMS, `percent`, `angle`) or `error`.
+- Library: `analysis::harmonics` (`spectrum`, `max_order`, `Spectrum`).
 
 ### `trend` command
 
@@ -446,7 +474,7 @@ completion of `clap_complete`, feature `unstable-dynamic`).
 - Subcommands, options and option values (`--theme`, `--sort`, `--format`,
   `--rev`, …) come from the clap definitions, so they are always in sync.
 - Recording arguments (`FILE` of `info`, `view`, `events`, `stats`, `export`,
-  `cut`, `convert`, `check`, `phasors`, `trend`, and the TUI `PATH`) use `complete::recordings`:
+  `cut`, `convert`, `check`, `phasors`, `trend`, `harmonics`, and the TUI `PATH`) use `complete::recordings`:
   - the typed text up to the last `/` is the directory to search (relative,
     absolute or `~/`), the rest the start of a name in it;
   - offered: subdirectories whose name continues the typed text (ending with
@@ -501,6 +529,7 @@ src/
     stats.rs         channel statistics (stats)
     events.rs        binary channel changes (events)
     trend.rs         values over time, step by step (trend)
+    harmonics.rs     harmonic spectrum, THD (harmonics)
   comtrade/
     mod.rs           Comtrade, AnalogChannel, BinaryChannel, public API
     cfg.rs           .cfg parser (all revisions)
@@ -520,6 +549,7 @@ src/
     stats.rs        Channel statistics
     phasors.rs      Phasors and symmetrical components
     trend.rs        Values over time, cycle by cycle
+    harmonics.rs    Harmonic spectrum and THD
     export.rs       Samples as CSV / JSON
     cut.rs          Time window / channels as a new recording
     convert.rs      Write a recording as another revision / format

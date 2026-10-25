@@ -1,10 +1,10 @@
 //! `phasors` command: fundamental phasors and symmetrical components at a time.
 
-use anyhow::{Context as _, anyhow, bail};
+use anyhow::{Context as _, bail};
 use serde::Serialize;
 
-use super::select_channels;
-use crate::analysis::phasor::{self, Polar, Window, WindowError};
+use super::{select_channels, window_at};
+use crate::analysis::phasor::{self, Polar};
 use crate::analysis::sequence;
 use crate::args::PhasorsArgs;
 use crate::comtrade::{Comtrade, Side, round12};
@@ -76,18 +76,7 @@ impl PhasorsArgs {
             bail!("--cycles must be above 0");
         }
 
-        // The library's reasons, with the option that fixes them.
-        let window = Window::ending_at(&c, self.at / 1e3, self.cycles, frequency).map_err(|e| match e {
-            WindowError::TooShort(n) => anyhow!(
-                "{} cycles at {frequency} Hz are only {n} samples here; use more --cycles",
-                self.cycles
-            ),
-            WindowError::BeforeStart { samples, earliest } => anyhow!(
-                "the window of {samples} samples starts before the recording; use --at {:.1} or later",
-                earliest * 1e3
-            ),
-            e => anyhow!(e),
-        })?;
+        let window = window_at(&c, self.at, self.cycles, frequency)?;
         let (start, end, samples) = (window.start(), window.end, window.samples);
 
         let channels: Vec<_> = analog

@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `harmonics`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 ## Features
@@ -67,6 +67,7 @@ sprcmtrd events FILE        # timeline of binary channel changes
 sprcmtrd stats FILE         # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors FILE       # phasors and symmetrical components at a time
 sprcmtrd trend FILE         # the same over time, cycle by cycle
+sprcmtrd harmonics FILE     # harmonic spectrum and THD at a time
 sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
 sprcmtrd convert FILE -o OUT  # other revision, data format or .cff
@@ -229,6 +230,41 @@ time      Δ         absolute                    channel       change
   trigger is a row of its own.
 - `--channels` (binary channels), `--from` / `--to` as in `view`; `--json` for
   scripts.
+
+### `harmonics`
+
+```sh
+sprcmtrd harmonics tests/data/fault_2013.cfg --at 40 \
+    --channels IA,IB,IC --max-order 7
+```
+
+During the fault, phase B carries a decaying DC offset (29 % of the
+fundamental), which also shows as small harmonics; phases A and C are pure
+sines.
+
+```
+File    tests/data/fault_2013.cfg
+Window  20.50 ms .. 40.00 ms (1 cycle, 40 samples, 50 Hz)
+Orders  up to 7
+Values  primary; DC and harmonics in % of the fundamental
+
+order        IA [A]  IB [A]  IC [A]
+fundamental  318.2   3.458k  318.2
+DC           0.0 %   29.1 %  0.0 %
+2            0.0 %   2.3 %   0.0 %
+3            0.0 %   1.6 %   0.0 %
+4            0.0 %   1.2 %   0.0 %
+5            0.0 %   1.0 %   0.0 %
+6            0.0 %   0.8 %   0.0 %
+7            0.0 %   0.7 %   0.0 %
+THD 2–7      0.0 %   3.4 %   0.0 %
+```
+
+- The spectrum of the window of `--cycles` cycles (default 1) ending at `--at`
+  ms after the trigger, like `phasors`: the fundamental (RMS), DC and each
+  harmonic in % of the fundamental, and the THD over the orders shown.
+- Orders up to `--max-order` (default 50), at most below half the sample rate.
+  `--angles` adds the harmonic angles, `--json` full values.
 
 ### `trend`
 

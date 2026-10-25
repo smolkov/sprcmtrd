@@ -98,10 +98,23 @@ pub enum PhasorError {
 /// Fundamental phasor (peak value) of `ch` over `window`, with values on
 /// `side`. `time` holds the sample times of the recording.
 pub fn phasor(ch: &AnalogChannel, time: &[f64], window: &Window, side: Side) -> Result<Complex, PhasorError> {
+    dft(ch, time, window, 1, side)
+}
+
+/// Phasor (peak value) of the `order`-th harmonic of `ch` over `window`:
+/// the DFT at `order` times the window's frequency. Order 1 is
+/// [`phasor`]; harmonics are exact over whole cycles.
+pub fn dft(
+    ch: &AnalogChannel,
+    time: &[f64],
+    window: &Window,
+    order: usize,
+    side: Side,
+) -> Result<Complex, PhasorError> {
     let start = (window.end + 1)
         .checked_sub(window.samples)
         .ok_or(PhasorError::BeforeStart)?;
-    let omega = 2.0 * PI * window.frequency;
+    let omega = 2.0 * PI * window.frequency * order as f64;
     let mut sum = Complex::default();
     for (i, &t) in time.iter().enumerate().take(window.end + 1).skip(start) {
         let v = ch.value_on(i, side).ok_or(PhasorError::Missing(i + 1))?;

@@ -7,6 +7,7 @@ pub mod convert;
 pub mod cut;
 pub mod events;
 pub mod export;
+pub mod harmonics;
 pub mod info;
 pub mod list;
 pub mod phasors;
@@ -14,8 +15,9 @@ pub mod stats;
 pub mod trend;
 pub mod view;
 
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 
+use crate::analysis::phasor::{Window, WindowError};
 use crate::args::Command;
 use crate::comtrade::Comtrade;
 use crate::context::Context;
@@ -31,6 +33,7 @@ impl Command {
             Self::Check(a) => a.run(ctx),
             Self::Events(a) => a.run(ctx),
             Self::Phasors(a) => a.run(ctx),
+            Self::Harmonics(a) => a.run(ctx),
             Self::Trend(a) => a.run(ctx),
             Self::Stats(a) => a.run(ctx),
             Self::Export(a) => a.run(ctx),
@@ -72,6 +75,21 @@ pub fn select_channels(c: &Comtrade, tokens: &[String]) -> anyhow::Result<(Vec<u
         }
     }
     Ok((analog, binary))
+}
+
+/// The analysis window of `cycles` cycles of `frequency` ending at `at_ms`
+/// (ms relative to the trigger), with errors that name the option to change.
+pub fn window_at(c: &Comtrade, at_ms: f64, cycles: f64, frequency: f64) -> anyhow::Result<Window> {
+    Window::ending_at(c, at_ms / 1e3, cycles, frequency).map_err(|e| match e {
+        WindowError::TooShort(n) => {
+            anyhow!("{cycles} cycles at {frequency} Hz are only {n} samples here; use more --cycles")
+        }
+        WindowError::BeforeStart { samples, earliest } => anyhow!(
+            "the window of {samples} samples starts before the recording; use --at {:.1} or later",
+            earliest * 1e3
+        ),
+        e => anyhow!(e),
+    })
 }
 
 /// Time window in seconds relative to the trigger from `--from` / `--to` in

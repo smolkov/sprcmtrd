@@ -111,6 +111,18 @@ pub enum Command {
     #[command(visible_alias = "phasor", verbatim_doc_comment)]
     Phasors(PhasorsArgs),
 
+    /// Harmonic spectrum and THD per channel at one moment.
+    ///
+    /// A DFT over whole cycles ending at --at, like phasors. Harmonics and DC
+    /// in % of the fundamental; orders up to --max-order, at most below half
+    /// the sample rate.
+    ///
+    /// Examples:
+    ///   sprcmtrd harmonics fault.cfg --at 40 --channels IA,IB,IC
+    ///   sprcmtrd harmonics fault.cfg --cycles 10 --max-order 25 --angles
+    #[command(verbatim_doc_comment)]
+    Harmonics(HarmonicsArgs),
+
     /// Values over time, cycle by cycle: fundamental magnitude per channel,
     /// symmetrical components per three-phase group and the system frequency.
     ///
@@ -320,6 +332,35 @@ pub struct PhasorsArgs {
     /// Fundamental frequency in Hz. Default: the line frequency of the recording.
     #[arg(long)]
     pub frequency: Option<f64>,
+    /// Print JSON instead of text.
+    #[arg(long)]
+    pub json: bool,
+}
+
+/// Arguments of `harmonics`.
+#[derive(Debug, Args)]
+pub struct HarmonicsArgs {
+    /// Any file of the recording (.cfg, .dat, .cff, ...).
+    #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
+    pub file: PathBuf,
+    /// End of the window in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+    pub at: f64,
+    /// Window length in cycles of the fundamental frequency.
+    #[arg(long, default_value_t = 1.0)]
+    pub cycles: f64,
+    /// Analog channels: comma separated 1-based indices or ids. Default: all.
+    #[arg(long, value_delimiter = ',')]
+    pub channels: Vec<String>,
+    /// Highest harmonic order (limited to below half the sample rate).
+    #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u32).range(2..))]
+    pub max_order: u32,
+    /// Fundamental frequency in Hz. Default: the line frequency of the recording.
+    #[arg(long)]
+    pub frequency: Option<f64>,
+    /// Also show the angle of each harmonic (relative to the fundamental).
+    #[arg(long)]
+    pub angles: bool,
     /// Print JSON instead of text.
     #[arg(long)]
     pub json: bool,
