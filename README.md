@@ -421,9 +421,6 @@ trees.
 ## Interactive viewer
 
 ```
- ▄▄▄ ▄▄▄  ▄ ▄▄  ▄▄▄ ▄▄▄▄   ▄▄█ ▄ ▄▄  ▄▄█                       fault_2013.cfg
-▀▀▄▄ █  █ █▀   █    █ █ █ █  █ █▀   █  █                SUBSTATION B · RELAY 21
-▀▀▀  █▀▀  ▀     ▀▀▀ ▀ ▀ ▀  ▀▀▀ ▀     ▀▀▀  v0.1.0   2013 · BINARY32 · 2 kHz · 4001 samples
 ┌ Channels ──────┐┌ Plot ──────────────────────── cursor 2.0 ms · window 2.000 s ┐
 │● IA           A││IA [A]         ...analog line plots...                       │
 │● IB           A││▸ 2.828k                                                     │
@@ -435,6 +432,9 @@ trees.
 q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan  c config
 ```
 
+- **Header** (above the panels, not shown): program name and version, the
+  file, station and device, revision, data format, sample rate and number of
+  samples.
 - **Sidebar:** channel list; `●` shown, `○` hidden. The first six analog channels
   and up to eight binary channels that change state are shown after loading.
 - **Plots:** one shared time axis for all channels. The gutter shows the channel,
