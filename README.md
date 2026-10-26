@@ -13,8 +13,7 @@ and disturbance recorders during power system faults.
 - **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `harmonics`, `impedance`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
-The full documentation is the book at **https://smolkov.github.io/sprcmtrd/**
-(source in [`docs/`](docs/), mdBook; locally `mdbook serve docs --open`).
+The full documentation is the book at (source in [`docs/`](docs/), mdBook; locally `mdbook serve docs --open`).
 
 ## Features
 
