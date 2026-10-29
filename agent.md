@@ -11,6 +11,17 @@ COMTRADE (IEEE C37.111) recordings: CLI commands plus a ratatui TUI.
   release process change: a new command gets a page in `docs/src/commands/`
   and a line in `docs/src/SUMMARY.md`. Check with `mdbook build docs`.
 
+## Workflow
+
+- Plan first: before changing files for a task, write a plan (what changes,
+  in which files, which decisions the spec leaves open, how it is tested) and
+  ask the user to approve it. Build only after the approval, and only what
+  the plan says; a change of the plan needs a new approval. Questions and
+  read-only investigation need no plan.
+- Update `readme.md` when commands, options, keys, configuration or the release
+  process change.
+- Update `todo.md` when tasks are identified or completed.
+
 ## Commands
 
 Run all of these before declaring work done. CI runs exactly these:
