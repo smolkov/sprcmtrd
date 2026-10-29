@@ -69,7 +69,8 @@ at each row, with one of two methods:
   (hysteresis), so noise around zero adds none. A constant DC offset doesn't
   change the periods. The measurement stands for the middle of its periods,
   N/2 cycles back; it is gone when the last crossing is more than 1.5 nominal
-  periods old (the signal stopped).
+  periods old (the signal stopped) or a period is longer than that (a pause,
+  such as the dead time of a reclose).
 - **Phasor**: the turn of the fundamental phasor between the window of N
   cycles ending at the row and the one before it, as above. Off the nominal
   frequency, the DFT of a single phase has an image that makes the angle

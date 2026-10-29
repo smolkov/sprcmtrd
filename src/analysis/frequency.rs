@@ -105,13 +105,16 @@ impl Measured {
 /// Frequency from the last `periods` periods between the `crossings` up to
 /// time `t`, for the nominal `frequency`. `None` without enough crossings,
 /// across a missing value, or when the signal stopped: the last crossing
-/// must be within 1.5 nominal periods before `t` (so down to ⅔ of nominal).
+/// must be within 1.5 nominal periods before `t`, and no period may be
+/// longer (so down to ⅔ of nominal), which also leaves out a pause.
 pub fn from_crossings(crossings: &[Crossing], t: f64, periods: usize, frequency: f64) -> Option<Measured> {
     let n = crossings.partition_point(|c| c.time <= t);
     let used = crossings.get(n.checked_sub(periods + 1)?..n)?;
     let (first, last) = (used.first()?, used.last()?);
     let span = last.time - first.time;
-    (periods > 0 && first.run == last.run && span > 0.0 && t - last.time <= 1.5 / frequency).then(|| Measured {
+    let longest = 1.5 / frequency;
+    let paused = used.windows(2).any(|w| w[1].time - w[0].time > longest);
+    (periods > 0 && first.run == last.run && span > 0.0 && t - last.time <= longest && !paused).then(|| Measured {
         frequency: periods as f64 / span,
         start: first.time,
         end: last.time,
@@ -393,6 +396,25 @@ mod tests {
         // The signal stopped: the last crossing is 2 periods old.
         assert!(from_crossings(&x, 1.995 + 0.02, 1, 50.0).is_some());
         assert_eq!(from_crossings(&x, 1.995 + 0.04, 1, 50.0), None);
+    }
+
+    #[test]
+    fn no_frequency_across_a_pause() {
+        // The signal stops for 0.5 s: no measurement spans the pause.
+        let mut x: Vec<Crossing> = (0..10)
+            .map(|k| Crossing {
+                time: 0.02 * k as f64,
+                run: 0,
+            })
+            .collect();
+        x.extend((0..10).map(|k| Crossing {
+            time: 0.7 + 0.02 * k as f64,
+            run: 0,
+        }));
+        assert!(from_crossings(&x, 0.19, 5, 50.0).is_some());
+        assert_eq!(from_crossings(&x, 0.75, 5, 50.0), None);
+        let m = from_crossings(&x, 0.81, 5, 50.0).unwrap();
+        assert!(close(m.frequency, 50.0, 1e-9), "{m:?}");
     }
 
     #[test]

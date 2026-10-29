@@ -337,8 +337,9 @@ System frequency over time and its rate of change (alias `freq`).
   frequency), `--format text|csv|json`; global `--secondary`.
 - Crossings: rising zero crossings, linearly interpolated, with hysteresis
   (armed below −5 % of the channel's peak); f = N / (time from the first to the
-  last of the N + 1 crossings up to the row). None across a missing value or
-  when the last crossing is more than 1.5 nominal periods before the row.
+  last of the N + 1 crossings up to the row). None across a missing value, or
+  when the last crossing or one of the periods is more than 1.5 nominal
+  periods long (the signal stopped or paused, e.g. the dead time of a reclose).
 - Phasor: f = f₀ + Δφ / (2π Δt) between the windows of N cycles ending at the
   row and N cycles earlier, repeated twice at the frequency found with
   windows of whole cycles of it (frequency tracking). None when a phasor is
