@@ -15,6 +15,7 @@ sprcmtrd events FILE        # timeline of binary channel changes
 sprcmtrd stats FILE         # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors FILE       # phasors and symmetrical components at a time
 sprcmtrd trend FILE         # the same over time, cycle by cycle
+sprcmtrd frequency FILE     # system frequency and its rate of change
 sprcmtrd harmonics FILE     # harmonic spectrum and THD at a time
 sprcmtrd impedance FILE     # apparent impedance of the fault loops
 sprcmtrd export FILE        # samples as CSV or JSON
@@ -33,6 +34,7 @@ sprcmtrd completions SHELL  # tab-completion script for your shell
 | [`stats`](stats.md) | Channel statistics |
 | [`phasors`](phasors.md) | Phasors and symmetrical components |
 | [`trend`](trend.md) | Values over time |
+| [`frequency`](frequency.md) | System frequency and ROCOF |
 | [`harmonics`](harmonics.md) | Harmonic spectrum and THD |
 | [`impedance`](impedance.md) | Fault loop impedance |
 | [`export`](export.md) | Samples as CSV or JSON |

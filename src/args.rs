@@ -148,6 +148,20 @@ pub enum Command {
     #[command(verbatim_doc_comment)]
     Trend(TrendArgs),
 
+    /// System frequency over time and its rate of change (ROCOF).
+    ///
+    /// Measured on one channel (default: the first voltage) over --cycles
+    /// cycles ending at each row: the periods between rising zero crossings,
+    /// or the turn of the phasor (with frequency tracking). The ROCOF compares
+    /// each measurement with the one of the cycles before it. For frequency
+    /// events use more cycles, e.g. --cycles 5 --step 100ms.
+    ///
+    /// Examples:
+    ///   sprcmtrd frequency fault.cfg
+    ///   sprcmtrd frequency event.cfg --channel VA --cycles 5 --step 100ms --format csv
+    #[command(visible_alias = "freq", verbatim_doc_comment)]
+    Frequency(FrequencyArgs),
+
     /// Statistics per channel: min, max, mean, RMS and peak of analog
     /// channels, state changes of binary channels.
     ///
@@ -489,7 +503,50 @@ pub struct TrendArgs {
     pub format: TableFormat,
 }
 
-/// Distance between the rows of `trend`.
+/// Arguments of `frequency`.
+#[derive(Debug, Args)]
+pub struct FrequencyArgs {
+    /// Any file of the recording (.cfg, .dat, .cff, ...).
+    #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
+    pub file: PathBuf,
+    /// Analog channel to measure (index or id). Default: the first voltage
+    /// channel, else the first analog channel.
+    #[arg(long)]
+    pub channel: Option<String>,
+    /// How the frequency is measured.
+    #[arg(long, value_enum, default_value_t = FrequencyMethod::Crossings)]
+    pub method: FrequencyMethod,
+    /// Start of the time range in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub from: Option<f64>,
+    /// End of the time range in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub to: Option<f64>,
+    /// Distance between rows: cycles (`1`, `0.5`) or a time (`10ms`, `1s`).
+    #[arg(long, default_value = "1", value_parser = parse_step)]
+    pub step: TrendStep,
+    /// Measurement length in cycles of the nominal frequency (whole cycles
+    /// with --method crossings).
+    #[arg(long, default_value_t = 1.0)]
+    pub cycles: f64,
+    /// Nominal frequency in Hz. Default: the line frequency of the recording.
+    #[arg(long)]
+    pub frequency: Option<f64>,
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = TableFormat::Text)]
+    pub format: TableFormat,
+}
+
+/// Measuring method of `frequency`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum FrequencyMethod {
+    /// Periods between rising zero crossings.
+    Crossings,
+    /// Turn of the fundamental phasor between windows.
+    Phasor,
+}
+
+/// Distance between the rows of `trend`, `frequency` and `impedance --trend`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TrendStep {
     /// In cycles of the fundamental frequency.
@@ -498,7 +555,7 @@ pub enum TrendStep {
     Seconds(f64),
 }
 
-/// Output format of `trend` and `impedance`.
+/// Output format of `trend`, `frequency` and `impedance`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum TableFormat {
     /// Aligned table.

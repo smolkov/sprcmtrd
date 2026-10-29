@@ -17,6 +17,7 @@
   - [stats](commands/stats.md)
   - [phasors](commands/phasors.md)
   - [trend](commands/trend.md)
+  - [frequency](commands/frequency.md)
   - [harmonics](commands/harmonics.md)
   - [impedance](commands/impedance.md)
   - [export](commands/export.md)

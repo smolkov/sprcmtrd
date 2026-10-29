@@ -325,6 +325,35 @@ Harmonic spectrum and total harmonic distortion per channel at one moment.
   `magnitude` RMS, `percent`, `angle`) or `error`.
 - Library: `analysis::harmonics` (`spectrum`, `max_order`, `Spectrum`).
 
+### `frequency` command
+
+System frequency over time and its rate of change (alias `freq`).
+
+- Arguments: `<FILE>`, `--channel <CH>` (analog; default the first channel
+  with a voltage unit, else the first analog channel; a binary channel is an
+  error), `--method crossings|phasor` (default crossings), `--from` / `--to`,
+  `--step` (as in `trend`), `--cycles <N>` (measurement length, default 1;
+  whole with crossings), `--frequency <Hz>` (nominal, default the line
+  frequency), `--format text|csv|json`; global `--secondary`.
+- Crossings: rising zero crossings, linearly interpolated, with hysteresis
+  (armed below −5 % of the channel's peak); f = N / (time from the first to the
+  last of the N + 1 crossings up to the row). None across a missing value or
+  when the last crossing is more than 1.5 nominal periods before the row.
+- Phasor: f = f₀ + Δφ / (2π Δt) between the windows of N cycles ending at the
+  row and N cycles earlier, repeated twice at the frequency found with
+  windows of whole cycles of it (frequency tracking). None when a phasor is
+  below 5 % of the channel's peak.
+- ROCOF: against the measurement of the N cycles before, over the time between
+  the middles of both measurements.
+- Text: header lines (channel, method, nominal, min / max / mean frequency with
+  times, largest ROCOF) and a table `time | f | Δf | df/dt`. CSV:
+  `time_ms,frequency_hz,deviation_hz,rocof_hz_per_s`. JSON: `channel`,
+  `method`, `nominal`, `cycles`, `samples`, `step_samples`, `summary`
+  (`min`, `max`, `rocof` as `value` / `time_s`, `mean`) and `points[]`
+  (`time_s`, `frequency`, `deviation`, `rocof`). Missing values as in `trend`.
+- Library: `analysis::frequency` (`series`, `crossings`, `from_crossings`,
+  `from_turn`, `summary`); `trend` uses `from_turn` too.
+
 ### `trend` command
 
 Values over time, cycle by cycle: the phasors command for a series of moments.

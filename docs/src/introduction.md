@@ -12,7 +12,7 @@ It has two faces:
   See [Interactive viewer](viewer/index.md).
 - **Commands** that print to stdout and work in scripts and over SSH: listing
   and checking recordings, statistics and binary events, phasors, trends,
-  harmonics and fault loop impedances, export, cutting and converting. See
+  system frequency, harmonics and fault loop impedances, export, cutting and converting. See
   [Commands](commands/index.md).
 
 ## Features

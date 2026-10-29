@@ -1133,3 +1133,102 @@ fn impedance_of_the_fault_loops() {
             "no voltage and current A/B/C channel groups found",
         ));
 }
+
+#[test]
+fn frequency_through_the_fault() {
+    // The first voltage channel; the phase jump at the fault shows as an
+    // excursion, after the breaker opens there is nothing to measure.
+    cmd()
+        .args([
+            "frequency",
+            "tests/data/reclose_1999_ascii.cfg",
+            "--from",
+            "-60",
+            "--to",
+            "120",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Channel    A4 VA [kV]"))
+        .stdout(predicate::str::contains(
+            "zero crossings over 1 cycle (20 samples), every 1 cycle (10 rows)",
+        ))
+        .stdout(predicate::str::contains("max 52.253 Hz at 20.0 ms"))
+        .stdout(predicate::str::is_match(r"\n-20\.0 ms +50\.000 +0\.000 +0\.000\n").unwrap())
+        .stdout(predicate::str::is_match(r"\n20\.0 ms +52\.253 +\+2\.253 +\+62\.022\n").unwrap())
+        .stdout(predicate::str::is_match(r"\n120\.0 ms +- +- +-\n").unwrap());
+
+    let out = cmd()
+        .args([
+            "freq",
+            "tests/data/fault_2013.cfg",
+            "--method",
+            "phasor",
+            "--channel",
+            "VB",
+        ])
+        .args(["--from", "-40", "--to", "-10", "--step", "10ms", "--format", "csv"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let text = String::from_utf8(out.stdout).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines[0], "time_ms,frequency_hz,deviation_hz,rocof_hz_per_s");
+    assert_eq!(
+        lines[1..],
+        ["-40,50,0,0", "-30,50,0,0", "-20,50,0,0", "-10,50,0,0"],
+        "{text}"
+    );
+
+    let out = cmd()
+        .args([
+            "frequency",
+            "tests/data/reclose_1999_ascii.cfg",
+            "--cycles",
+            "5",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["channel"]["id"], "VA");
+    assert_eq!(v["method"], "zero_crossings");
+    assert_eq!(v["samples"], 100);
+    assert_eq!(v["summary"]["min"]["value"], 50.0);
+    let points = v["points"].as_array().unwrap();
+    assert_eq!(points[0]["frequency"], serde_json::Value::Null);
+    assert_eq!(points[10]["frequency"], 50.0);
+    assert_eq!(points[10]["deviation"], 0.0);
+}
+
+#[test]
+fn frequency_errors() {
+    cmd()
+        .args(["frequency", "tests/data/fault_2013.cfg", "--channel", "TRIP_A"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("TRIP_A is a binary channel"));
+    cmd()
+        .args(["frequency", "tests/data/fault_2013.cfg", "--cycles", "1.5"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("give --cycles as a whole number"));
+    cmd()
+        .args([
+            "frequency",
+            "tests/data/fault_2013.cfg",
+            "--method",
+            "phasor",
+            "--cycles",
+            "1.5",
+        ])
+        .assert()
+        .success();
+    cmd()
+        .args(["frequency", "tests/data/fault_2013.cfg", "--channel", "X"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown channel 'X'"));
+}

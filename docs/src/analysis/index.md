@@ -59,6 +59,31 @@ phasor **turns** between two steps Δt apart: a signal at f₀ + Δf turns by
 within ±25 Hz at the default step of one cycle. The first row and rows where
 the reference is zero (breaker open) have no frequency.
 
+The `frequency` command measures one channel over `--cycles` cycles N ending
+at each row, with one of two methods:
+
+- **Zero crossings** (default): the time of each rising zero crossing is
+  interpolated between the two samples around it; the frequency is N periods
+  over the time between the first and the last of N + 1 crossings. A crossing
+  counts only after the signal was below −5 % of the channel's largest value
+  (hysteresis), so noise around zero adds none. A constant DC offset doesn't
+  change the periods. The measurement stands for the middle of its periods,
+  N/2 cycles back; it is gone when the last crossing is more than 1.5 nominal
+  periods old (the signal stopped).
+- **Phasor**: the turn of the fundamental phasor between the window of N
+  cycles ending at the row and the one before it, as above. Off the nominal
+  frequency, the DFT of a single phase has an image that makes the angle
+  ripple; the measurement is repeated twice with windows of whole cycles of
+  the frequency found (frequency tracking), which removes it. It stands for
+  the middle of both windows, N cycles back, and needs the phasor above 5 % of
+  the channel's largest value.
+
+The **ROCOF** (df/dt) compares each measurement with the one of the N cycles
+before it, over the time between their middles. A phase jump (fault
+inception, switching) shows as a short frequency excursion with a large ROCOF;
+over one cycle the ROCOF is also noisy from the sampling, so frequency events
+are best measured over 5 or more cycles.
+
 ## Harmonics
 
 `harmonics` runs the DFT at each multiple of the fundamental over the same

@@ -5,10 +5,10 @@
 //! Each step uses the same kind of window as [`super::phasor`]: whole cycles
 //! ending at a sample, as a protection relay sees the signals at that moment.
 
-use std::f64::consts::PI;
 use std::ops::Range;
 
 use super::Complex;
+use super::frequency::from_turn;
 use super::phasor::{self, Window};
 use super::sequence::{self, Group, Sequence};
 use crate::comtrade::{AnalogChannel, AnalogInfo, Side};
@@ -88,14 +88,10 @@ pub fn trend(
             })
             .collect();
 
-        // A phasor of frequency f0 + Δf turns by 2π·Δf·Δt between windows Δt apart.
         let t = time[last];
         let current = phasors.get(reference).copied().flatten().filter(|p| p.abs() > 0.0);
         let estimated = match (previous, current) {
-            (Some((t0, p0)), Some(p)) if t > t0 => {
-                let turn = (p.arg() - p0.arg() + PI).rem_euclid(2.0 * PI) - PI;
-                Some(frequency + turn / (2.0 * PI * (t - t0)))
-            }
+            (Some(p0), Some(p)) => from_turn(frequency, p0, (t, p)),
             _ => None,
         };
         previous = current.map(|p| (t, p));
@@ -124,6 +120,8 @@ fn true_rms(ch: &AnalogChannel, range: Range<usize>, side: Side) -> Option<f64> 
 
 #[cfg(test)]
 mod tests {
+    use std::f64::consts::PI;
+
     use super::*;
     use crate::analysis::phasor::tests::close;
     use crate::comtrade::Comtrade;
