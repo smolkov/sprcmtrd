@@ -17,6 +17,8 @@ pub enum Action {
     Focus,
     Up,
     Down,
+    ScrollUp,
+    ScrollDown,
     ToggleChannel,
     ToggleAll,
     ZoomIn,
@@ -99,6 +101,20 @@ pub const BINDINGS: &[Binding] = &[
         name: "down",
         keys: &["down", "j"],
         help: "Next channel / scroll down",
+        hint: None,
+    },
+    Binding {
+        action: Action::ScrollUp,
+        name: "scroll_up",
+        keys: &["pageup"],
+        help: "Scroll plots up one page",
+        hint: None,
+    },
+    Binding {
+        action: Action::ScrollDown,
+        name: "scroll_down",
+        keys: &["pagedown"],
+        help: "Scroll plots down one page",
         hint: None,
     },
     Binding {
@@ -514,6 +530,10 @@ mod tests {
         assert_eq!(
             km.action(&key(KeyCode::Char('?'), KeyModifiers::SHIFT)),
             Some(Action::Help)
+        );
+        assert_eq!(
+            km.action(&key(KeyCode::PageDown, KeyModifiers::NONE)),
+            Some(Action::ScrollDown)
         );
 
         let mut o = BTreeMap::new();

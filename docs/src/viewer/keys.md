@@ -9,6 +9,7 @@
 | `c`, `Ctrl+,`       | Configuration overlay                         |
 | `Tab`               | Switch focus sidebar / plot                   |
 | `↑`/`↓`, `k`/`j`    | Select channel (sidebar), zoom (plot)         |
+| `PgUp`/`PgDn`       | Scroll plots one page up / down               |
 | `Space`             | Show / hide selected channel                  |
 | `a`                 | Show all / hide all channels                  |
 | `+`/`=`, `-`        | Zoom in / out (time, around the cursor)       |

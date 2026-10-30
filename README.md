@@ -585,6 +585,10 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
 - **Plots:** one shared time axis for all channels. The gutter shows the channel,
   its value at the cursor and the visible value range. Binary states that differ
   from the channel's normal state are highlighted.
+- **Scrolling:** analog plots are at least 5 rows high. When the shown channels
+  don't fit, the plots scroll (`PgUp` / `PgDn`, or select a channel in the
+  sidebar); a scrollbar on the right border and `channels 4–9 of 18` in the
+  title show the position. The time axis and the title always stay visible.
 - **Time axis:** tick labels, the trigger `T` and the cursor `▲` with its exact
   time. The cursor always sits on a sample.
 - Minimum terminal size is 80×24.
@@ -600,6 +604,7 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
 | `c`, `Ctrl+,`       | Configuration overlay                         |
 | `Tab`               | Switch focus sidebar / plot                   |
 | `↑`/`↓`, `k`/`j`    | Select channel (sidebar), zoom (plot)         |
+| `PgUp`/`PgDn`       | Scroll plots one page up / down               |
 | `Space`             | Show / hide selected channel                  |
 | `a`                 | Show all / hide all channels                  |
 | `+`/`=`, `-`        | Zoom in / out (time, around the cursor)       |

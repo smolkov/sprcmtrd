@@ -1,5 +1,6 @@
 //! TUI state, actions and key handling.
 
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -115,6 +116,14 @@ pub struct App {
     pub selected: usize,
     /// Side analog values are shown on.
     pub side: Side,
+    /// First channel row drawn in the plot area (index into the shown
+    /// channels). The plot widget clamps it to the area when drawing.
+    pub plot_scroll: Cell<usize>,
+    /// Number of channel rows drawn at the last draw: the page size.
+    pub plot_page: Cell<usize>,
+    /// The plot area scrolls the selected channel into view; cleared by
+    /// scrolling with the keys, so the view stays where the user put it.
+    pub plot_follow: Cell<bool>,
     /// Show absolute instead of trigger-relative time.
     pub absolute_time: bool,
     /// Open overlay.
@@ -157,6 +166,9 @@ impl App {
             } else {
                 Side::Primary
             },
+            plot_scroll: Cell::new(0),
+            plot_page: Cell::new(0),
+            plot_follow: Cell::new(true),
             absolute_time: false,
             overlay: None,
             frame: 0,
@@ -220,6 +232,8 @@ impl App {
         self.set_status(format!("loaded {} {size}", rec.name), StatusKind::Info);
         self.recording = Some(rec);
         self.selected = 0;
+        self.plot_scroll.set(0);
+        self.plot_follow.set(true);
     }
 
     /// Shows a footer message.
@@ -384,9 +398,24 @@ impl App {
         };
         let n = rec.n_channels();
         match action {
-            Action::Up if focus == Focus::Sidebar => self.selected = self.selected.saturating_sub(1),
+            Action::Up if focus == Focus::Sidebar => {
+                self.selected = self.selected.saturating_sub(1);
+                self.plot_follow.set(true);
+            }
             Action::Down if focus == Focus::Sidebar => {
                 self.selected = (self.selected + 1).min(n.saturating_sub(1));
+                self.plot_follow.set(true);
+            }
+            Action::ScrollUp | Action::ScrollDown => {
+                // A page is what the last draw showed; the widget clamps the end.
+                let page = self.plot_page.get().max(1);
+                let scroll = self.plot_scroll.get();
+                self.plot_scroll.set(if action == Action::ScrollUp {
+                    scroll.saturating_sub(page)
+                } else {
+                    scroll + page
+                });
+                self.plot_follow.set(false);
             }
             // In the plot, up/down zoom like +/-.
             Action::Up => rec.zoom(0.5),

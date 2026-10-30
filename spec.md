@@ -754,7 +754,8 @@ runs the event loop and always restores the terminal, also on panic
 - **Sidebar:** channel list (analog, then binary) with unit; selected channels
   are drawn in the plot area. Can be hidden.
 - **Plot area:** analog line plots stacked vertically, binary status strips below,
-  one shared time axis with a vertical cursor and trigger marker.
+  one shared time axis with a vertical cursor and trigger marker. Scrolls when
+  the shown channels don't fit (see Plots).
 - **Footer:** key hints for the current mode and status (loading, errors, cursor values).
 - **Overlays:** file picker, info, help. Drawn on top of the main layout with a
   cleared background.
@@ -770,6 +771,14 @@ runs the event loop and always restores the terminal, also on panic
 - Downsampling: when there are more samples than horizontal cells, keep
   min and max per column (min/max decimation) so peaks are not lost.
 - Zoom and pan act on the shared time axis for all channels at once.
+- Height: analog plots share the rows the binary strips leave, at least 5 rows
+  each. When the shown channels don't fit with that minimum, the channel rows
+  scroll by whole channels (`PgUp` / `PgDn` one page; selecting a channel in the
+  sidebar scrolls its plot into view). Rows too few for the next channel go to
+  the analog plots on the page.
+- While scrolling, the time axis (bottom row) and the block title (cursor time,
+  window) stay fixed; a scrollbar on the right border and
+  `channels 4–9 of 18` in the title show the position.
 - Cursor: shows time and value of every visible channel at the cursor position.
 - Always show cursor time in milliseconds on the plot time axis
 - Analog plots alternate background shades so neighbouring channels are easy to
@@ -787,6 +796,7 @@ runs the event loop and always restores the terminal, also on panic
 | `?`                 | Toggle help overlay                      |
 | `Tab`               | Switch focus sidebar ↔ plot              |
 | `↑`/`↓`, `k`/`j`    | Move selection in sidebar                |
+| `PgUp`/`PgDn`       | Scroll plots one page up / down          |
 | `Space`             | Show / hide selected channel             |
 | `a`                 | Show all / hide all channels             |
 | `+`/`-`             | Zoom in / out (time)                     |

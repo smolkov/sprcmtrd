@@ -8,6 +8,7 @@ mod header;
 mod help;
 mod info;
 mod plot;
+mod time_axis;
 
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
@@ -184,7 +185,7 @@ mod tests {
         assert!(screen.contains("Recording info"));
         assert!(screen.contains("SUBSTATION A"));
         app.on_key(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::SHIFT));
-        assert!(render(&app, 100, 30).contains("Toggle dark / light theme"));
+        assert!(render(&app, 100, 40).contains("Toggle dark / light theme"));
         assert!(render(&app, 60, 20).contains("Terminal too small"));
     }
 
@@ -322,6 +323,46 @@ mod tests {
         // Without colors there is no shading.
         assert_eq!(Theme::plain().plot_background(0), Color::Reset);
         assert_eq!(Theme::plain().plot_background(1), Color::Reset);
+    }
+
+    #[test]
+    fn plot_area_scrolls_and_keeps_the_time_axis() {
+        let mut app = app();
+        // Without the sidebar, channel names on screen are plot labels.
+        app.sidebar = false;
+        let screen = render(&app, 80, 24);
+        if std::env::var_os("SHOW_SCREEN").is_some() {
+            println!("{screen}");
+        }
+        // 4 analog plots and 3 binary strips (one never changes and is
+        // hidden) don't fit in 19 rows at 80×24.
+        assert!(screen.contains("channels 1–3 of 7"), "{screen}");
+        assert!(screen.contains("IA [A]") && !screen.contains("TRIP"));
+        assert!(axis_row(&screen).contains("0.0 ms"));
+
+        // One page down; the time axis stays on the bottom row.
+        press(&mut app, KeyCode::PageDown, KeyModifiers::NONE);
+        let screen = render(&app, 80, 24);
+        assert!(screen.contains("channels 2–7 of 7"), "{screen}");
+        assert!(screen.contains("TRIP") && !screen.contains("IA [A]"));
+        assert!(axis_row(&screen).contains("0.0 ms"));
+        press(&mut app, KeyCode::PageUp, KeyModifiers::NONE);
+        assert!(render(&app, 80, 24).contains("channels 1–3 of 7"));
+
+        // Selecting a channel in the sidebar scrolls its plot into view.
+        // VA, the 4th analog channel, is below the first page.
+        app.sidebar = true;
+        for _ in 0..3 {
+            press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        }
+        let screen = render(&app, 80, 24);
+        assert!(
+            screen.contains("channels 2–7 of 7") && screen.contains("VA [kV]"),
+            "{screen}"
+        );
+
+        // With room for everything there is no scrolling.
+        assert!(!render(&app, 110, 40).contains("channels"));
     }
 
     #[test]
