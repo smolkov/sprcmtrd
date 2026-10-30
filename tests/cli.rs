@@ -1135,6 +1135,93 @@ fn impedance_of_the_fault_loops() {
 }
 
 #[test]
+fn power_of_the_load_and_the_fault() {
+    // Load before the fault: 63.5 kV and 318.2 A in phase, 60.6 MW forward.
+    cmd()
+        .args(["power", "tests/data/fault_2013.cfg", "--at", "-40"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Channels    VA VB VC [kV] · IA IB IC [A]"))
+        .stdout(predicate::str::is_match(r"\nA +63\.50 +318\.2 +20\.21M +0\.000 +20\.21M +1\.000\n").unwrap())
+        .stdout(predicate::str::is_match(r"\ntotal +60\.61M +0\.000 +60\.61M +1\.000\n").unwrap())
+        .stdout(predicate::str::contains(
+            "Flow: forward, 60.61M W as the currents are measured",
+        ));
+
+    // Phase B to ground: B carries the fault current, slightly capacitive.
+    cmd()
+        .args(["power", "tests/data/fault_2013.cfg", "--at", "40"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r"\nB +17\.68 +3\.458k +61\.09M +-2\.445M +61\.13M +0\.999 lead\n").unwrap());
+
+    // JSON: the total is the sum of the phases.
+    let out = cmd()
+        .args(["power", "tests/data/fault_2013.cfg", "--at", "-40", "--format", "json"])
+        .args(["--voltage", "VA,VB,VC", "--current", "IA,IB,IC"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["flow"], "forward");
+    assert_eq!(v["phases"][1]["phase"], "B");
+    let sum: f64 = (0..3).map(|k| v["phases"][k]["p"].as_f64().unwrap()).sum();
+    let total = v["total"]["p"].as_f64().unwrap();
+    assert!((sum - total).abs() < 1e-3 * total, "{sum} {total}");
+    assert!((total - 60.615e6).abs() < 0.01e6, "{total}");
+    assert_eq!(v["total"]["pf"], 1.0);
+
+    // Trend: per phase columns in CSV; nothing flows once the breaker is open.
+    cmd()
+        .args([
+            "power",
+            "tests/data/fault_2013.cfg",
+            "--trend",
+            "--from",
+            "-20",
+            "--to",
+            "140",
+        ])
+        .args(["--step", "2", "--format", "csv"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with(
+            "time_ms,A_p_w,A_q_var,B_p_w,B_q_var,C_p_w,C_q_var,p_w,q_var,s_va,pf\n",
+        ))
+        .stdout(predicate::str::contains("\n140,0,0,0,0,0,0,0,0,0,\n"));
+    cmd()
+        .args([
+            "power",
+            "tests/data/fault_2013.cfg",
+            "--trend",
+            "--phases",
+            "--from",
+            "-20",
+            "--to",
+            "0",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("A P [W]"))
+        .stdout(
+            predicate::str::is_match(r"\n-20\.00 ms +20\.21M +0\.000 .* 60\.61M +0\.000 +60\.61M +1\.000\n").unwrap(),
+        );
+
+    cmd()
+        .args(["power", "tests/data/fault_2013.cfg", "--current", "IA,IB,IC"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("give both --voltage and --current"));
+    cmd()
+        .args(["power", "tests/data/fault_1999.cfg"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "no voltage and current A/B/C channel groups found",
+        ));
+}
+
+#[test]
 fn frequency_through_the_fault() {
     // The first voltage channel; the phase jump at the fault shows as an
     // excursion, after the breaker opens there is nothing to measure.

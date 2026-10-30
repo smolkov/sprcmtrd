@@ -30,7 +30,7 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 * [x] `trend <FILE>`: cycle-by-cycle values over time instead of at one moment: RMS, fundamental magnitude and angle, symmetrical components and frequency per channel or group, as a table or CSV (`--step` in cycles or ms, `--channels`, `--from`/`--to`). Shows how the fault develops and clears; the base for several commands below.
 * [x] `harmonics <FILE> --at <ms>`: harmonic spectrum (2nd … 50th, magnitude in % of the fundamental and angle) and THD per channel, over `--cycles` cycles. Typical uses: transformer inrush (high 2nd harmonic), CT saturation, power quality.
 * [x] `impedance <FILE> --at <ms>`: apparent impedance of the six fault loops (A-N, B-N, C-N with residual compensation `--k0`, A-B, B-C, C-A) from the voltage and current phasors, in Ω primary or secondary, as R + jX and |Z| ∠ φ. With `--trend`, the trajectory over time for comparing with distance relay zones.
-* [ ] `power <FILE>`: active, reactive and apparent power and power factor per three-phase group (from phasors; per phase and total), at `--at` or cycle by cycle. Shows load before the fault and power flow direction.
+* [x] `power <FILE>`: active, reactive and apparent power and power factor per three-phase group (from phasors; per phase and total), at `--at` or cycle by cycle. Shows load before the fault and power flow direction.
 * [x] `frequency <FILE>`: system frequency over time from the zero crossings or the phasor angle change of a voltage channel, and the rate of change (ROCOF). For recordings of frequency events, not only short faults.
 * [ ] `fault <FILE>`: fault analysis summary: inception (first sample where current departs from the pre-fault cycle), faulted phases (from currents and sequence components: A-N, B-C, A-B-N, …), fault duration until the current is interrupted, peak current, and the operate times next to the binary events (start → trip → breaker open → current zero).
 * [ ] `locate <FILE> --line-impedance Z1,Z0 --length KM`: single-ended fault location (reactance method and Takagi) from the pre-fault and fault phasors, as distance in km and % of the line. Needs the line data from the user.
@@ -53,6 +53,7 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
   * The time axis stays fixed on the bottom row, outside the scrolled area, and so does the plot title (cursor time, window), so the time context is always visible.
   * Show the position instead of `+N hidden`: a scrollbar at the right edge (ratatui `Scrollbar`) and `channels 4–9 of 18` in the title.
   * Keep analog plots readable: a fixed minimum height per analog plot (now 3 rows, maybe configurable), instead of squeezing all channels into the window.
+* [ ] `power` with phase-to-phase voltages only (no neutral): two-wattmeter (Aron) method.
 * [ ] Scroll the plot area with the mouse wheel. Needs mouse capture, which stops normal text selection in the terminal, so it should be optional.
 * [ ] Show the scroll position in the long lists too: the sidebar channel list and the file picker already scroll with the selection, but nothing shows that more entries are above or below. Add a scrollbar or `12 / 340` to both.
 * [ ] Allow more than one key per action in the configuration overlay (rebinding currently replaces all keys).

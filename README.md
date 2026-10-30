@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `frequency`, `harmonics`, `impedance`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `frequency`, `harmonics`, `impedance`, `power`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 The full documentation is the book at (source in [`docs/`](docs/), mdBook; locally `mdbook serve docs --open`).
@@ -72,6 +72,7 @@ sprcmtrd trend FILE         # the same over time, cycle by cycle
 sprcmtrd frequency FILE     # system frequency and its rate of change
 sprcmtrd harmonics FILE     # harmonic spectrum and THD at a time
 sprcmtrd impedance FILE     # apparent impedance of the fault loops
+sprcmtrd power FILE         # active, reactive power and power factor
 sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
 sprcmtrd convert FILE -o OUT  # other revision, data format or .cff
@@ -267,6 +268,32 @@ C-A   110.0   551.1   199.6  0.000    199.6    0.0°
   --current IA,IB,IC` chooses them. `--loops BN,BC` limits the loops.
 - `--trend` gives R and X per loop over time (`--from`, `--to`, `--step`), to
   compare with the relay's zones; `--format csv` or `json` for other tools.
+
+### `power`
+
+```sh
+sprcmtrd power tests/data/fault_2013.cfg --at 40
+```
+
+Active, reactive and apparent power and power factor per phase and in total.
+Before the fault the line carries 60.6 MW; during the phase B to ground fault
+phase B carries the fault current. `--trend` shows the power over time.
+
+```
+File        tests/data/fault_2013.cfg
+Window      20.50 ms .. 40.00 ms (1 cycle, 40 samples, 50 Hz)
+Channels    VA VB VC [kV] · IA IB IC [A]
+Values      primary W, var, VA
+Convention  P > 0 flows as the currents are measured, Q > 0 inductive
+
+phase  V [kV]  I [A]   P [W]   Q [var]  S [VA]  PF
+A      63.50   318.2   20.21M  0.000    20.21M  1.000
+B      17.68   3.458k  61.09M  -2.445M  61.13M  0.999 lead
+C      63.50   318.2   20.20M  0.000    20.20M  1.000
+total                  101.5M  -2.445M  101.5M  1.000 lead
+
+Flow: forward, 101.5M W as the currents are measured
+```
 
 ### `harmonics`
 

@@ -5,7 +5,7 @@
 `sprcmtrd` is a terminal viewer for COMTRADE files, written in Rust. It has two
 faces:
 
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `harmonics`, `impedance`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `harmonics`, `impedance`, `power`, `export`, `cut`, `convert`) that print to stdout and can be used in scripts.
 - **Interactive TUI** (built on [ratatui]) for browsing files and inspecting
   analog and binary channels as plots.
 
@@ -111,6 +111,7 @@ sprcmtrd phasors <FILE>        # phasors and symmetrical components at a time
 sprcmtrd trend <FILE>          # the same over time, cycle by cycle
 sprcmtrd harmonics <FILE>      # harmonic spectrum and THD at a time
 sprcmtrd impedance <FILE>      # apparent impedance of the fault loops
+sprcmtrd power <FILE>          # active, reactive power and power factor
 sprcmtrd export <FILE>         # samples as CSV or JSON
 sprcmtrd cut <FILE> -o <OUT>   # time window / channels as a new recording
 sprcmtrd convert <FILE> -o <OUT> # write as another revision / format / .cff
@@ -297,6 +298,37 @@ Apparent impedance of the six fault loops, as a distance relay measures it.
 - R or X below 1e-6 of |Z| is shown as 0 (residue of integer samples).
 - Library: `analysis::impedance` (`Loop`, `loop_quantities`, `impedance`,
   `find_pair`, `unit_factor`).
+
+### `power` command
+
+Active, reactive and apparent power and power factor of a three-phase circuit,
+per phase and in total.
+
+- Arguments: `<FILE>`, `--at <ms>` (default 0), `--cycles <N>` (default 1),
+  `--voltage <A,B,C>` and `--current <A,B,C>` (both or neither), `--trend` with
+  `--from` / `--to` / `--step` (as in `trend`) and `--phases`, `--frequency
+  <Hz>`, `--format text|csv|json`; global `--secondary`.
+- Channels as in `impedance` (`find_pair`); the voltages are phase to neutral.
+  Recordings with only phase-to-phase voltages are not supported.
+- From the fundamental phasors (same window as `phasors`), scaled to V and A:
+  per phase S = V·I* with RMS values, P = Re S, Q = Im S, |S|; the total is the
+  sum of the phases. PF = P / |S|, `lag` for Q > 0, `lead` for Q < 0, `-`
+  without apparent power. Primary values, or secondary with `--secondary`.
+- Sign convention: P > 0 flows in the direction the currents are measured
+  (usually busbar to line, "forward"); Q > 0 is inductive. The header says so.
+- A part of S below 1e-6 of |S| is shown as 0 (residue of integer samples).
+- At one moment: header lines (file, window, channels, values, convention), a
+  table `phase | V | I | P [W] | Q [var] | S [VA] | PF` with rows A, B, C and
+  total (V and I RMS in the channels' units), and a line `Flow: forward, … W`
+  / `reverse, … W` / `no active power`. A missing value in the window gives a
+  note instead of the table. CSV: `phase,voltage_v,current_a,p_w,q_var,s_va,pf`
+  (rows `A`, `B`, `C`, `total`). JSON: `file`, `side`, `frequency`, `samples`,
+  `voltage`, `current`, `from_s`, `at_s`, `phases[]` (`phase`, `voltage`,
+  `current`, `p`, `q`, `s`, `pf`), `total`, `flow`.
+- `--trend`: text table `time | P | Q | S | PF` (totals; `--phases` adds P and Q
+  per phase), CSV `time_ms,A_p_w,A_q_var,…,p_w,q_var,s_va,pf`, JSON `steps[]`
+  with `time_s`, `phases[]`, `total`. Missing values as in `trend`.
+- Library: `analysis::power` (`power`, `three_phase`, `power_factor`).
 
 ### `harmonics` command
 
@@ -532,7 +564,7 @@ completion of `clap_complete`, feature `unstable-dynamic`).
 - Subcommands, options and option values (`--theme`, `--sort`, `--format`,
   `--rev`, …) come from the clap definitions, so they are always in sync.
 - Recording arguments (`FILE` of `info`, `view`, `events`, `stats`, `export`,
-  `cut`, `convert`, `check`, `phasors`, `trend`, `harmonics`, `impedance`, and the TUI `PATH`) use `complete::recordings`:
+  `cut`, `convert`, `check`, `phasors`, `trend`, `harmonics`, `impedance`, `power`, and the TUI `PATH`) use `complete::recordings`:
   - the typed text up to the last `/` is the directory to search (relative,
     absolute or `~/`), the rest the start of a name in it;
   - offered: subdirectories whose name continues the typed text (ending with
@@ -589,6 +621,7 @@ src/
     trend.rs         values over time, step by step (trend)
     harmonics.rs     harmonic spectrum, THD (harmonics)
     impedance.rs     fault loop impedances (impedance)
+    power.rs         active, reactive, apparent power (power)
   comtrade/
     mod.rs           Comtrade, AnalogChannel, BinaryChannel, public API
     cfg.rs           .cfg parser (all revisions)
@@ -610,6 +643,7 @@ src/
     trend.rs        Values over time, cycle by cycle
     harmonics.rs    Harmonic spectrum and THD
     impedance.rs    Apparent impedance of the fault loops
+    power.rs        Active, reactive power and power factor
     export.rs       Samples as CSV / JSON
     cut.rs          Time window / channels as a new recording
     convert.rs      Write a recording as another revision / format

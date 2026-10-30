@@ -18,6 +18,7 @@ sprcmtrd trend FILE         # the same over time, cycle by cycle
 sprcmtrd frequency FILE     # system frequency and its rate of change
 sprcmtrd harmonics FILE     # harmonic spectrum and THD at a time
 sprcmtrd impedance FILE     # apparent impedance of the fault loops
+sprcmtrd power FILE         # active, reactive power and power factor
 sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
 sprcmtrd convert FILE -o OUT  # other revision, data format or .cff
@@ -37,6 +38,7 @@ sprcmtrd completions SHELL  # tab-completion script for your shell
 | [`frequency`](frequency.md) | System frequency and ROCOF |
 | [`harmonics`](harmonics.md) | Harmonic spectrum and THD |
 | [`impedance`](impedance.md) | Fault loop impedance |
+| [`power`](power.md) | Active, reactive power and power factor |
 | [`export`](export.md) | Samples as CSV or JSON |
 | [`cut`](cut.md) | Time window as a new recording |
 | [`convert`](convert.md) | Other revision, format or layout |

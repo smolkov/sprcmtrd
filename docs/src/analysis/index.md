@@ -122,6 +122,18 @@ The loop voltage and current are shown next to each loop, because an impedance
 only means something when the loop carries fault current. `--trend` gives R and
 X per loop over time, the trajectory to compare with the relay's zones.
 
+## Power
+
+`power` uses the same voltage and current groups as `impedance`. Per phase the
+complex power is S = V·I* with RMS phasors: P = Re S is the active power in W,
+Q = Im S the reactive power in var, |S| the apparent power in VA. The total is
+the sum of the three phases, and the power factor is P / |S|, marked `lag`
+when Q > 0 (inductive) and `lead` when Q < 0.
+
+P > 0 means power flows in the direction the currents are measured, usually
+from the busbar into the line; reverse flow gives P < 0 and a negative power
+factor. The voltages must be phase to neutral.
+
 ## Noise
 
 Recordings store integer samples, so computed values carry tiny residues:

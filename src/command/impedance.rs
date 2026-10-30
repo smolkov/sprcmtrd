@@ -4,26 +4,21 @@
 use anyhow::{Context as _, bail};
 use serde::Serialize;
 
-use super::{select_channels, time_window, window_at};
+use super::{VoltageCurrent, describe_window, trend_steps, window_at};
 use crate::analysis::Complex;
-use crate::analysis::impedance::{self, Loop, Pair, Quantity};
-use crate::analysis::phasor::{self, Window};
-use crate::analysis::sequence::Group;
-use crate::analysis::trend;
-use crate::args::{ImpedanceArgs, TableFormat, TrendStep};
-use crate::comtrade::{AnalogChannel, AnalogInfo, Comtrade, Side, round12};
+use crate::analysis::impedance::{self, Loop};
+use crate::analysis::phasor;
+use crate::args::{ImpedanceArgs, TableFormat};
+use crate::comtrade::{Comtrade, Side, round12};
 use crate::context::Context;
 use crate::format::{key_values, rate, si, table, time};
 
 /// Loop voltage (V), loop current (A) and impedance (Ω) of one loop.
 type LoopValue = (Complex, Complex, Complex);
 
-/// The six channels (voltages A, B, C, then currents A, B, C) with the
-/// factors from their units to volts and amperes.
+/// The voltage and current channels with the loops to measure.
 struct Setup<'a> {
-    channels: [&'a AnalogChannel; 6],
-    voltage_factor: f64,
-    current_factor: f64,
+    vc: VoltageCurrent<'a>,
     k0: Complex,
     loops: Vec<Loop>,
 }
@@ -32,13 +27,12 @@ impl Setup<'_> {
     /// Impedance in Ω of each loop from the six phasors (`None` where a
     /// phasor or the loop current is missing).
     fn impedances(&self, phasors: &[Option<Complex>]) -> Vec<Option<LoopValue>> {
-        let scaled = |i: usize, f: f64| phasors[i].map(|p| p.scale(f));
-        let v = [0, 1, 2].map(|i| scaled(i, self.voltage_factor));
-        let c = [3, 4, 5].map(|i| scaled(i, self.current_factor));
+        let scaled = self.vc.scaled(phasors);
         self.loops
             .iter()
             .map(|&l| {
-                let (lv, li) = impedance::loop_quantities(l, [v[0]?, v[1]?, v[2]?], [c[0]?, c[1]?, c[2]?], self.k0);
+                let (v, i) = scaled?;
+                let (lv, li) = impedance::loop_quantities(l, v, i, self.k0);
                 Some((lv, li, clean(impedance::impedance(lv, li)?)))
             })
             .collect()
@@ -115,28 +109,7 @@ impl ImpedanceArgs {
         } else {
             Side::Primary
         };
-        let pair = self.pair(&c)?;
-        let ch = |i: usize| c.analog(i).expect("channel position is valid");
-        let channels = [
-            ch(pair.voltage.phases[0]),
-            ch(pair.voltage.phases[1]),
-            ch(pair.voltage.phases[2]),
-            ch(pair.current.phases[0]),
-            ch(pair.current.phases[1]),
-            ch(pair.current.phases[2]),
-        ];
-        let factor = |g: &Group, q: Quantity| match impedance::unit_factor(&g.unit) {
-            Some((k, f)) if k == q => Ok(f),
-            _ => Err(anyhow::anyhow!(
-                "unit '{}' is not a {}",
-                g.unit,
-                if q == Quantity::Voltage {
-                    "voltage (V, kV)"
-                } else {
-                    "current (A, kA)"
-                }
-            )),
-        };
+        let vc = VoltageCurrent::new(&c, &self.voltage, &self.current)?;
         let loops = if self.loops.is_empty() {
             Loop::ALL.to_vec()
         } else {
@@ -145,10 +118,10 @@ impl ImpedanceArgs {
                 .map(|s| Loop::parse(s).with_context(|| format!("unknown loop '{s}' (AN, BN, CN, AB, BC, CA)")))
                 .collect::<anyhow::Result<_>>()?
         };
+        let (voltage_ids, current_ids) = vc.ids();
+        let pair = vc.pair.clone();
         let setup = Setup {
-            channels,
-            voltage_factor: factor(&pair.voltage, Quantity::Voltage)?,
-            current_factor: factor(&pair.current, Quantity::Current)?,
+            vc,
             k0: Complex::from_polar(self.k0.magnitude, self.k0.angle.to_radians()),
             loops,
         };
@@ -157,7 +130,6 @@ impl ImpedanceArgs {
             bail!("the recording has no line frequency; give it with --frequency");
         }
 
-        let ids = |g: &Group| g.phases.map(|i| ch(i).info.id.clone());
         let mut json = Json {
             file: c
                 .path
@@ -173,8 +145,8 @@ impl ImpedanceArgs {
             samples: 0,
             k0_magnitude: self.k0.magnitude,
             k0_angle: self.k0.angle,
-            voltage: ids(&pair.voltage),
-            current: ids(&pair.current),
+            voltage: voltage_ids,
+            current: current_ids,
             from_s: None,
             at_s: None,
             loops: Vec::new(),
@@ -207,32 +179,16 @@ impl ImpedanceArgs {
         };
 
         if self.trend {
-            let (first, last) = c.time_span();
-            let window = window_at(&c, last * 1e3, self.cycles, frequency)?;
-            let dt = self.cycles / frequency / window.samples as f64;
-            let step = match self.step {
-                TrendStep::Cycles(n) => n / frequency,
-                TrendStep::Seconds(s) => s,
-            };
-            let (t0, t1) = time_window(&c, self.from, self.to)?;
-            let result = trend::trend(
-                &setup.channels,
-                c.time(),
-                c.index_range(t0, t1),
-                window.samples,
-                ((step / dt).round() as usize).max(1),
+            let (window, result) = trend_steps(
+                &c,
+                &setup.vc.channels,
+                self.from,
+                self.to,
+                self.step,
+                self.cycles,
                 frequency,
-                0,
                 side,
-            );
-            if result.steps.is_empty() {
-                bail!(
-                    "no window of {} samples fits in the time range; the recording runs from {} to {}",
-                    window.samples,
-                    time(first, last - first),
-                    time(last, last - first)
-                );
-            }
+            )?;
             let rows: Vec<(f64, Vec<Option<LoopValue>>)> = result
                 .steps
                 .iter()
@@ -309,6 +265,7 @@ impl ImpedanceArgs {
 
         let window = window_at(&c, self.at, self.cycles, frequency)?;
         let phasors: Vec<Option<Complex>> = setup
+            .vc
             .channels
             .iter()
             .map(|ch| phasor::phasor(ch, c.time(), &window, side).ok())
@@ -347,7 +304,7 @@ impl ImpedanceArgs {
                 print!("{out}");
             }
             TableFormat::Text => {
-                print!("{}", header(&describe(&window, t0, t1, self.cycles, frequency)));
+                print!("{}", header(&describe_window(&window, t0, t1, self.cycles, frequency)));
                 let headers = [
                     format!("V [{}]", pair.voltage.unit),
                     format!("I [{}]", pair.current.unit),
@@ -360,8 +317,8 @@ impl ImpedanceArgs {
                         // Loop V and I in the channels' units, so they can be compared with the plots.
                         Some((lv, li, z)) => vec![
                             l.name().to_owned(),
-                            si(lv.abs() / 2f64.sqrt() / setup.voltage_factor),
-                            si(li.abs() / 2f64.sqrt() / setup.current_factor),
+                            si(lv.abs() / 2f64.sqrt() / setup.vc.voltage_factor),
+                            si(li.abs() / 2f64.sqrt() / setup.vc.current_factor),
                             si(z.re),
                             si(z.im),
                             si(z.abs()),
@@ -386,24 +343,6 @@ impl ImpedanceArgs {
         }
         Ok(())
     }
-
-    /// The voltage and current groups: from `--voltage` / `--current`, else
-    /// found by unit.
-    fn pair(&self, c: &Comtrade) -> anyhow::Result<Pair> {
-        match (self.voltage.is_empty(), self.current.is_empty()) {
-            (true, true) => {
-                let infos: Vec<&AnalogInfo> = c.analog_channels().map(|ch| &ch.info).collect();
-                impedance::find_pair(&infos).context(
-                    "no voltage and current A/B/C channel groups found; give them with --voltage and --current",
-                )
-            }
-            (false, false) => Ok(Pair {
-                voltage: group(c, &self.voltage, "--voltage")?,
-                current: group(c, &self.current, "--current")?,
-            }),
-            _ => bail!("give both --voltage and --current, or neither"),
-        }
-    }
 }
 
 /// `z` with a part below 1e-6 of |Z| set to 0: residue of integer samples,
@@ -414,31 +353,4 @@ fn clean(z: Complex) -> Complex {
         re: small(z.re),
         im: small(z.im),
     }
-}
-
-/// Three analog channels from an option, in phase order A, B, C.
-fn group(c: &Comtrade, tokens: &[String], option: &str) -> anyhow::Result<Group> {
-    let (analog, binary) = select_channels(c, tokens)?;
-    if analog.len() != 3 || !binary.is_empty() {
-        bail!("{option} needs three analog channels (phases A, B, C)");
-    }
-    let info = |i: usize| &c.analog(i).expect("selected index is valid").info;
-    Ok(Group {
-        circuit: info(analog[0]).circuit.clone(),
-        unit: info(analog[0]).unit.clone(),
-        phases: [analog[0], analog[1], analog[2]],
-    })
-}
-
-fn describe(window: &Window, t0: f64, t1: f64, cycles: f64, frequency: f64) -> String {
-    let span = (t1 - t0).max(1e-3);
-    format!(
-        "{} .. {} ({} {}, {} samples, {})",
-        time(t0, span),
-        time(t1, span),
-        cycles,
-        if cycles == 1.0 { "cycle" } else { "cycles" },
-        window.samples,
-        rate(frequency)
-    )
 }

@@ -30,6 +30,14 @@ impl Complex {
         self.im.atan2(self.re)
     }
 
+    /// Complex conjugate.
+    pub fn conj(self) -> Self {
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
+    }
+
     /// Multiplied by the real number `k`.
     pub fn scale(self, k: f64) -> Self {
         Self {
@@ -93,5 +101,6 @@ mod tests {
         assert_eq!(a * b, Complex { re: 11.0, im: -2.0 });
         assert_eq!((a * b) / b, a);
         assert_eq!(a - a, Complex::default());
+        assert_eq!(a.conj(), Complex { re: 3.0, im: -4.0 });
     }
 }

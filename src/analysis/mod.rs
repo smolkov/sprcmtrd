@@ -11,6 +11,7 @@ pub mod frequency;
 pub mod harmonics;
 pub mod impedance;
 pub mod phasor;
+pub mod power;
 pub mod sequence;
 pub mod stats;
 pub mod trend;

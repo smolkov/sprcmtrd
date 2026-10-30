@@ -123,6 +123,20 @@ pub enum Command {
     #[command(verbatim_doc_comment)]
     Impedance(ImpedanceArgs),
 
+    /// Active, reactive and apparent power and power factor of a three-phase
+    /// circuit, per phase and in total.
+    ///
+    /// S = V·I* per phase from the phasors of a voltage and a current A/B/C
+    /// group (found by unit, or --voltage / --current; phase-to-neutral
+    /// voltages). Positive P flows the way the currents are measured, positive
+    /// Q is inductive. With --trend, the power over time.
+    ///
+    /// Examples:
+    ///   sprcmtrd power fault.cfg --at -40
+    ///   sprcmtrd power fault.cfg --trend --from -60 --to 200 --format csv
+    #[command(verbatim_doc_comment)]
+    Power(PowerArgs),
+
     /// Harmonic spectrum and THD per channel at one moment.
     ///
     /// A DFT over whole cycles ending at --at, like phasors. Harmonics and DC
@@ -391,6 +405,47 @@ pub struct ImpedanceArgs {
     /// R and X of each loop over time instead of at one moment.
     #[arg(long)]
     pub trend: bool,
+    /// Start of the time range in ms relative to the trigger (with --trend).
+    #[arg(long, allow_hyphen_values = true)]
+    pub from: Option<f64>,
+    /// End of the time range in ms relative to the trigger (with --trend).
+    #[arg(long, allow_hyphen_values = true)]
+    pub to: Option<f64>,
+    /// Distance between rows with --trend: cycles (`1`) or a time (`10ms`).
+    #[arg(long, default_value = "1", value_parser = parse_step)]
+    pub step: TrendStep,
+    /// Fundamental frequency in Hz. Default: the line frequency of the recording.
+    #[arg(long)]
+    pub frequency: Option<f64>,
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = TableFormat::Text)]
+    pub format: TableFormat,
+}
+
+/// Arguments of `power`.
+#[derive(Debug, Args)]
+pub struct PowerArgs {
+    /// Any file of the recording (.cfg, .dat, .cff, ...).
+    #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
+    pub file: PathBuf,
+    /// End of the window in ms relative to the trigger (without --trend).
+    #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+    pub at: f64,
+    /// Window length in cycles of the fundamental frequency.
+    #[arg(long, default_value_t = 1.0)]
+    pub cycles: f64,
+    /// Voltage channels of phases A, B, C to neutral (indices or ids). Default: found by unit.
+    #[arg(long, value_delimiter = ',', num_args = 1)]
+    pub voltage: Vec<String>,
+    /// Current channels of phases A, B, C (indices or ids). Default: found by unit.
+    #[arg(long, value_delimiter = ',', num_args = 1)]
+    pub current: Vec<String>,
+    /// Power over time instead of at one moment.
+    #[arg(long)]
+    pub trend: bool,
+    /// With --trend in text: P and Q of each phase too, not only the totals.
+    #[arg(long)]
+    pub phases: bool,
     /// Start of the time range in ms relative to the trigger (with --trend).
     #[arg(long, allow_hyphen_values = true)]
     pub from: Option<f64>,
