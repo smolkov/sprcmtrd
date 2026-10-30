@@ -39,7 +39,7 @@ them (`sha256sum --check --ignore-missing SHA256SUMS`).
 tab completion for bash, zsh and fish:
 
 ```sh
-sudo apt install ./sprcmtrd_0.5.0-1_amd64.deb     # arm64 for aarch64
+sudo apt install ./sprcmtrd_0.6.0-1_amd64.deb     # arm64 for aarch64
 ```
 
 **With Cargo** (Rust 1.88 or newer), from the repository or a checkout:
