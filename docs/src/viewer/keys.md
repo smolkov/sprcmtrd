@@ -20,6 +20,8 @@
 | `0`                 | Reset zoom (whole recording)                  |
 | `t`                 | Jump cursor to trigger                        |
 | `p`                 | Primary / secondary values                    |
+| `r`                 | Waveform / sliding RMS                        |
+| `d`                 | RMS with / without DC                         |
 | `m`                 | Relative / absolute time                      |
 | `s`                 | Show / hide sidebar                           |
 | `T`                 | Dark / light theme (not saved)                |

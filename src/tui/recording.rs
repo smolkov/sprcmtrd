@@ -58,6 +58,16 @@ impl Recording {
         }
     }
 
+    /// Line frequency from the configuration, if it is usable.
+    pub fn line_frequency(&self) -> Option<f64> {
+        Some(self.data.config.line_frequency).filter(|&f| f > 0.0)
+    }
+
+    /// Length in s of the sliding RMS window ending at sample `i`: one cycle.
+    pub fn rms_seconds(&self, _i: usize) -> f64 {
+        self.line_frequency().map_or(0.0, |f| 1.0 / f)
+    }
+
     pub(super) fn n_channels(&self) -> usize {
         self.visible_analog.len() + self.visible_binary.len()
     }

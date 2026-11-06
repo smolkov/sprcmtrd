@@ -18,6 +18,18 @@ at the window's end, for example 40 samples for one cycle at 2 kHz and 50 Hz.
 A window must have at least 4 samples and must not start before the recording;
 the error message names the option to change.
 
+## Sliding RMS
+
+The RMS view of the viewer (`r`) uses the same window: one cycle ending at each
+sample, so it shows what a relay sees and a step shows up over the following cycle.
+
+- **With DC** it is the true RMS of the window's samples, the same value as
+  `trend --rms`: √(mean(v²)).
+- **Without DC** (`d`) the mean of the window is removed: √(mean(v²) − mean(v)²).
+  This also takes out most of a decaying offset in a fault current.
+- There is no value until a whole window fits, around a missing sample, or with
+  fewer than 4 samples per window.
+
 ## Phasors
 
 A phasor is computed with a DFT at the fundamental over the window's samples,

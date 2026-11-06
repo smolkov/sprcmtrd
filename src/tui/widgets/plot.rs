@@ -12,9 +12,10 @@ use ratatui::widgets::canvas::{Canvas, Line as CanvasLine, Points};
 use ratatui::widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
 use super::time_axis::{self, column_of, cursor_label};
-use crate::comtrade::Cell;
+use crate::analysis::rms::{self, Dc};
+use crate::comtrade::{Cell, decimated_segments};
 use crate::format::{si, time};
-use crate::tui::app::{App, Focus};
+use crate::tui::app::{App, Focus, PlotView};
 use crate::tui::keys::Action;
 use crate::tui::recording::Recording;
 
@@ -26,10 +27,15 @@ const MIN_ANALOG_HEIGHT: u16 = 5;
 pub fn render(f: &mut Frame, area: Rect, app: &App) {
     let theme = &app.theme;
     let focused = app.focus == Focus::Plot && app.recording.is_some();
+    let name = match (app.plot_view, app.rms_dc) {
+        (PlotView::Waveform, _) => "Plot",
+        (PlotView::Rms, Dc::Keep) => "RMS",
+        (PlotView::Rms, Dc::Remove) => "RMS-DC",
+    };
     // Built late: the title shows the scroll position once it is known.
     let block = |title: &str| {
         Block::bordered()
-            .title(format!(" Plot{title} "))
+            .title(format!(" {name}{title} "))
             .title_style(if focused { theme.accent() } else { theme.base() })
             .border_style(theme.border(focused))
     };
@@ -288,7 +294,16 @@ fn analog_plot(
     // One extra sample on each side so lines reach the plot edges.
     let range = rec.data.index_range(t0, t1);
     let range = range.start.saturating_sub(1)..(range.end + 1).min(rec.data.len());
-    let segments = ch.plot_segments(rec.data.time(), range, (t0, t1), canvas.width as usize * 2, app.side);
+    let columns = canvas.width as usize * 2;
+    let time = rec.data.time();
+    let is_rms = app.plot_view == PlotView::Rms;
+    let rms_of = |range| rms::sliding(ch, time, range, |k| rec.rms_seconds(k), app.rms_dc, app.side);
+    let segments = if is_rms {
+        let series = rms_of(range.clone());
+        decimated_segments(time, range.clone(), (t0, t1), columns, |k| series[k - range.start])
+    } else {
+        ch.plot_segments(time, range, (t0, t1), columns, app.side)
+    };
     let (lo, hi) = segments
         .iter()
         .flatten()
@@ -296,14 +311,22 @@ fn analog_plot(
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
             (lo.min(p.1), hi.max(p.1))
         });
+    // From 0 in the RMS view, so a steady value doesn't look like a large swing.
     let (lo, hi) = match (lo.is_finite(), hi - lo) {
+        _ if is_rms => (0.0, if hi > 1e-12 { hi * 1.05 } else { 1.0 }),
         (false, _) => (-1.0, 1.0),
         (true, d) if d < 1e-12 => (lo - 1.0, hi + 1.0),
         (true, d) => (lo - d * 0.05, hi + d * 0.05),
     };
 
     // Gutter: name, value at cursor, value range.
-    let value = cursor_idx.and_then(|k| ch.value_on(k, app.side));
+    let value = cursor_idx.and_then(|k| {
+        if is_rms {
+            rms_of(k..k + 1).first().copied().flatten()
+        } else {
+            ch.value_on(k, app.side)
+        }
+    });
     let mut lines = vec![
         Line::styled(
             format!("{} [{}]", ch.info.id, ch.info.unit),

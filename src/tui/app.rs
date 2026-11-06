@@ -14,6 +14,7 @@ use super::keys::{Action, BINDINGS, Binding, KeyMap, KeySpec};
 use super::picker::{Picker, PickerEntry, scan};
 use super::recording::Recording;
 use super::theme::Theme;
+use crate::analysis::rms::Dc;
 use crate::args::ThemeChoice;
 use crate::comtrade::{Comtrade, Side};
 use crate::config::AppConfig;
@@ -28,6 +29,15 @@ pub enum Focus {
     Sidebar,
     /// Plot area.
     Plot,
+}
+
+/// What the plot area shows of analog channels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlotView {
+    /// The samples as recorded.
+    Waveform,
+    /// The sliding RMS.
+    Rms,
 }
 
 /// Kind of a footer status message.
@@ -116,6 +126,10 @@ pub struct App {
     pub selected: usize,
     /// Side analog values are shown on.
     pub side: Side,
+    /// What the plot area shows of analog channels.
+    pub plot_view: PlotView,
+    /// What the RMS view does with the DC part.
+    pub rms_dc: Dc,
     /// First channel row drawn in the plot area (index into the shown
     /// channels). The plot widget clamps it to the area when drawing.
     pub plot_scroll: Cell<usize>,
@@ -142,6 +156,9 @@ pub struct App {
     /// Generation of the current directory scan; older scans stop early.
     scan_generation: Arc<AtomicU64>,
 }
+
+/// Shown when the RMS view has no window length to use.
+const NO_LINE_FREQUENCY: &str = "no RMS view: the recording has no line frequency";
 
 /// How long footer messages stay.
 const STATUS_TIME: Duration = Duration::from_secs(5);
@@ -190,6 +207,8 @@ impl App {
             } else {
                 Side::Primary
             },
+            plot_view: PlotView::Waveform,
+            rms_dc: Dc::Keep,
             plot_scroll: Cell::new(0),
             plot_page: Cell::new(0),
             plot_follow: Cell::new(true),
@@ -259,6 +278,10 @@ impl App {
         self.selected = 0;
         self.plot_scroll.set(0);
         self.plot_follow.set(true);
+        if self.plot_view == PlotView::Rms && !self.rms_available() {
+            self.plot_view = PlotView::Waveform;
+            self.set_status(NO_LINE_FREQUENCY, StatusKind::Error);
+        }
     }
 
     /// Shows a footer message.
@@ -416,8 +439,47 @@ impl App {
                 self.set_status(format!("showing {name} values"), StatusKind::Info);
             }
             Action::TimeMode => self.absolute_time = !self.absolute_time,
+            Action::RmsView => self.toggle_rms_view(),
+            Action::RmsDc => {
+                self.rms_dc = match self.rms_dc {
+                    Dc::Keep => Dc::Remove,
+                    Dc::Remove => Dc::Keep,
+                };
+                self.set_status(format!("RMS {}", self.dc_label()), StatusKind::Info);
+            }
             _ => self.recording_action(action),
         }
+    }
+
+    fn dc_label(&self) -> &'static str {
+        match self.rms_dc {
+            Dc::Keep => "with DC",
+            Dc::Remove => "without DC",
+        }
+    }
+
+    fn rms_available(&self) -> bool {
+        self.recording.as_ref().is_some_and(|r| r.line_frequency().is_some())
+    }
+
+    fn toggle_rms_view(&mut self) {
+        if self.plot_view == PlotView::Rms {
+            self.plot_view = PlotView::Waveform;
+            self.set_status("showing the waveform", StatusKind::Info);
+            return;
+        }
+        let Some(rec) = &self.recording else {
+            self.no_recording();
+            return;
+        };
+        let Some(frequency) = rec.line_frequency() else {
+            self.set_status(NO_LINE_FREQUENCY, StatusKind::Error);
+            return;
+        };
+        self.plot_view = PlotView::Rms;
+        let cycle = 1.0 / frequency;
+        let text = format!("RMS over 1 cycle ({}), {}", format::time(cycle, cycle), self.dc_label());
+        self.set_status(text, StatusKind::Info);
     }
 
     fn recording_action(&mut self, action: Action) {
