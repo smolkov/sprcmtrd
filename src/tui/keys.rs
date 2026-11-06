@@ -41,6 +41,8 @@ pub enum Action {
     JumpDown,
     First,
     Last,
+    RmsView,
+    RmsDc,
 }
 
 /// Default key binding of an action.
@@ -226,6 +228,20 @@ pub const BINDINGS: &[Binding] = &[
         name: "side",
         keys: &["p"],
         help: "Toggle primary / secondary values",
+        hint: None,
+    },
+    Binding {
+        action: Action::RmsView,
+        name: "rms_view",
+        keys: &["r"],
+        help: "Toggle waveform / sliding RMS",
+        hint: None,
+    },
+    Binding {
+        action: Action::RmsDc,
+        name: "rms_dc",
+        keys: &["d"],
+        help: "RMS with / without DC",
         hint: None,
     },
     Binding {
@@ -591,6 +607,14 @@ mod tests {
         );
         assert_eq!(km.action(&key(KeyCode::Home, KeyModifiers::NONE)), Some(Action::First));
         assert_eq!(km.action(&key(KeyCode::End, KeyModifiers::NONE)), Some(Action::Last));
+        assert_eq!(
+            km.action(&key(KeyCode::Char('r'), KeyModifiers::NONE)),
+            Some(Action::RmsView)
+        );
+        assert_eq!(
+            km.action(&key(KeyCode::Char('d'), KeyModifiers::NONE)),
+            Some(Action::RmsDc)
+        );
 
         let mut o = BTreeMap::new();
         o.insert("quit".to_owned(), vec!["x".to_owned()]);
@@ -609,10 +633,15 @@ mod tests {
     fn existing_user_bindings_win_over_new_default_keys() {
         let mut o = BTreeMap::new();
         o.insert("trigger".to_owned(), vec!["J".to_owned()]);
+        o.insert("side".to_owned(), vec!["r".to_owned()]);
         let km = KeyMap::new(&o).unwrap();
         assert_eq!(
             km.action(&key(KeyCode::Char('J'), KeyModifiers::SHIFT)),
             Some(Action::Trigger)
+        );
+        assert_eq!(
+            km.action(&key(KeyCode::Char('r'), KeyModifiers::NONE)),
+            Some(Action::Side)
         );
     }
 

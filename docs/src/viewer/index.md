@@ -26,6 +26,10 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
 - **Plots:** one shared time axis for all channels. The gutter shows the channel,
   its value at the cursor and the visible value range. Binary states that differ
   from the channel's normal state are highlighted.
+- **RMS view:** `r` shows the sliding RMS instead of the samples, over one cycle
+  ending at each sample, so a step shows up over the following cycle. The cycle is
+  fitted to the measured frequency of the strongest voltage or current. `d` removes
+  the DC part (title `RMS-DC`). There is a gap until a whole window fits.
 - **Scrolling:** analog plots are at least 5 rows high. When the shown channels
   don't fit, the plots scroll (`PgUp` / `PgDn`, or select a channel in the
   sidebar); a scrollbar on the right border and `channels 4–9 of 18` in the
@@ -56,6 +60,8 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
 | `0`                 | Reset zoom (whole recording)                  |
 | `t`                 | Jump cursor to trigger                        |
 | `p`                 | Primary / secondary values                    |
+| `r`                 | Waveform / sliding RMS                        |
+| `d`                 | RMS with / without DC                         |
 | `m`                 | Relative / absolute time                      |
 | `s`                 | Show / hide sidebar                           |
 | `T`                 | Dark / light theme (not saved)                |

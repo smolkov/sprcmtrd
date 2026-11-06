@@ -69,68 +69,84 @@ impl AnalogChannel {
         side: Side,
     ) -> Vec<Vec<(f64, f64)>> {
         let factor = self.info.side_factor(side);
-        let mut segments = Vec::new();
-        let mut current = Vec::new();
-        let mut flush = |current: &mut Vec<(f64, f64)>| {
-            if !current.is_empty() {
-                segments.push(std::mem::take(current));
+        decimated_segments(time, range, (t0, t1), columns, |i| self.value(i).map(|v| v * factor))
+    }
+}
+
+/// Line segments for plotting the `value`s of the samples in `range` into
+/// `columns` horizontal cells spanning `t0..t1`.
+///
+/// When there are more samples than `2 * columns`, each column keeps only its
+/// minimum and maximum (in time order) so peaks are not lost. A sample without
+/// a value ends the current segment, so gaps stay visible.
+pub fn decimated_segments(
+    time: &[f64],
+    range: Range<usize>,
+    (t0, t1): (f64, f64),
+    columns: usize,
+    mut value: impl FnMut(usize) -> Option<f64>,
+) -> Vec<Vec<(f64, f64)>> {
+    let mut segments = Vec::new();
+    let mut current = Vec::new();
+    let mut flush = |current: &mut Vec<(f64, f64)>| {
+        if !current.is_empty() {
+            segments.push(std::mem::take(current));
+        }
+    };
+
+    if range.len() <= 2 * columns.max(1) {
+        for i in range {
+            match value(i) {
+                Some(v) => current.push((time[i], v)),
+                None => flush(&mut current),
+            }
+        }
+    } else {
+        let width = (t1 - t0) / columns.max(1) as f64;
+        let last = columns.max(1) as i64 - 1;
+        let column_of = |t: f64| (((t - t0) / width).floor() as i64).clamp(0, last);
+        let mut bucket: Option<Bucket> = None;
+        let emit = |current: &mut Vec<(f64, f64)>, b: Bucket| {
+            let (_, lo, hi) = b;
+            if lo.0 <= hi.0 {
+                current.extend([lo, hi]);
+            } else {
+                current.extend([hi, lo]);
             }
         };
-
-        if range.len() <= 2 * columns.max(1) {
-            for i in range {
-                match self.value(i) {
-                    Some(v) => current.push((time[i], v * factor)),
-                    None => flush(&mut current),
+        for i in range {
+            let Some(v) = value(i) else {
+                if let Some(b) = bucket.take() {
+                    emit(&mut current, b);
                 }
-            }
-        } else {
-            let width = (t1 - t0) / columns.max(1) as f64;
-            let last = columns.max(1) as i64 - 1;
-            let column_of = |t: f64| (((t - t0) / width).floor() as i64).clamp(0, last);
-            let mut bucket: Option<Bucket> = None;
-            let emit = |current: &mut Vec<(f64, f64)>, b: Bucket| {
-                let (_, lo, hi) = b;
-                if lo.0 <= hi.0 {
-                    current.extend([lo, hi]);
-                } else {
-                    current.extend([hi, lo]);
-                }
+                flush(&mut current);
+                continue;
             };
-            for i in range {
-                let Some(v) = self.value(i) else {
+            let p = (time[i], v);
+            let col = column_of(p.0);
+            match &mut bucket {
+                Some((c, lo, hi)) if *c == col => {
+                    if p.1 < lo.1 {
+                        *lo = p;
+                    }
+                    if p.1 > hi.1 {
+                        *hi = p;
+                    }
+                }
+                _ => {
                     if let Some(b) = bucket.take() {
                         emit(&mut current, b);
                     }
-                    flush(&mut current);
-                    continue;
-                };
-                let p = (time[i], v * factor);
-                let col = column_of(p.0);
-                match &mut bucket {
-                    Some((c, lo, hi)) if *c == col => {
-                        if p.1 < lo.1 {
-                            *lo = p;
-                        }
-                        if p.1 > hi.1 {
-                            *hi = p;
-                        }
-                    }
-                    _ => {
-                        if let Some(b) = bucket.take() {
-                            emit(&mut current, b);
-                        }
-                        bucket = Some((col, p, p));
-                    }
+                    bucket = Some((col, p, p));
                 }
             }
-            if let Some(b) = bucket {
-                emit(&mut current, b);
-            }
         }
-        flush(&mut current);
-        segments
+        if let Some(b) = bucket {
+            emit(&mut current, b);
+        }
     }
+    flush(&mut current);
+    segments
 }
 
 /// A binary (status) channel with its samples.

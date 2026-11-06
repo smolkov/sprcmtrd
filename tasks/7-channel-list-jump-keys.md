@@ -2,7 +2,7 @@
 
 - **Issue:** [smo/sprcmtrd#7](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/7), "Shortcut für das schnellere Bewegen in der Channelliste"
 - **Branch:** `7-shortcut-fur-das-schnellere-bewegen-in-der-channelliste`
-- **Status:** built with the proposed decisions and verified; not committed yet
+- **Status:** done; committed in `70f8674` and pushed to `gitlab`
 
 ## Goal
 
@@ -218,7 +218,7 @@ the stored offset has to be clamped.
 ### 8. Verify
 
 - [x] Run the real-terminal check and all commands under [Tests](#tests).
-- [ ] Inspect `git status` and `git diff`, then commit only when asked. The empty,
+- [x] Inspect `git status` and `git diff`, then commit only when asked. The empty,
       untracked `note.md` stays out of the commit.
 
 ## Tests

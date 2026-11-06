@@ -1,8 +1,10 @@
 //! The loaded recording as the TUI shows it: visible channels, time window
 //! (zoom, pan) and cursor.
 
+use std::cell::OnceCell;
 use std::sync::Arc;
 
+use crate::analysis::frequency::Track;
 use crate::comtrade::{Comtrade, RecordingPath};
 
 /// A loaded recording and its view state.
@@ -22,6 +24,9 @@ pub struct Recording {
     pub view: (f64, f64),
     /// Cursor time.
     pub cursor: f64,
+    /// Frequency track for the RMS window. It covers all samples, so it is
+    /// measured once, when the RMS view first needs it.
+    track: OnceCell<Option<Track>>,
 }
 
 /// Default number of analog channels shown after loading.
@@ -55,6 +60,32 @@ impl Recording {
             visible_binary,
             view,
             cursor,
+            track: OnceCell::new(),
+        }
+    }
+
+    /// Line frequency from the configuration, if it is usable.
+    pub fn line_frequency(&self) -> Option<f64> {
+        Some(self.data.config.line_frequency).filter(|&f| f > 0.0)
+    }
+
+    /// Frequency track of the recording, if it has a signal to measure.
+    pub fn track(&self) -> Option<&Track> {
+        self.track
+            .get_or_init(|| {
+                let channels: Vec<_> = self.data.analog_channels().collect();
+                Track::new(&channels, self.data.time(), self.line_frequency()?)
+            })
+            .as_ref()
+    }
+
+    /// Length in s of the sliding RMS window ending at sample `i`: one cycle,
+    /// of the measured frequency where there is one.
+    pub fn rms_seconds(&self, i: usize) -> f64 {
+        match (self.track(), self.line_frequency()) {
+            (Some(track), _) => track.period_at(self.data.time()[i]),
+            (None, Some(frequency)) => 1.0 / frequency,
+            (None, None) => 0.0,
         }
     }
 

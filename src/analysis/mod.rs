@@ -1,5 +1,6 @@
 //! Signal analysis of loaded recordings: statistics, binary events, phasors
-//! of the fundamental, symmetrical components and the system frequency.
+//! of the fundamental, symmetrical components, the system frequency and the
+//! sliding RMS.
 //!
 //! Builds on [`crate::comtrade`] (channels, sample times) and is used by the
 //! commands; it does not depend on the command line or the TUI. Results are
@@ -12,6 +13,7 @@ pub mod harmonics;
 pub mod impedance;
 pub mod phasor;
 pub mod power;
+pub mod rms;
 pub mod sequence;
 pub mod stats;
 pub mod trend;

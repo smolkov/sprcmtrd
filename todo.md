@@ -54,6 +54,7 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
   * Show the position instead of `+N hidden`: a scrollbar at the right edge (ratatui `Scrollbar`) and `channels 4–9 of 18` in the title.
   * Keep analog plots readable: a fixed minimum height per analog plot (now 3 rows, maybe configurable), instead of squeezing all channels into the window.
 * [x] Faster movement in the channel list (issue #7): `Ctrl+↑`/`Ctrl+↓` or `K`/`J` move 10 channels, `Home`/`End` go to the first and last. The help and info overlays and the file picker get the same movement. See `tasks/7-channel-list-jump-keys.md`.
+* [x] RMS view in the plot area (issue #3): `r` shows the sliding RMS, `d` removes the DC part. See `tasks/3-rms-view.md`.
 * [ ] `power` with phase-to-phase voltages only (no neutral): two-wattmeter (Aron) method.
 * [ ] Scroll the plot area with the mouse wheel. Needs mouse capture, which stops normal text selection in the terminal, so it should be optional.
 * [ ] Show the scroll position in the long lists too: the sidebar channel list and the file picker already scroll with the selection, but nothing shows that more entries are above or below. Add a scrollbar or `12 / 340` to both.
@@ -69,7 +70,6 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 * [x] Separate TUI and CLI logic more cleanly to reduce coupling and improve testability.
 * [x] App module is too large separate into smaller modules for better maintainability. Move key handling into its own module.
   `tui/app.rs` has 1500 lines. Natural cuts: `Action`, `Binding`, `BINDINGS`, `KeySpec`, `KeyMap` → `tui/keys.rs`; `Picker`, `PickerEntry`, `Matcher` and `scan` → `tui/picker.rs`; `Recording` (channel visibility, zoom, cursor) → `tui/recording.rs`. `App` keeps state and dispatch.
-* [ ] Spinner in stdout for long-running CLI commands (like `convert` or `export`) to indicate progress.
 
 ### Command line
 
@@ -98,3 +98,6 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 ### Sandbox
 
 * [x] Create podman container for sandboxing claude agent. 
+
+
+

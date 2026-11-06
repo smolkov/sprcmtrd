@@ -540,6 +540,125 @@ mod tests {
         assert_eq!(p.query, "J");
     }
 
+    /// App with one channel: 100 A peak at 50 Hz with `dc` A of DC, 2 kHz,
+    /// trigger after 100 ms, line frequency `line` Hz.
+    fn app_with_sine(dc: f64, line: f64) -> App {
+        let mut cfg = String::from("S,D,1999\n2,1A,1D\n1,IA,A,LINE,A,0.001,0,0,-1e9,1e9,1,1,P\n1,TRIP,,LINE,0\n");
+        cfg += &format!("{line}\n1\n2000,800\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.100000\nASCII\n1\n");
+        let mut dat = String::new();
+        for k in 0..800 {
+            let t = k as f64 / 2000.0;
+            let v = dc + 100.0 * (2.0 * std::f64::consts::PI * 50.0 * t).sin();
+            dat += &format!(
+                "{},{},{},{}\n",
+                k + 1,
+                (t * 1e6).round(),
+                (v * 1000.0).round(),
+                u8::from(k >= 400)
+            );
+        }
+        let mut app = app();
+        app.set_recording(Comtrade::from_readers(cfg.as_bytes(), dat.as_bytes()).unwrap());
+        app
+    }
+
+    #[test]
+    fn rms_view_keys_change_the_plot() {
+        let mut app = app_with_sine(10.0, 50.0);
+        let waveform = render(&app, 110, 30);
+        assert!(waveform.contains(" Plot "), "{waveform}");
+
+        press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
+        let with_dc = render(&app, 110, 30);
+        assert!(with_dc.contains(" RMS "), "{with_dc}");
+        // sqrt(100² / 2 + 10²).
+        assert!(with_dc.contains("▸ 71.41"), "{with_dc}");
+        assert!(with_dc.contains("RMS with DC, 1 cycle (fitted to IA)"), "{with_dc}");
+        assert!(with_dc.contains("↓ 0"), "{with_dc}");
+
+        press(&mut app, KeyCode::Char('d'), KeyModifiers::NONE);
+        let without_dc = render(&app, 110, 30);
+        assert!(without_dc.contains(" RMS-DC "), "{without_dc}");
+        assert!(without_dc.contains("▸ 70.71"), "{without_dc}");
+        assert!(without_dc.contains("RMS without DC"), "{without_dc}");
+
+        // The time axis and the binary strip stay the same.
+        let strip = |screen: &str| {
+            let plots = screen.lines().filter_map(|r| r.split("││").nth(1));
+            plots.into_iter().find(|r| r.starts_with("TRIP")).unwrap().to_owned()
+        };
+        assert_eq!(strip(&waveform), strip(&with_dc));
+        assert_eq!(axis_row(&waveform), axis_row(&with_dc));
+
+        // Off again: exactly the waveform, apart from the footer message.
+        press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
+        app.status = None;
+        let again = render(&app, 110, 30);
+        let body = |s: &str| s.lines().rev().skip(1).map(str::to_owned).collect::<Vec<_>>();
+        assert_eq!(body(&again), body(&waveform));
+    }
+
+    #[test]
+    fn rms_view_without_a_reference_uses_the_nominal_window() {
+        // No voltage or current to measure: a unit neither of them.
+        let mut cfg = String::from("S,D,1999\n1,1A,0D\n1,P1,,,bar,0.001,0,0,-1e9,1e9,1,1,P\n");
+        cfg += "50\n1\n1000,100\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+        let dat: String = (0..100).map(|k| format!("{},{},5000\n", k + 1, k * 1000)).collect();
+        let mut app = app();
+        app.set_recording(Comtrade::from_readers(cfg.as_bytes(), dat.as_bytes()).unwrap());
+        press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
+        assert!(render(&app, 110, 30).contains("RMS with DC, 1 cycle (20.00 ms)"));
+    }
+
+    #[test]
+    fn rms_view_title_reads_at_the_smallest_size() {
+        let mut app = app();
+        press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
+        press(&mut app, KeyCode::Char('d'), KeyModifiers::NONE);
+        let screen = render(&app, 80, 24);
+        assert!(screen.contains("RMS-DC · channels 1–3 of 7"), "{screen}");
+        assert!(screen.contains("window 199.5 ms"), "{screen}");
+    }
+
+    #[test]
+    fn rms_view_needs_a_line_frequency() {
+        use crate::tui::app::PlotView;
+
+        let mut app = app_with_sine(0.0, 0.0);
+        press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
+        assert_eq!(app.plot_view, PlotView::Waveform);
+        assert!(render(&app, 110, 30).contains("no line frequency"));
+
+        // Opening such a recording in the RMS view goes back to the waveform.
+        let mut app = app_with_sine(0.0, 50.0);
+        press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
+        assert_eq!(app.plot_view, PlotView::Rms);
+        let other = app_with_sine(0.0, 0.0).recording.take().unwrap();
+        let data = std::sync::Arc::into_inner(other.data).unwrap();
+        app.set_recording(data);
+        assert_eq!(app.plot_view, PlotView::Waveform);
+        assert!(render(&app, 110, 30).contains("no line frequency"));
+    }
+
+    #[test]
+    fn rms_view_stays_when_opening_another_recording() {
+        use crate::tui::app::PlotView;
+
+        let mut app = app_with_sine(0.0, 50.0);
+        press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/fault_1999.cfg");
+        app.set_recording(Comtrade::open(path).unwrap());
+        assert_eq!(app.plot_view, PlotView::Rms);
+    }
+
+    #[test]
+    fn rms_key_without_a_recording_says_so() {
+        let mut app = app();
+        app.recording = None;
+        press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
+        assert!(app.status.as_ref().unwrap().text.contains("no recording loaded"));
+    }
+
     #[test]
     fn zoom_and_cursor_keys_change_view() {
         let mut app = app();

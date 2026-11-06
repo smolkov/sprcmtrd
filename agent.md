@@ -45,7 +45,7 @@ cargo +1.88 check --locked --all-targets            # minimum supported Rust
 
 ```
 src/comtrade/   COMTRADE library: cfg.rs, dat.rs, cff.rs, check.rs, discover.rs, export.rs, write.rs, mod.rs
-src/analysis/   signal analysis: phasor.rs (Window, DFT), sequence.rs, complex.rs, stats.rs, events.rs, trend.rs, harmonics.rs, impedance.rs, power.rs
+src/analysis/   signal analysis: phasor.rs (Window, DFT), sequence.rs, complex.rs, stats.rs, events.rs, trend.rs, harmonics.rs, impedance.rs, power.rs, rms.rs
 src/command/    info, list, check, view, events, stats, phasors, trend, harmonics, impedance, power, export, cut, convert, completions + shared formatting (si, time, table)
 src/tui/        app.rs (state, key and action dispatch), keys.rs (Action, BINDINGS, KeyMap),
                 picker.rs (file picker, directory scan), recording.rs (channels, zoom, cursor),
