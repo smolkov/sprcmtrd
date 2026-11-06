@@ -478,7 +478,12 @@ impl App {
         };
         self.plot_view = PlotView::Rms;
         let cycle = 1.0 / frequency;
-        let text = format!("RMS over 1 cycle ({}), {}", format::time(cycle, cycle), self.dc_label());
+        let window = match rec.track().and_then(|t| rec.data.analog(t.reference)) {
+            Some(reference) => format!("fitted to {}", reference.info.id),
+            None => format::time(cycle, cycle),
+        };
+        // The DC setting first: a long message is cut off on the right.
+        let text = format!("RMS {}, 1 cycle ({window})", self.dc_label());
         self.set_status(text, StatusKind::Info);
     }
 

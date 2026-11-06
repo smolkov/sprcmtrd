@@ -13,6 +13,7 @@ use std::ops::Range;
 use serde::Serialize;
 
 use super::Complex;
+use super::impedance::{Quantity, unit_factor};
 use super::phasor::{self, Window};
 use crate::comtrade::{AnalogChannel, Side};
 
@@ -119,6 +120,59 @@ pub fn from_crossings(crossings: &[Crossing], t: f64, periods: usize, frequency:
         start: first.time,
         end: last.time,
     })
+}
+
+/// The frequency of a recording over time, from the zero crossings of one
+/// reference channel: the strongest voltage with a signal, otherwise the
+/// strongest current, because voltages are the less disturbed signals.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Track {
+    /// Position of the reference in the channels given to [`Track::new`].
+    pub reference: usize,
+    crossings: Vec<Crossing>,
+    nominal: f64,
+}
+
+impl Track {
+    /// Track for the nominal `frequency`, `None` when no voltage or current
+    /// channel has a signal to measure. `time` holds the sample times.
+    pub fn new(channels: &[&AnalogChannel], time: &[f64], frequency: f64) -> Option<Self> {
+        let strongest = |quantity: Quantity| {
+            let mut found: Vec<(usize, f64, f64)> = channels
+                .iter()
+                .enumerate()
+                .filter_map(|(i, ch)| {
+                    let (q, factor) = unit_factor(&ch.info.unit)?;
+                    let peak = (0..time.len())
+                        .filter_map(|k| ch.value_on(k, Side::Primary))
+                        .fold(0.0, |peak: f64, v| peak.max(v.abs()));
+                    (q == quantity && peak > 0.0).then_some((i, peak * factor, peak))
+                })
+                .collect();
+            found.sort_by(|a, b| b.1.total_cmp(&a.1));
+            found
+        };
+        let candidates = [Quantity::Voltage, Quantity::Current].into_iter().flat_map(strongest);
+        candidates.into_iter().find_map(|(reference, _, peak)| {
+            let crossings = crossings(channels[reference], time, MIN_LEVEL * peak, Side::Primary);
+            (crossings.len() >= 2).then_some(Self {
+                reference,
+                crossings,
+                nominal: frequency,
+            })
+        })
+    }
+
+    /// Length in s of the cycle that ends at time `t`: the last period between
+    /// zero crossings, or the nominal one where no period can be measured or it
+    /// is far off the nominal frequency.
+    pub fn period_at(&self, t: f64) -> f64 {
+        let highest = self.nominal * 1.5;
+        from_crossings(&self.crossings, t, 1, self.nominal)
+            .map(|m| m.frequency)
+            .filter(|&f| f <= highest)
+            .map_or(1.0 / self.nominal, |f| 1.0 / f)
+    }
 }
 
 /// The frequency at one moment.
@@ -432,5 +486,83 @@ mod tests {
             1e-6
         ));
         assert_eq!(from_turn(50.0, (0.02, p(0.0)), (0.02, p(0.0))), None);
+    }
+
+    /// Recording at 5 kHz, line frequency 50 Hz, with `(unit, signal(t))` channels.
+    fn track_recording(signals: &[(&str, &dyn Fn(f64) -> f64)]) -> crate::comtrade::Comtrade {
+        let mut cfg = format!("S,D,1999\n{0},{0}A,0D\n", signals.len());
+        for (i, (unit, _)) in signals.iter().enumerate() {
+            cfg += &format!("{},C{i},,,{unit},0.001,0,0,-1e9,1e9,1,1,P\n", i + 1);
+        }
+        cfg += "50\n1\n5000,2000\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+        let mut dat = String::new();
+        for k in 0..2000 {
+            let t = k as f64 / 5000.0;
+            dat += &format!("{},{}", k + 1, (t * 1e6).round());
+            for (_, signal) in signals {
+                dat += &format!(",{}", (signal(t) * 1000.0).round());
+            }
+            dat += "\n";
+        }
+        crate::comtrade::Comtrade::from_readers(cfg.as_bytes(), dat.as_bytes()).unwrap()
+    }
+
+    fn sine(peak: f64, f: f64) -> impl Fn(f64) -> f64 {
+        move |t| peak * (2.0 * PI * f * t).sin()
+    }
+
+    fn track(c: &crate::comtrade::Comtrade) -> Option<Track> {
+        let channels: Vec<_> = c.analog_channels().collect();
+        Track::new(&channels, c.time(), 50.0)
+    }
+
+    #[test]
+    fn track_prefers_the_strongest_voltage() {
+        // A large current, and 1 kV is stronger than 500 V.
+        let c = track_recording(&[
+            ("A", &sine(5000.0, 50.0)),
+            ("V", &sine(500.0, 50.0)),
+            ("kV", &sine(1.0, 50.0)),
+        ]);
+        assert_eq!(track(&c).unwrap().reference, 2);
+    }
+
+    #[test]
+    fn track_falls_back_to_the_strongest_current() {
+        let c = track_recording(&[("V", &|_| 0.0), ("A", &sine(100.0, 50.0)), ("kA", &sine(1.0, 50.0))]);
+        assert_eq!(track(&c).unwrap().reference, 2);
+        // A voltage with no zero crossings doesn't count either.
+        let c = track_recording(&[("V", &|_| 5.0), ("A", &sine(100.0, 50.0))]);
+        assert_eq!(track(&c).unwrap().reference, 1);
+    }
+
+    #[test]
+    fn track_needs_a_voltage_or_current_with_a_signal() {
+        assert_eq!(track(&track_recording(&[("V", &|_| 0.0)])), None);
+        assert_eq!(track(&track_recording(&[("Hz", &sine(100.0, 50.0))])), None);
+    }
+
+    #[test]
+    fn period_follows_the_signal_or_stays_nominal() {
+        let c = track_recording(&[("V", &sine(100.0, 55.0))]);
+        let t = track(&c).unwrap();
+        assert!((t.period_at(0.2) - 1.0 / 55.0).abs() < 1e-5, "{}", t.period_at(0.2));
+        // Before two crossings.
+        assert_eq!(t.period_at(0.001), 0.02);
+
+        // During a pause: nominal again, once the last crossing is too old.
+        let paused = |t: f64| {
+            if (0.1..0.2).contains(&t) {
+                0.0
+            } else {
+                sine(100.0, 55.0)(t)
+            }
+        };
+        let t = track(&track_recording(&[("V", &paused)])).unwrap();
+        assert_eq!(t.period_at(0.19), 0.02);
+
+        // Far above the nominal frequency.
+        let t = track(&track_recording(&[("V", &sine(100.0, 400.0))])).unwrap();
+        assert_eq!(t.period_at(0.2), 0.02);
     }
 }

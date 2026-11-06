@@ -27,7 +27,8 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
   its value at the cursor and the visible value range. Binary states that differ
   from the channel's normal state are highlighted.
 - **RMS view:** `r` shows the sliding RMS instead of the samples, over one cycle
-  ending at each sample, so a step shows up over the following cycle. `d` removes
+  ending at each sample, so a step shows up over the following cycle. The cycle is
+  fitted to the measured frequency of the strongest voltage or current. `d` removes
   the DC part (title `RMS-DC`). There is a gap until a whole window fits.
 - **Scrolling:** analog plots are at least 5 rows high. When the shown channels
   don't fit, the plots scroll (`PgUp` / `PgDn`, or select a channel in the

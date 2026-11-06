@@ -573,7 +573,7 @@ mod tests {
         assert!(with_dc.contains(" RMS "), "{with_dc}");
         // sqrt(100² / 2 + 10²).
         assert!(with_dc.contains("▸ 71.41"), "{with_dc}");
-        assert!(with_dc.contains("RMS over 1 cycle (20.00 ms), with DC"), "{with_dc}");
+        assert!(with_dc.contains("RMS with DC, 1 cycle (fitted to IA)"), "{with_dc}");
         assert!(with_dc.contains("↓ 0"), "{with_dc}");
 
         press(&mut app, KeyCode::Char('d'), KeyModifiers::NONE);
@@ -596,6 +596,18 @@ mod tests {
         let again = render(&app, 110, 30);
         let body = |s: &str| s.lines().rev().skip(1).map(str::to_owned).collect::<Vec<_>>();
         assert_eq!(body(&again), body(&waveform));
+    }
+
+    #[test]
+    fn rms_view_without_a_reference_uses_the_nominal_window() {
+        // No voltage or current to measure: a unit neither of them.
+        let mut cfg = String::from("S,D,1999\n1,1A,0D\n1,P1,,,bar,0.001,0,0,-1e9,1e9,1,1,P\n");
+        cfg += "50\n1\n1000,100\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+        let dat: String = (0..100).map(|k| format!("{},{},5000\n", k + 1, k * 1000)).collect();
+        let mut app = app();
+        app.set_recording(Comtrade::from_readers(cfg.as_bytes(), dat.as_bytes()).unwrap());
+        press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
+        assert!(render(&app, 110, 30).contains("RMS with DC, 1 cycle (20.00 ms)"));
     }
 
     #[test]

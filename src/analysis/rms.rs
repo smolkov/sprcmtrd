@@ -124,6 +124,7 @@ mod tests {
     use std::f64::consts::PI;
 
     use super::*;
+    use crate::analysis::frequency::Track;
     use crate::analysis::phasor::tests::close;
     use crate::comtrade::Comtrade;
 
@@ -279,5 +280,32 @@ mod tests {
         for end in [50, 299] {
             assert!(close(v[end].unwrap(), 100.0 / 2f64.sqrt(), 0.01), "{end}: {:?}", v[end]);
         }
+    }
+
+    #[test]
+    fn a_window_fitted_to_the_signal_removes_the_ripple() {
+        let c = recording(5000.0, 2000, 50.0, |_, t| Some(sine(100.0, 55.0, t)));
+        let ch = c.analog(0).unwrap();
+        let spread = |v: &[Option<f64>]| {
+            let values: Vec<f64> = v[500..].iter().map(|x| x.unwrap()).collect();
+            let (lo, hi) = values
+                .iter()
+                .fold((f64::INFINITY, 0.0f64), |(lo, hi), &x| (lo.min(x), hi.max(x)));
+            (hi - lo) / (100.0 / 2f64.sqrt())
+        };
+
+        // A nominal window doesn't hold whole cycles of 55 Hz.
+        assert!(spread(&rms(&c, 0.020, Dc::Keep)) > 0.05);
+
+        let track = Track::new(&[ch], c.time(), 50.0).unwrap();
+        let fitted = sliding(
+            ch,
+            c.time(),
+            0..c.len(),
+            |i| track.period_at(c.time()[i]),
+            Dc::Keep,
+            Side::Primary,
+        );
+        assert!(spread(&fitted) < 0.005, "{}", spread(&fitted));
     }
 }

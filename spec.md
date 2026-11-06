@@ -817,10 +817,14 @@ runs the event loop and always restores the terminal, also on panic
 - Cursor: shows time and value of every visible channel at the cursor position.
 - RMS view (`r`): analog plots show the sliding RMS instead of the samples, the
   block title says `RMS`, or `RMS-DC` with the DC part removed (`d`). The window is
-  one cycle of the line frequency and ends at the sample, like `phasors` and
-  `trend`, so a step shows up over the following cycle. No value (a gap) until a
+  one cycle and ends at the sample, like `phasors` and `trend`, so a step shows up
+  over the following cycle. The cycle is fitted to the signal: the last period
+  between rising zero crossings of the strongest voltage with a signal, otherwise of
+  the strongest current; the line frequency where no period can be measured or it
+  is above 1.5 times the line frequency. No value (a gap) until a
   whole window fits, around a missing sample, or with fewer than 4 samples per
-  window. With DC it is the true RMS, equal to `trend --rms` for the same window;
+  window. With DC it is the true RMS, equal to `trend --rms` for the same window at
+  the line frequency;
   without DC it is `sqrt(mean(v²) − mean(v)²)` over the window. The y axis starts at
   0, the gutter shows the RMS at the cursor. The view and the DC setting apply to
   all analog channels and stay when another file is opened. Binary strips, cursor,
