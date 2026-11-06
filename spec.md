@@ -808,7 +808,8 @@ runs the event loop and always restores the terminal, also on panic
 - Height: analog plots share the rows the binary strips leave, at least 5 rows
   each. When the shown channels don't fit with that minimum, the channel rows
   scroll by whole channels (`PgUp` / `PgDn` one page; selecting a channel in the
-  sidebar scrolls its plot into view). Rows too few for the next channel go to
+  sidebar, also with the jump keys and `Home` / `End`, scrolls its plot into
+  view). Rows too few for the next channel go to
   the analog plots on the page.
 - While scrolling, the time axis (bottom row) and the block title (cursor time,
   window) stay fixed; a scrollbar on the right border and
@@ -830,6 +831,8 @@ runs the event loop and always restores the terminal, also on panic
 | `?`                 | Toggle help overlay                      |
 | `Tab`               | Switch focus sidebar ↔ plot              |
 | `↑`/`↓`, `k`/`j`    | Move selection in sidebar                |
+| `Ctrl+↑`/`Ctrl+↓`, `K`/`J` | Move 10 channels in sidebar, scroll 10 lines in help and info |
+| `Home`/`End`        | First / last channel in sidebar, top / bottom in help and info |
 | `PgUp`/`PgDn`       | Scroll plots one page up / down          |
 | `Space`             | Show / hide selected channel             |
 | `a`                 | Show all / hide all channels             |
@@ -862,8 +865,9 @@ help overlay are generated from it.
 - Filtering on the relative path: case-insensitive substring by default; regex when the query starts
   with `/` (invalid regex shows an error in the overlay, list stays unchanged).
 - Each row: file name, station, start time, #channels (from `.cfg` only).
-- `↑`/`↓` select, `Enter` open, `Backspace` on empty input goes to parent
-  directory, `Esc` close.
+- `↑`/`↓` select, `Ctrl+↑`/`Ctrl+↓` or `PgUp`/`PgDn` move 10 entries, `Home`/`End`
+  go to the first and last entry, `Enter` open, `Backspace` on empty input goes to
+  parent directory, `Esc` close. `J`/`K` type into the filter here.
 - Directory scan runs in the background; results appear as they arrive. Changing
   directory, toggling `Ctrl+r` / `Ctrl+b` or closing the picker cancels a running scan.
 - Recursive search in subdirectories.

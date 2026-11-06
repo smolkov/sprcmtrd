@@ -53,6 +53,7 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
   * The time axis stays fixed on the bottom row, outside the scrolled area, and so does the plot title (cursor time, window), so the time context is always visible.
   * Show the position instead of `+N hidden`: a scrollbar at the right edge (ratatui `Scrollbar`) and `channels 4–9 of 18` in the title.
   * Keep analog plots readable: a fixed minimum height per analog plot (now 3 rows, maybe configurable), instead of squeezing all channels into the window.
+* [x] Faster movement in the channel list (issue #7): `Ctrl+↑`/`Ctrl+↓` or `K`/`J` move 10 channels, `Home`/`End` go to the first and last. The help and info overlays and the file picker get the same movement. See `tasks/7-channel-list-jump-keys.md`.
 * [ ] `power` with phase-to-phase voltages only (no neutral): two-wattmeter (Aron) method.
 * [ ] Scroll the plot area with the mouse wheel. Needs mouse capture, which stops normal text selection in the terminal, so it should be optional.
 * [ ] Show the scroll position in the long lists too: the sidebar channel list and the file picker already scroll with the selection, but nothing shows that more entries are above or below. Add a scrollbar or `12 / 340` to both.

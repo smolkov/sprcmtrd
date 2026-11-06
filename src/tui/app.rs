@@ -124,6 +124,8 @@ pub struct App {
     /// The plot area scrolls the selected channel into view; cleared by
     /// scrolling with the keys, so the view stays where the user put it.
     pub plot_follow: Cell<bool>,
+    /// Largest scroll offset of the open text overlay at the last draw.
+    pub overlay_scroll_max: Cell<u16>,
     /// Show absolute instead of trigger-relative time.
     pub absolute_time: bool,
     /// Open overlay.
@@ -143,6 +145,28 @@ pub struct App {
 
 /// How long footer messages stay.
 const STATUS_TIME: Duration = Duration::from_secs(5);
+
+/// Rows moved by one jump.
+const JUMP: isize = 10;
+
+/// How far `action` moves a selection or scroll position, if it does.
+/// `First` and `Last` use the largest steps, which stop at the ends of the list.
+fn step(action: Action) -> Option<isize> {
+    match action {
+        Action::Up => Some(-1),
+        Action::Down => Some(1),
+        Action::JumpUp => Some(-JUMP),
+        Action::JumpDown => Some(JUMP),
+        Action::First => Some(isize::MIN),
+        Action::Last => Some(isize::MAX),
+        _ => None,
+    }
+}
+
+/// Position after moving `by` rows, kept within the `n` rows.
+fn moved(position: usize, by: isize, n: usize) -> usize {
+    position.saturating_add_signed(by).min(n.saturating_sub(1))
+}
 
 impl App {
     /// Creates the app from command line and configuration settings.
@@ -169,6 +193,7 @@ impl App {
             plot_scroll: Cell::new(0),
             plot_page: Cell::new(0),
             plot_follow: Cell::new(true),
+            overlay_scroll_max: Cell::new(0),
             absolute_time: false,
             overlay: None,
             frame: 0,
@@ -326,9 +351,14 @@ impl App {
             Some(Overlay::Help { scroll } | Overlay::Info { scroll }) => scroll,
             _ => return,
         };
+        if let Some(by) = step(action) {
+            // Clamped here too: an offset past the end would make the next
+            // key seem to do nothing until it is back in range.
+            let rows = usize::from(self.overlay_scroll_max.get()) + 1;
+            *scroll = moved(usize::from(*scroll), by, rows) as u16;
+            return;
+        }
         match action {
-            Action::Up => *scroll = scroll.saturating_sub(1),
-            Action::Down => *scroll = scroll.saturating_add(1),
             Action::Quit | Action::Close => self.overlay = None,
             Action::Help if matches!(self.overlay, Some(Overlay::Help { .. })) => self.overlay = None,
             Action::Info if matches!(self.overlay, Some(Overlay::Info { .. })) => self.overlay = None,
@@ -397,15 +427,14 @@ impl App {
             return;
         };
         let n = rec.n_channels();
+        if focus == Focus::Sidebar
+            && let Some(by) = step(action)
+        {
+            self.selected = moved(self.selected, by, n);
+            self.plot_follow.set(true);
+            return;
+        }
         match action {
-            Action::Up if focus == Focus::Sidebar => {
-                self.selected = self.selected.saturating_sub(1);
-                self.plot_follow.set(true);
-            }
-            Action::Down if focus == Focus::Sidebar => {
-                self.selected = (self.selected + 1).min(n.saturating_sub(1));
-                self.plot_follow.set(true);
-            }
             Action::ScrollUp | Action::ScrollDown => {
                 // A page is what the last draw showed; the widget clamps the end.
                 let page = self.plot_page.get().max(1);
@@ -573,10 +602,19 @@ impl App {
                 // Stop a running scan.
                 self.scan_generation.fetch_add(1, Ordering::Relaxed);
             }
+            // Before the plain arrows, which match any modifier.
+            KeyCode::Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                p.selected = moved(p.selected, -JUMP, p.filtered.len());
+            }
+            KeyCode::Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                p.selected = moved(p.selected, JUMP, p.filtered.len());
+            }
             KeyCode::Up => p.selected = p.selected.saturating_sub(1),
             KeyCode::Down => p.selected = (p.selected + 1).min(p.filtered.len().saturating_sub(1)),
-            KeyCode::PageUp => p.selected = p.selected.saturating_sub(10),
-            KeyCode::PageDown => p.selected = (p.selected + 10).min(p.filtered.len().saturating_sub(1)),
+            KeyCode::PageUp => p.selected = moved(p.selected, -JUMP, p.filtered.len()),
+            KeyCode::PageDown => p.selected = moved(p.selected, JUMP, p.filtered.len()),
+            KeyCode::Home => p.selected = 0,
+            KeyCode::End => p.selected = p.filtered.len().saturating_sub(1),
             KeyCode::Enter => match p.current().cloned() {
                 Some(PickerEntry::Dir { path, .. }) => {
                     p.query.clear();
@@ -620,5 +658,33 @@ impl App {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn moved_stays_within_the_list() {
+        assert_eq!(moved(0, JUMP, 50), 10);
+        assert_eq!(moved(20, -JUMP, 50), 10);
+        assert_eq!(moved(45, JUMP, 50), 49);
+        assert_eq!(moved(3, -JUMP, 50), 0);
+        assert_eq!(moved(7, isize::MIN, 50), 0);
+        assert_eq!(moved(7, isize::MAX, 50), 49);
+        assert_eq!(moved(0, JUMP, 0), 0);
+        assert_eq!(moved(0, isize::MAX, 0), 0);
+    }
+
+    #[test]
+    fn step_covers_the_movement_actions_only() {
+        assert_eq!(step(Action::Up), Some(-1));
+        assert_eq!(step(Action::Down), Some(1));
+        assert_eq!(step(Action::JumpUp), Some(-JUMP));
+        assert_eq!(step(Action::JumpDown), Some(JUMP));
+        assert_eq!(step(Action::First), Some(isize::MIN));
+        assert_eq!(step(Action::Last), Some(isize::MAX));
+        assert_eq!(step(Action::ScrollDown), None);
     }
 }
