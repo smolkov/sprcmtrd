@@ -2,7 +2,7 @@
 
 - **Issue:** [smo/sprcmtrd#7](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/7), "Shortcut für das schnellere Bewegen in der Channelliste"
 - **Branch:** `7-shortcut-fur-das-schnellere-bewegen-in-der-channelliste`
-- **Status:** plan awaiting approval; nothing built yet
+- **Status:** built with the proposed decisions and verified; not committed yet
 
 ## Goal
 
@@ -34,7 +34,7 @@ The code below assumes the proposed decisions and hasn't been compiled. Re-read
 
 ### 1. Add the actions and bindings (`src/tui/keys.rs`)
 
-- [ ] Add the variants at the end of `Action`, after `Close`:
+- [x] Add the variants at the end of `Action`, after `Close`:
 
   ```rust
   Close,
@@ -47,7 +47,7 @@ The code below assumes the proposed decisions and hasn't been compiled. Re-read
   `KeyMap::action` returns the first match in enum order, so a key already bound
   to another action in a user's `config.toml` keeps working.
 
-- [ ] Add the bindings to `BINDINGS` after `Action::Down`, so the help and
+- [x] Add the bindings to `BINDINGS` after `Action::Down`, so the help and
       configuration overlays list them next to `up` and `down`:
 
   ```rust
@@ -87,7 +87,7 @@ default keys.
 
 ### 2. Add the shared movement helpers (`src/tui/app.rs`)
 
-- [ ] Add these next to `STATUS_TIME`. `First` and `Last` use the largest steps,
+- [x] Add these next to `STATUS_TIME`. `First` and `Last` use the largest steps,
       which stop at the ends of the list:
 
   ```rust
@@ -115,7 +115,7 @@ default keys.
 
 ### 3. Move the channel selection (`src/tui/app.rs`)
 
-- [ ] In `recording_action`, remove the sidebar `Up` and `Down` arms and handle
+- [x] In `recording_action`, remove the sidebar `Up` and `Down` arms and handle
       all movement before the `match`:
 
   ```rust
@@ -139,7 +139,7 @@ Pressing `↓` past the end keeps increasing it, so `↑` then seems to do nothi
 until the offset is back in range. `End` and jumps would make this much worse, so
 the stored offset has to be clamped.
 
-- [ ] Add a field to `App`, following the `plot_page` pattern, and start it at 0
+- [x] Add a field to `App`, following the `plot_page` pattern, and start it at 0
       in `App::new`:
 
   ```rust
@@ -147,14 +147,14 @@ the stored offset has to be clamped.
   pub overlay_scroll_max: Cell<u16>,
   ```
 
-- [ ] Store the value in `scrolled_text` (`src/tui/widgets/mod.rs`), after it
+- [x] Store the value in `scrolled_text` (`src/tui/widgets/mod.rs`), after it
       computes `max`:
 
   ```rust
   app.overlay_scroll_max.set(max);
   ```
 
-- [ ] In `overlay_action`, remove the `Up` and `Down` arms and handle all movement
+- [x] In `overlay_action`, remove the `Up` and `Down` arms and handle all movement
       before the `match`:
 
   ```rust
@@ -167,7 +167,7 @@ the stored offset has to be clamped.
 
 ### 5. Move in the file picker (`picker_key` in `src/tui/app.rs`)
 
-- [ ] Add the arms below and replace the existing `PageUp` and `PageDown` arms,
+- [x] Add the arms below and replace the existing `PageUp` and `PageDown` arms,
       which keep their behaviour. The `Ctrl` arms must come before the existing
       `KeyCode::Up` and `KeyCode::Down` arms, which match any modifier and would
       otherwise catch `Ctrl+↑/↓`:
@@ -185,7 +185,7 @@ the stored offset has to be clamped.
   KeyCode::End => p.selected = p.filtered.len().saturating_sub(1),
   ```
 
-- [ ] Update the picker's help line in `src/tui/widgets/help.rs`:
+- [x] Update the picker's help line in `src/tui/widgets/help.rs`:
 
   ```rust
   "↑/↓ select, Ctrl+↑/↓ or PgUp/PgDn move 10, Home/End first and last",
@@ -194,12 +194,12 @@ the stored offset has to be clamped.
 
 ### 6. Add the tests
 
-- [ ] Add the tests listed under [Tests](#tests). `moved()` and `step()` go in a
+- [x] Add the tests listed under [Tests](#tests). `moved()` and `step()` go in a
       new `#[cfg(test)]` module in `app.rs`.
 
 ### 7. Update the documentation
 
-- [ ] Add these rows after the `↑`/`↓` row in `README.md`,
+- [x] Add these rows after the `↑`/`↓` row in `README.md`,
       `docs/src/viewer/index.md` and `docs/src/viewer/keys.md`, and the same keys
       and actions in the `spec.md` key table, which has its own columns:
 
@@ -208,44 +208,55 @@ the stored offset has to be clamped.
   | `Home`/`End`        | First / last channel (sidebar), top / bottom (help, info) |
   ```
 
-- [ ] Add the picker keys to the `spec.md` file picker section (`↑`/`↓` line), the
+- [x] Add the picker keys to the `spec.md` file picker section (`↑`/`↓` line), the
       file picker section in `README.md` and `docs/src/viewer/index.md`, and
       `docs/src/viewer/file-picker.md`.
-- [ ] Note in `spec.md` that jump and `Home`/`End` scroll the plot like any other
+- [x] Note in `spec.md` that jump and `Home`/`End` scroll the plot like any other
       selection change.
-- [ ] Record the task as done in `todo.md`.
+- [x] Record the task as done in `todo.md`.
 
 ### 8. Verify
 
-- [ ] Run the real-terminal check and all commands under [Tests](#tests).
+- [x] Run the real-terminal check and all commands under [Tests](#tests).
 - [ ] Inspect `git status` and `git diff`, then commit only when asked. The empty,
       untracked `note.md` stays out of the commit.
 
 ## Tests
 
-- [ ] Unit, `moved()`: steps of 10, stopping at both ends, `isize::MIN` and
+- [x] Unit, `moved()`: steps of 10, stopping at both ends, `isize::MIN` and
       `isize::MAX`, empty list. The sample recordings look too small to show a
       full 10-channel step through the UI.
-- [ ] Unit, `keys.rs`: `ctrl+down`, `home` and `end` parse, survive a config round
+- [x] Unit, `keys.rs`: `ctrl+down`, `home` and `end` parse, survive a config round
       trip and map to the right actions; `J` still differs from `j`.
-- [ ] TUI, sidebar (`tui/widgets/mod.rs`):
+- [x] TUI, sidebar (`tui/widgets/mod.rs`):
   - A jump and `End` select the expected channel and cross the analog/binary
     separator; `Home` returns to the first channel.
   - The plot scrolls to the selected channel.
   - Nothing changes when the plot has focus.
-- [ ] TUI, overlays: at a small terminal size, `End` shows the last help line and
+- [x] TUI, overlays: at a small terminal size, `End` shows the last help line and
       `Home` the first. After `End`, one `↑` moves the view at once, and a jump
       past either end stays in range. Each key press needs a draw first, because
       the draw sets `overlay_scroll_max`.
-- [ ] TUI, file picker: build a `Picker` with `Picker::new` and `push` instead of
+- [x] TUI, file picker: build a `Picker` with `Picker::new` and `push` instead of
       running a scan. Check `Ctrl+↑/↓`, `PgUp`/`PgDn`, `Home`, `End`, an empty
       list, and that `J` types into the filter.
-- [ ] Real terminal: in `tmux`, send `C-Down`, `J`, `Home` and `End` in the sidebar
+- [x] Real terminal: in `tmux`, send `C-Down`, `J`, `Home` and `End` in the sidebar
       with `long1_t1_anstatt_t2.cfg`/`.dat`, attached to the issue, then in the
       help overlay and file picker. Don't add the recording to `tests/data/`.
-- [ ] Run `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings`,
+- [x] Run `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings`,
       `cargo test --locked`, `cargo +1.88 check --locked --all-targets` and
       `mdbook build docs`.
+
+## Results
+
+- All listed commands pass: 100 unit and 35 integration tests.
+- Real terminal, `long1_t1_anstatt_t2` (9 analog, 253 binary channels): `Ctrl+↓`,
+  `J`, `K`, `Ctrl+↑`, `Home` and `End` select the expected channels, checked against
+  the `.cfg` order.
+- The `End` test for the help overlay runs at 140×24, not the minimum terminal size:
+  at 80×24 long lines wrap, and `End` stops short (see "Wrapped overlay lines").
+- Hidden channels: most binary channels in the sample start hidden. A jump can land
+  on one, and the plot then stays where it is because there's no plot to scroll to.
 
 ## Not included
 
@@ -253,9 +264,9 @@ the stored offset has to be clamped.
   handling.
 - The sidebar position indicator already listed in `todo.md`.
 - Sidebar scroll position: `channels.rs` creates a new `ListState` on every draw,
-  so the list doesn't remember its position. From reading the code, the selection
-  should stay on the bottom row once the list scrolls, so moving up won't show
-  the channels below it. Possible follow-up.
-- Wrapped overlay lines: `scrolled_text` counts lines before wrapping, so on a
-  narrow terminal `End` may stop short of the last wrapped line. It already limits
-  scrolling today. Possible follow-up.
+  so the list doesn't remember its position. The selection stays on the bottom row
+  once the list scrolls, so moving up doesn't show the channels below it. Possible
+  follow-up.
+- Wrapped overlay lines: `scrolled_text` counts lines before wrapping, so at 80×24
+  neither `End` nor `↓` reaches the last lines of the help overlay. It already
+  limited scrolling before this task. Possible follow-up.

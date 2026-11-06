@@ -35,6 +35,12 @@ pub enum Action {
     Theme,
     Config,
     Close,
+    // Last: the first match in this order wins, so a key already bound to
+    // another action in a user's configuration keeps working.
+    JumpUp,
+    JumpDown,
+    First,
+    Last,
 }
 
 /// Default key binding of an action.
@@ -101,6 +107,34 @@ pub const BINDINGS: &[Binding] = &[
         name: "down",
         keys: &["down", "j"],
         help: "Next channel / scroll down",
+        hint: None,
+    },
+    Binding {
+        action: Action::JumpUp,
+        name: "jump_up",
+        keys: &["ctrl+up", "K"],
+        help: "10 channels up (sidebar) / scroll up 10 lines",
+        hint: None,
+    },
+    Binding {
+        action: Action::JumpDown,
+        name: "jump_down",
+        keys: &["ctrl+down", "J"],
+        help: "10 channels down (sidebar) / scroll down 10 lines",
+        hint: None,
+    },
+    Binding {
+        action: Action::First,
+        name: "first",
+        keys: &["home"],
+        help: "First channel (sidebar) / scroll to top",
+        hint: None,
+    },
+    Binding {
+        action: Action::Last,
+        name: "last",
+        keys: &["end"],
+        help: "Last channel (sidebar) / scroll to bottom",
         hint: None,
     },
     Binding {
@@ -508,6 +542,9 @@ mod tests {
             "esc",
             "alt+x",
             "pagedown",
+            "ctrl+down",
+            "home",
+            "end",
         ] {
             assert_eq!(KeySpec::parse(s).unwrap().config_name(), s);
         }
@@ -535,6 +572,25 @@ mod tests {
             km.action(&key(KeyCode::PageDown, KeyModifiers::NONE)),
             Some(Action::ScrollDown)
         );
+        assert_eq!(
+            km.action(&key(KeyCode::Down, KeyModifiers::CONTROL)),
+            Some(Action::JumpDown)
+        );
+        assert_eq!(
+            km.action(&key(KeyCode::Up, KeyModifiers::CONTROL)),
+            Some(Action::JumpUp)
+        );
+        assert_eq!(km.action(&key(KeyCode::Down, KeyModifiers::NONE)), Some(Action::Down));
+        assert_eq!(
+            km.action(&key(KeyCode::Char('J'), KeyModifiers::SHIFT)),
+            Some(Action::JumpDown)
+        );
+        assert_eq!(
+            km.action(&key(KeyCode::Char('j'), KeyModifiers::NONE)),
+            Some(Action::Down)
+        );
+        assert_eq!(km.action(&key(KeyCode::Home, KeyModifiers::NONE)), Some(Action::First));
+        assert_eq!(km.action(&key(KeyCode::End, KeyModifiers::NONE)), Some(Action::Last));
 
         let mut o = BTreeMap::new();
         o.insert("quit".to_owned(), vec!["x".to_owned()]);
@@ -547,6 +603,17 @@ mod tests {
 
         o.insert("fly".to_owned(), vec!["f".to_owned()]);
         assert!(KeyMap::new(&o).is_err());
+    }
+
+    #[test]
+    fn existing_user_bindings_win_over_new_default_keys() {
+        let mut o = BTreeMap::new();
+        o.insert("trigger".to_owned(), vec!["J".to_owned()]);
+        let km = KeyMap::new(&o).unwrap();
+        assert_eq!(
+            km.action(&key(KeyCode::Char('J'), KeyModifiers::SHIFT)),
+            Some(Action::Trigger)
+        );
     }
 
     #[test]

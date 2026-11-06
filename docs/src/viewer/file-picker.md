@@ -9,6 +9,8 @@ Opens at start when no file is given, and with `o`.
   fails to load (like `list --valid`); press it again to show all.
 - Type to filter (case-insensitive substring); start with `/` for a regular
   expression, e.g. `/^station_b/.*2026`.
+- `↑`/`↓` select, `Ctrl+↑`/`Ctrl+↓` or `PgUp`/`PgDn` move 10 entries, `Home`/`End`
+  go to the first and last entry.
 - `Enter` opens a recording or directory, `Backspace` on an empty filter goes to
   the parent directory, `Esc` closes.
 - The search runs in the background and results appear as they are found.

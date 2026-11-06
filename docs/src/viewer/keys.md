@@ -9,6 +9,8 @@
 | `c`, `Ctrl+,`       | Configuration overlay                         |
 | `Tab`               | Switch focus sidebar / plot                   |
 | `↑`/`↓`, `k`/`j`    | Select channel (sidebar), zoom (plot)         |
+| `Ctrl+↑`/`Ctrl+↓`, `K`/`J` | Move 10 channels (sidebar), scroll 10 lines (help, info) |
+| `Home`/`End`        | First / last channel (sidebar), top / bottom (help, info) |
 | `PgUp`/`PgDn`       | Scroll plots one page up / down               |
 | `Space`             | Show / hide selected channel                  |
 | `a`                 | Show all / hide all channels                  |

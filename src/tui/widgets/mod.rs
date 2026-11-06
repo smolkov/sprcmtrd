@@ -103,6 +103,7 @@ fn overlay_block(f: &mut Frame, area: Rect, app: &App, title: &str) -> Rect {
 /// Renders scrollable text lines; the scroll offset is clamped to the content.
 fn scrolled_text(f: &mut Frame, area: Rect, app: &App, lines: Vec<ratatui::text::Line<'static>>, scroll: u16) {
     let max = (lines.len() as u16).saturating_sub(area.height);
+    app.overlay_scroll_max.set(max);
     f.render_widget(
         Paragraph::new(lines)
             .style(app.theme.base())
@@ -363,6 +364,180 @@ mod tests {
 
         // With room for everything there is no scrolling.
         assert!(!render(&app, 110, 40).contains("channels"));
+    }
+
+    #[test]
+    fn jump_keys_move_the_channel_selection() {
+        let mut app = app();
+        let last = app.recording.as_ref().unwrap().n_channels() - 1;
+        let n_analog = app.recording.as_ref().unwrap().visible_analog.len();
+        assert!(last > n_analog, "the fixture has binary channels");
+
+        // Fewer than 10 channels: a jump stops at the end, past the separator.
+        press(&mut app, KeyCode::Down, KeyModifiers::CONTROL);
+        assert_eq!(app.selected, last);
+        press(&mut app, KeyCode::Up, KeyModifiers::CONTROL);
+        assert_eq!(app.selected, 0);
+        press(&mut app, KeyCode::Char('J'), KeyModifiers::SHIFT);
+        assert_eq!(app.selected, last);
+        press(&mut app, KeyCode::Char('K'), KeyModifiers::SHIFT);
+        assert_eq!(app.selected, 0);
+        press(&mut app, KeyCode::End, KeyModifiers::NONE);
+        assert_eq!(app.selected, last);
+        press(&mut app, KeyCode::Home, KeyModifiers::NONE);
+        assert_eq!(app.selected, 0);
+    }
+
+    #[test]
+    fn jump_keys_scroll_the_selected_plot_into_view() {
+        let mut app = app();
+        assert!(render(&app, 80, 24).contains("channels 1–3 of 7"));
+        press(&mut app, KeyCode::PageDown, KeyModifiers::NONE);
+        press(&mut app, KeyCode::PageUp, KeyModifiers::NONE);
+        assert!(!app.plot_follow.get());
+
+        // The last channel is hidden by default, so there is no plot to follow.
+        press(&mut app, KeyCode::End, KeyModifiers::NONE);
+        assert!(app.plot_follow.get());
+        assert!(render(&app, 80, 24).contains("channels 1–3 of 7"));
+
+        // Shown, End scrolls to it and Home back.
+        press(&mut app, KeyCode::Char(' '), KeyModifiers::NONE);
+        press(&mut app, KeyCode::Home, KeyModifiers::NONE);
+        assert!(render(&app, 80, 24).contains("channels 1–3 of 8"));
+        press(&mut app, KeyCode::End, KeyModifiers::NONE);
+        assert!(render(&app, 80, 24).contains("–8 of 8"));
+        press(&mut app, KeyCode::Home, KeyModifiers::NONE);
+        assert!(render(&app, 80, 24).contains("channels 1–3 of 8"));
+    }
+
+    #[test]
+    fn jump_keys_do_nothing_with_the_plot_focused() {
+        let mut app = app();
+        press(&mut app, KeyCode::Tab, KeyModifiers::NONE);
+        press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        let view = app.recording.as_ref().unwrap().view;
+        for (code, mods) in [
+            (KeyCode::Down, KeyModifiers::CONTROL),
+            (KeyCode::Up, KeyModifiers::CONTROL),
+            (KeyCode::Char('J'), KeyModifiers::SHIFT),
+            (KeyCode::End, KeyModifiers::NONE),
+            (KeyCode::Home, KeyModifiers::NONE),
+        ] {
+            press(&mut app, code, mods);
+            assert_eq!(app.selected, 0);
+            assert_eq!(app.recording.as_ref().unwrap().view, view);
+        }
+    }
+
+    /// Scroll offset of the open text overlay.
+    fn overlay_scroll(app: &App) -> u16 {
+        use crate::tui::app::Overlay;
+
+        match app.overlay {
+            Some(Overlay::Help { scroll } | Overlay::Info { scroll }) => scroll,
+            _ => panic!("no text overlay open"),
+        }
+    }
+
+    #[test]
+    fn overlay_scroll_keys_stay_in_range() {
+        // Wide, so no help line wraps: `scrolled_text` counts lines before wrapping.
+        let (w, h) = (140, 24);
+        let mut app = app();
+        press(&mut app, KeyCode::Char('?'), KeyModifiers::SHIFT);
+        render(&app, w, h);
+        let max = app.overlay_scroll_max.get();
+        assert!(max > 11, "the help must not fit: {max}");
+
+        press(&mut app, KeyCode::Down, KeyModifiers::CONTROL);
+        assert_eq!(overlay_scroll(&app), 10);
+        press(&mut app, KeyCode::End, KeyModifiers::NONE);
+        assert_eq!(overlay_scroll(&app), max);
+        assert!(render(&app, w, h).contains("config.toml"));
+
+        // At the end, further keys stay there and one ↑ moves at once.
+        press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        press(&mut app, KeyCode::Down, KeyModifiers::CONTROL);
+        assert_eq!(overlay_scroll(&app), max);
+        press(&mut app, KeyCode::Up, KeyModifiers::NONE);
+        assert_eq!(overlay_scroll(&app), max - 1);
+
+        press(&mut app, KeyCode::Home, KeyModifiers::NONE);
+        assert_eq!(overlay_scroll(&app), 0);
+        assert!(render(&app, w, h).contains("Quit"));
+        press(&mut app, KeyCode::Up, KeyModifiers::CONTROL);
+        assert_eq!(overlay_scroll(&app), 0);
+    }
+
+    /// App with an open file picker listing `n` directories.
+    fn app_with_picker(n: usize) -> App {
+        use crate::tui::app::Overlay;
+        use crate::tui::picker::{Picker, PickerEntry};
+
+        let mut app = app();
+        let mut picker = Picker::new(".".into(), String::new(), true, false, 0);
+        for i in 0..n {
+            picker.push(PickerEntry::Dir {
+                name: format!("dir{i}"),
+                path: format!("dir{i}").into(),
+            });
+        }
+        app.overlay = Some(Overlay::Picker(picker));
+        app
+    }
+
+    fn picker_selected(app: &App) -> usize {
+        use crate::tui::app::Overlay;
+
+        match &app.overlay {
+            Some(Overlay::Picker(p)) => p.selected,
+            _ => panic!("no picker open"),
+        }
+    }
+
+    #[test]
+    fn picker_jump_keys_move_the_selection() {
+        let mut app = app_with_picker(25);
+        for (code, mods, expected) in [
+            (KeyCode::Down, KeyModifiers::CONTROL, 10),
+            (KeyCode::PageDown, KeyModifiers::NONE, 20),
+            (KeyCode::Down, KeyModifiers::CONTROL, 24),
+            (KeyCode::Up, KeyModifiers::CONTROL, 14),
+            (KeyCode::PageUp, KeyModifiers::NONE, 4),
+            (KeyCode::Up, KeyModifiers::CONTROL, 0),
+            (KeyCode::End, KeyModifiers::NONE, 24),
+            (KeyCode::Up, KeyModifiers::NONE, 23),
+            (KeyCode::Home, KeyModifiers::NONE, 0),
+            (KeyCode::Down, KeyModifiers::NONE, 1),
+        ] {
+            press(&mut app, code, mods);
+            assert_eq!(picker_selected(&app), expected, "{code:?} {mods:?}");
+        }
+    }
+
+    #[test]
+    fn picker_jump_keys_handle_an_empty_list_and_typing() {
+        use crate::tui::app::Overlay;
+
+        let mut app = app_with_picker(0);
+        for (code, mods) in [
+            (KeyCode::Down, KeyModifiers::CONTROL),
+            (KeyCode::PageDown, KeyModifiers::NONE),
+            (KeyCode::End, KeyModifiers::NONE),
+            (KeyCode::Home, KeyModifiers::NONE),
+        ] {
+            press(&mut app, code, mods);
+            assert_eq!(picker_selected(&app), 0);
+        }
+
+        // J types into the filter instead of jumping.
+        press(&mut app, KeyCode::Char('J'), KeyModifiers::SHIFT);
+        let Some(Overlay::Picker(p)) = &app.overlay else {
+            panic!("no picker open");
+        };
+        assert_eq!(p.query, "J");
     }
 
     #[test]

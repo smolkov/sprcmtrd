@@ -42,7 +42,8 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, scroll: u16) {
         "Ctrl+b toggles showing only valid recordings (configuration and data load)",
         "Type to filter by path (case-insensitive substring)",
         "Start the filter with / to use a regular expression",
-        "↑/↓ select, Enter open file or directory",
+        "↑/↓ select, Ctrl+↑/↓ or PgUp/PgDn move 10, Home/End first and last",
+        "Enter opens a file or directory",
         "Backspace on an empty filter goes to the parent directory",
         "Esc closes the picker",
     ] {
