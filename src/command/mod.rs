@@ -7,6 +7,7 @@ pub mod convert;
 pub mod cut;
 pub mod events;
 pub mod export;
+pub mod fault;
 pub mod frequency;
 pub mod harmonics;
 pub mod impedance;
@@ -39,6 +40,7 @@ impl Command {
             Self::View(a) => a.run(ctx),
             Self::Check(a) => a.run(ctx),
             Self::Events(a) => a.run(ctx),
+            Self::Fault(a) => a.run(ctx),
             Self::Phasors(a) => a.run(ctx),
             Self::Impedance(a) => a.run(ctx),
             Self::Power(a) => a.run(ctx),

@@ -117,18 +117,32 @@ pub struct Pair {
 /// The first voltage and current groups among `channels`, preferring a
 /// current group of the same circuit as the voltage group.
 pub fn find_pair(channels: &[&AnalogInfo]) -> Option<Pair> {
-    let groups = sequence::groups(channels);
-    let of = |q: Quantity| {
-        groups
-            .iter()
-            .filter(move |g| unit_factor(&g.unit).is_some_and(|(k, _)| k == q))
-    };
-    let voltage = of(Quantity::Voltage).next()?.clone();
-    let current = of(Quantity::Current)
-        .find(|g| g.circuit == voltage.circuit)
-        .or_else(|| of(Quantity::Current).next())?
-        .clone();
+    let voltage = find_group(channels, Quantity::Voltage, None)?;
+    let current = find_group(channels, Quantity::Current, Some(&voltage.circuit))?;
     Some(Pair { voltage, current })
+}
+
+/// The first current group among `channels`.
+pub fn find_current(channels: &[&AnalogInfo]) -> Option<Group> {
+    find_group(channels, Quantity::Current, None)
+}
+
+/// The first voltage group among `channels`, preferring one of `circuit`.
+pub fn find_voltage(channels: &[&AnalogInfo], circuit: &str) -> Option<Group> {
+    find_group(channels, Quantity::Voltage, Some(circuit))
+}
+
+/// The first group of quantity `q`, preferring one of `circuit` when given.
+fn find_group(channels: &[&AnalogInfo], q: Quantity, circuit: Option<&str>) -> Option<Group> {
+    let groups = sequence::groups(channels);
+    let mut of = groups
+        .into_iter()
+        .filter(|g| unit_factor(&g.unit).is_some_and(|(k, _)| k == q));
+    let first = of.next()?;
+    match circuit {
+        Some(circuit) if first.circuit != circuit => Some(of.find(|g| g.circuit == circuit).unwrap_or(first)),
+        _ => Some(first),
+    }
 }
 
 #[cfg(test)]

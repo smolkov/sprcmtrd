@@ -14,6 +14,7 @@
   - [check](commands/check.md)
   - [view](commands/view.md)
   - [events](commands/events.md)
+  - [fault](commands/fault.md)
   - [stats](commands/stats.md)
   - [phasors](commands/phasors.md)
   - [trend](commands/trend.md)

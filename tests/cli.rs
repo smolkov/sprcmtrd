@@ -1135,6 +1135,138 @@ fn impedance_of_the_fault_loops() {
 }
 
 #[test]
+fn fault_summary_of_the_samples() {
+    // Phase A to ground, currents only (the recording has no VB, VC).
+    cmd()
+        .args(["fault", "tests/data/fault_1999.cfg"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Currents   IA IB IC [A]\n"))
+        .stdout(predicate::str::contains("Voltages").not())
+        .stdout(predicate::str::contains(
+            "Inception  +0.5 ms (2024-03-15 08:30:00.060500), sample 122",
+        ))
+        .stdout(predicate::str::contains("Fault      A-N\n"))
+        .stdout(predicate::str::contains(
+            "Duration   59.5 ms, current interrupted at +60.0 ms",
+        ))
+        .stdout(predicate::str::is_match(r"\nA +faulted +282\.8 +2\.828k +2\.546k +4\.000k +\+5\.0 ms\n").unwrap())
+        .stdout(predicate::str::is_match(r"\ntrip +\+19\.5 ms +\+20\.0 ms +D2 TRIP\n").unwrap())
+        .stdout(predicate::str::is_match(r"\nbreaker open +\+59\.5 ms +\+60\.0 ms +D3 CB_OPEN\n").unwrap());
+
+    // Phase B to ground with voltages; the breaker position CB_CLOSED opens on 1 → 0.
+    cmd()
+        .args(["fault", "tests/data/fault_2013.cfg"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Fault      B-N\n"))
+        .stdout(predicate::str::is_match(r"\nB +faulted +318\.2 .* +63\.50k +17\.68k +72\.2 %\n").unwrap())
+        .stdout(predicate::str::is_match(r"\nstart +\+0\.010 s +\+0\.010 s +D2 START_B\n").unwrap())
+        .stdout(predicate::str::is_match(r"\nbreaker open +\+0\.100 s +\+0\.100 s +D7 CB_CLOSED\n").unwrap());
+
+    // Phase to phase: no residual current. --from finds the reclose onto the fault.
+    cmd()
+        .args(["fault", "tests/data/reclose_1999_ascii.cfg"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Fault      A-B\n"))
+        .stdout(predicate::str::contains("energized").not());
+    cmd()
+        .args(["fault", "tests/data/reclose_1999_ascii.cfg", "--from", "500"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Inception  +1.000 s"))
+        .stdout(predicate::str::contains("Fault      A-B\n"))
+        .stdout(predicate::str::contains("the line was energized"));
+
+    // A missing value in the fault window, and the end of the recording soon after.
+    cmd()
+        .args(["fault", "tests/data/old_1991.cfg"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Fault      A-N\n"))
+        .stdout(predicate::str::contains("current interrupted at +60.00 ms"));
+
+    // Nothing after the reclose of fault_2013 but load; nothing at all in a
+    // window of steady load.
+    cmd()
+        .args(["fault", "tests/data/fault_2013.cfg", "--to", "-100"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No fault found."));
+}
+
+#[test]
+fn fault_json_and_options() {
+    let out = cmd()
+        .args(["fault", "tests/data/fault_2013.cfg", "--json"])
+        .args([
+            "--current",
+            "IA,IB,IC",
+            "--voltage",
+            "VA,VB,VC",
+            "--trip",
+            "TRIP_B",
+            "--start",
+            "d2",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["found"], true);
+    assert_eq!(v["fault_type"], "B-N");
+    assert_eq!(v["energized"], false);
+    assert_eq!(v["inception"]["sample"], 1001);
+    assert_eq!(v["duration_s"], 0.1);
+    assert_eq!(v["voltage"][1], "VB");
+    assert_eq!(v["phases"][1]["faulted"], true);
+    assert_eq!(v["phases"][0]["faulted"], false);
+    assert!(v["phases"][1]["voltage_fault"].as_f64().unwrap() > 17e3);
+    let roles: Vec<&str> = v["operate"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| o["role"].as_str().unwrap())
+        .collect();
+    assert_eq!(roles, ["start", "trip", "breaker open"]);
+    assert_eq!(v["operate"][1]["since_inception_s"], 0.06);
+
+    // Not found: the fault fields are left out.
+    let out = cmd()
+        .args(["fault", "tests/data/fault_1999.cfg", "--json", "--to", "-30"])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["found"], false);
+    assert!(v.get("fault_type").is_none());
+
+    // A role that isn't found names its option.
+    cmd()
+        .args(["fault", "tests/data/fault_1999.cfg", "--trip", "SPARE"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No trip after the inception."));
+
+    // Wrong channels.
+    cmd()
+        .args(["fault", "tests/data/fault_2013.cfg", "--current", "VA,VB,VC"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("unit 'kV' is not a current"));
+    cmd()
+        .args(["fault", "tests/data/fault_2013.cfg", "--trip", "IA"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("--trip needs a binary channel"));
+    cmd()
+        .args(["fault", "tests/data/fault_2013.cfg", "--current", "IA,IB"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("--current needs three analog channels"));
+}
+
+#[test]
 fn power_of_the_load_and_the_fault() {
     // Load before the fault: 63.5 kV and 318.2 A in phase, 60.6 MW forward.
     cmd()

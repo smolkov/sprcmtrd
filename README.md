@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `stats`, `phasors`, `trend`, `frequency`, `harmonics`, `impedance`, `power`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `fault`, `stats`, `phasors`, `trend`, `frequency`, `harmonics`, `impedance`, `power`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 The full documentation is the book at (source in [`docs/`](docs/), mdBook; locally `mdbook serve docs --open`).
@@ -66,6 +66,7 @@ sprcmtrd list [DIR]         # recordings in DIR and its subdirectories
 sprcmtrd view FILE          # summary and plots printed to stdout
 sprcmtrd check PATH         # validate recordings (exit code 4 on errors)
 sprcmtrd events FILE        # timeline of binary channel changes
+sprcmtrd fault FILE         # fault summary: inception, phases, operate times
 sprcmtrd stats FILE         # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors FILE       # phasors and symmetrical components at a time
 sprcmtrd trend FILE         # the same over time, cycle by cycle
@@ -235,6 +236,47 @@ time      Δ         absolute                    channel       change
   trigger is a row of its own.
 - `--channels` (binary channels), `--from` / `--to` as in `view`; `--json` for
   scripts.
+
+### `fault`
+
+```sh
+sprcmtrd fault tests/data/fault_1999.cfg
+```
+
+A phase A to ground fault: inception, faulted phases, how long the current
+flowed, and the operate times of the protection and the breaker from the
+inception.
+
+```
+File       tests/data/fault_1999.cfg
+Currents   IA IB IC [A]
+Values     primary, RMS of the fundamental at 50 Hz
+Inception  +0.5 ms (2024-03-15 08:30:00.060500), sample 122
+Fault      A-N
+Duration   59.5 ms, current interrupted at +60.0 ms
+
+phase           pre-fault [A]  fault [A]  ΔI [A]  peak [A]  peak at
+A      faulted  282.8          2.828k     2.546k  4.000k    +5.0 ms
+B               282.8          282.8      0.000   399.4     +1.5 ms
+C               282.8          282.8      0.000   399.4     +8.5 ms
+3I0    ground   27.94m         2.546k     2.546k
+
+Operate times from inception
+event                since inception  time      channel
+start                -0.5 ms          0.0 ms    D1 START
+inception            +0.0 ms          +0.5 ms
+trip                 +19.5 ms         +20.0 ms  D2 TRIP
+breaker open         +59.5 ms         +60.0 ms  D3 CB_OPEN
+current interrupted  +59.5 ms         +60.0 ms
+```
+
+- Inception is where a current departs from the cycle before it; the faulted
+  phases come from the change of the phasors against the pre-fault cycle, so
+  load current doesn't count. Only the first fault is analysed (`--from` for
+  a later one).
+- Currents (and voltages, if any) are found by unit, start, trip and breaker
+  channels by name; `--current`, `--voltage`, `--start`, `--trip` and
+  `--breaker` choose them. `--json` for scripts.
 
 ### `impedance`
 

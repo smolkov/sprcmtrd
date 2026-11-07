@@ -106,6 +106,7 @@ sprcmtrd list [DIR]            # list recordings in DIR (default: .)
 sprcmtrd view <FILE>           # print summary and terminal plots to stdout
 sprcmtrd check <PATH>          # validate recordings (exit code 4 on errors)
 sprcmtrd events <FILE>         # timeline of binary channel changes
+sprcmtrd fault <FILE>          # fault summary: inception, phases, operate times
 sprcmtrd stats <FILE>          # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors <FILE>        # phasors and symmetrical components at a time
 sprcmtrd trend <FILE>          # the same over time, cycle by cycle
@@ -271,6 +272,62 @@ Timeline of binary channel changes (start, trip, breaker open, reclose, ...).
 - JSON: `file`, `trigger_time`, `from_s`, `to_s`, `events[]` with `sample`
   (1-based), `time` (s), `index`, `id`, `from`, `to` and `absolute`.
 - Library: `analysis::events::events`.
+
+### `fault` command
+
+Fault summary of a recording: inception, faulted phases, duration, peak
+currents and operate times.
+
+- Arguments: `<FILE>`, `--current <A,B,C>` (default the first current A/B/C
+  group by unit; none is an error naming the option, exit 1), `--voltage
+  <A,B,C>` (optional; default the first voltage group, preferring the circuit
+  of the currents), `--start`, `--trip`, `--breaker <CH>` (binary channels),
+  `--from` / `--to` (search range in ms relative to the trigger),
+  `--frequency <Hz>`, `--json`; global `--secondary`.
+- Inception: superimposed current Δi(n) = i(n) − i(n − N), N samples per
+  cycle (from the sample spacing at the start of the range). The first cycle
+  of the range is the reference; inception is the first of 3 samples in a row
+  where |Δi| of a phase exceeds the threshold: 20 % of the largest pre-fault
+  peak of the three phases, at least 2 % of the largest current in the range.
+- Windows: pre-fault is the cycle ending one sample before inception; the
+  fault cycle starts a quarter cycle after inception (it can contain DC
+  offset), moves on a cycle at a time past missing values, and is cut at the
+  interruption for short faults.
+- Faulted phases from ΔI = I(fault) − I(pre-fault): a phase is faulted when
+  |ΔI| ≥ 50 % of the largest |ΔI|, ground (`N`) when 3·|ΔI0| ≥ 20 % of it.
+  Names `A-N`, `B-C`, `A-B-N`, `A-B-C`; phases `L1`/`L2`/`L3` and `R`/`S`/`T`
+  are shown as A, B, C. Voltages don't take part in the decision.
+- Interruption: the first sample after which the faulted phases stay below
+  5 % of their fault peak for a whole cycle, or until the end of the range when
+  that is at least a quarter cycle. Duration is interruption − inception;
+  without one, "current not interrupted within the recording". A return to
+  load current is not detected.
+- When no current flowed before inception (all pre-fault phasors below 2 % of
+  the largest fault phasor), a note says the line was energized: onto a fault
+  or onto load, which the currents can't tell apart.
+- Only the first fault in the range is reported; a later one (reclose onto
+  the fault) is found with `--from`. No fault: "No fault found." (exit 0).
+- Operate times: start, trip and breaker open are the first change of the
+  channel to its active state from one cycle before inception on. Without an
+  option, every binary channel whose id contains `START` / `PICKUP`, `TRIP`,
+  `CB` / `BREAKER` (case-insensitive) is a candidate and the earliest change
+  counts. The active state is 1, for a breaker whose id contains `CLOSE` 0. A
+  role without channel or change gets a note naming the option.
+- Text output: header (file, channels, values, inception with date and
+  sample, fault type, duration), a table `phase | | pre-fault | fault | ΔI |
+  peak | peak at` (RMS of the fundamental in A, instantaneous peak; with
+  voltages `pre-fault [V] | fault [V] | drop`) with rows A, B, C and 3I0, and
+  the operate table `event | since inception | time | channel` in time order.
+- JSON: `file`, `side`, `frequency`, `current`, `voltage`, `from_s`, `to_s`,
+  `found`, and when found `inception` (`sample` 1-based, `time_s`,
+  `absolute`), `fault_type`, `energized`, `phases[]` (`phase`, `faulted`,
+  `pre_fault`, `fault`, `delta`, `peak`, `peak_time_s`, `voltage_pre_fault`,
+  `voltage_fault`), `residual` (`pre_fault`, `fault`, `delta`, 3I0),
+  `interruption`, `duration_s`, `operate[]` (`role`, `time_s`,
+  `since_inception_s`, `index`, `id`). Currents in A, voltages in V.
+- Library: `analysis::fault` (`analyse`, `inception`, `classify`,
+  `interruption`, `Role`, `operate`), `analysis::impedance::find_current` /
+  `find_voltage`.
 
 ### `impedance` command
 
@@ -618,6 +675,7 @@ src/
     sequence.rs      symmetrical components, three-phase groups (phasors)
     stats.rs         channel statistics (stats)
     events.rs        binary channel changes (events)
+    fault.rs         inception, faulted phases, operate times (fault)
     trend.rs         values over time, step by step (trend)
     harmonics.rs     harmonic spectrum, THD (harmonics)
     impedance.rs     fault loop impedances (impedance)
@@ -638,6 +696,7 @@ src/
     view.rs
     check.rs        Validate recordings
     events.rs       Timeline of binary channel changes
+    fault.rs        Fault summary
     stats.rs        Channel statistics
     phasors.rs      Phasors and symmetrical components
     trend.rs        Values over time, cycle by cycle

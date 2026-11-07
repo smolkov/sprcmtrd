@@ -12,6 +12,7 @@ sprcmtrd list [DIR]         # recordings in DIR and its subdirectories
 sprcmtrd view FILE          # summary and plots printed to stdout
 sprcmtrd check PATH         # validate recordings (exit code 4 on errors)
 sprcmtrd events FILE        # timeline of binary channel changes
+sprcmtrd fault FILE         # fault summary: inception, phases, operate times
 sprcmtrd stats FILE         # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors FILE       # phasors and symmetrical components at a time
 sprcmtrd trend FILE         # the same over time, cycle by cycle
@@ -32,6 +33,7 @@ sprcmtrd completions SHELL  # tab-completion script for your shell
 | [`check`](check.md) | Validate recordings |
 | [`view`](view.md) | Summary and plots on stdout |
 | [`events`](events.md) | Timeline of binary channel changes |
+| [`fault`](fault.md) | Fault summary and operate times |
 | [`stats`](stats.md) | Channel statistics |
 | [`phasors`](phasors.md) | Phasors and symmetrical components |
 | [`trend`](trend.md) | Values over time |

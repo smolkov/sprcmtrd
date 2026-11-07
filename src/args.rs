@@ -98,6 +98,22 @@ pub enum Command {
     #[command(verbatim_doc_comment)]
     Events(EventsArgs),
 
+    /// Fault summary: inception, faulted phases, duration, peak currents and
+    /// operate times (start, trip, breaker open, current interrupted).
+    ///
+    /// Inception is the first sample where a current departs from the cycle
+    /// before (superimposed current). The faulted phases come from the change
+    /// of the phasors against the pre-fault cycle, ground from the residual
+    /// current. Start, trip and breaker channels are found by name (START,
+    /// PICKUP, TRIP, CB, BREAKER) or given with --start, --trip, --breaker.
+    /// Only the first fault in --from / --to is analysed.
+    ///
+    /// Examples:
+    ///   sprcmtrd fault fault.cfg
+    ///   sprcmtrd fault fault.cfg --current IL1,IL2,IL3 --trip D12 --breaker D8
+    #[command(verbatim_doc_comment)]
+    Fault(FaultArgs),
+
     /// Phasors of the fundamental frequency and symmetrical components.
     ///
     /// A DFT over whole cycles ending at --at, as a protection relay sees the
@@ -326,6 +342,42 @@ pub struct CheckArgs {
     /// Fail (exit code 4) on warnings too.
     #[arg(long)]
     pub strict: bool,
+    /// Print JSON instead of text.
+    #[arg(long)]
+    pub json: bool,
+}
+
+/// Arguments of `fault`.
+#[derive(Debug, Args)]
+pub struct FaultArgs {
+    /// Any file of the recording (.cfg, .dat, .cff, ...).
+    #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
+    pub file: PathBuf,
+    /// Current channels of phases A, B, C (indices or ids). Default: found by unit.
+    #[arg(long, value_delimiter = ',', num_args = 1)]
+    pub current: Vec<String>,
+    /// Voltage channels of phases A, B, C (indices or ids). Default: found by unit, if any.
+    #[arg(long, value_delimiter = ',', num_args = 1)]
+    pub voltage: Vec<String>,
+    /// Binary channel of the protection start (`dN` or id). Default: found by name.
+    #[arg(long)]
+    pub start: Option<String>,
+    /// Binary channel of the trip command (`dN` or id). Default: found by name.
+    #[arg(long)]
+    pub trip: Option<String>,
+    /// Binary channel of the breaker position (`dN` or id); open is a change to 1,
+    /// or to 0 when the id contains CLOSE. Default: found by name.
+    #[arg(long)]
+    pub breaker: Option<String>,
+    /// Start of the search in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub from: Option<f64>,
+    /// End of the search in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub to: Option<f64>,
+    /// Fundamental frequency in Hz. Default: the line frequency of the recording.
+    #[arg(long)]
+    pub frequency: Option<f64>,
     /// Print JSON instead of text.
     #[arg(long)]
     pub json: bool,
