@@ -21,6 +21,7 @@ sprcmtrd frequency FILE     # system frequency and its rate of change
 sprcmtrd harmonics FILE     # harmonic spectrum and THD at a time
 sprcmtrd impedance FILE     # apparent impedance of the fault loops
 sprcmtrd locate FILE ...    # distance to the fault (line data needed)
+sprcmtrd compare A B        # two recordings of one event side by side
 sprcmtrd power FILE         # active, reactive power and power factor
 sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
@@ -44,6 +45,7 @@ sprcmtrd completions SHELL  # tab-completion script for your shell
 | [`harmonics`](harmonics.md) | Harmonic spectrum and THD |
 | [`impedance`](impedance.md) | Fault loop impedance |
 | [`locate`](locate.md) | Distance to the fault |
+| [`compare`](compare.md) | Two recordings of one event, differential current |
 | [`power`](power.md) | Active, reactive power and power factor |
 | [`export`](export.md) | Samples as CSV or JSON |
 | [`cut`](cut.md) | Time window as a new recording |

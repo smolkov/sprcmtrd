@@ -23,6 +23,7 @@
   - [harmonics](commands/harmonics.md)
   - [impedance](commands/impedance.md)
   - [locate](commands/locate.md)
+  - [compare](commands/compare.md)
   - [power](commands/power.md)
   - [export](commands/export.md)
   - [cut](commands/cut.md)

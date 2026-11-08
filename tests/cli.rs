@@ -1641,3 +1641,194 @@ fn dc_offset_json_and_errors() {
         .code(1)
         .stderr(predicate::str::contains("--current"));
 }
+
+/// Writes one end of a line as an ASCII .cfg / .dat to `dir/<name>.cfg`:
+/// 50 Hz currents IA, IB, IC (unit `unit`), `rate` samples per s from 100 ms
+/// before to 112 ms after the trigger at `trigger` s after 00:00:00. Load
+/// `load` A peak at -20°, A to B (so `sign` -1 for end B); from 1.000 s on,
+/// phase A carries `fault` A peak at `fault_deg`° into the line.
+#[allow(clippy::too_many_arguments)]
+fn write_end(
+    dir: &std::path::Path,
+    name: &str,
+    (rate, trigger, line_frequency): (usize, f64, f64),
+    unit: &str,
+    sign: f64,
+    load: f64,
+    (fault, fault_deg): (f64, f64),
+) -> std::path::PathBuf {
+    use std::f64::consts::TAU;
+    let scale = if unit == "kA" { 1e3 } else { 1.0 };
+    let multiplier = 0.01 / scale;
+    let start = trigger - 0.1;
+    let n = (0.212 * rate as f64).round() as usize + 1;
+    let stamp = |t: f64| format!("01/01/2020,00:00:{t:09.6}");
+    let mut cfg = format!("{name},DEV,1999\n3,3A,0D\n");
+    for (i, p) in ["A", "B", "C"].iter().enumerate() {
+        cfg += &format!("{},I{p},{p},LINE,{unit},{multiplier},0,0,-1e9,1e9,1,1,P\n", i + 1);
+    }
+    cfg += &format!(
+        "{line_frequency}\n1\n{rate},{n}\n{}\n{}\nASCII\n1\n",
+        stamp(start),
+        stamp(trigger)
+    );
+    let mut dat = String::new();
+    for k in 0..n {
+        let t = start + k as f64 / rate as f64;
+        dat += &format!("{},{}", k + 1, k * 1_000_000 / rate);
+        for p in 0..3 {
+            let shift = -(p as f64) * TAU / 3.0;
+            let (amp, deg) = if p == 0 && t >= 1.0 {
+                (fault, fault_deg)
+            } else {
+                (sign * load, -20.0)
+            };
+            let v = amp * (TAU * 50.0 * t + deg.to_radians() + shift).cos();
+            dat += &format!(",{}", (v / scale / multiplier).round());
+        }
+        dat += "\n";
+    }
+    let cfg_path = dir.join(format!("{name}.cfg"));
+    std::fs::write(&cfg_path, cfg).unwrap();
+    std::fs::write(dir.join(format!("{name}.dat")), dat).unwrap();
+    cfg_path
+}
+
+/// End A (1 kHz, trigger at 1.000 s) and end B (2 kHz, in kA, trigger 12 ms
+/// later) of a line with an internal phase A fault at 1.000 s.
+fn two_ends(dir: &std::path::Path) -> (std::path::PathBuf, std::path::PathBuf) {
+    let a = write_end(dir, "end_a", (1000, 1.0, 50.0), "A", 1.0, 500.0, (4000.0, -80.0));
+    let b = write_end(dir, "end_b", (2000, 1.012, 50.0), "kA", -1.0, 500.0, (2000.0, -75.0));
+    (a, b)
+}
+
+fn compare_json(args: &[&std::ffi::OsStr]) -> serde_json::Value {
+    let out = cmd().arg("compare").args(args).arg("--json").output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    serde_json::from_slice(&out.stdout).unwrap()
+}
+
+#[test]
+fn compare_the_same_recording_in_two_formats() {
+    // test_ascii.cff holds the data of fault_2013 as ASCII.
+    cmd()
+        .args([
+            "compare",
+            "tests/data/fault_2013.cfg",
+            "tests/data/test_ascii.cff",
+            "--at",
+            "40",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "absolute time: B's trigger at 0.00 ms in A's time",
+        ))
+        .stdout(predicate::str::is_match(r"IB +IB +A +3\.458k +3\.458k +1\.000 +-117\.7° +-117\.7° +0\.0°").unwrap())
+        .stdout(predicate::str::is_match(r"VB +VB +kV +17\.68 +17\.68 +1\.000").unwrap());
+    // 5 ms later is 90° behind at 50 Hz.
+    let v = compare_json(&[
+        "tests/data/fault_2013.cfg".as_ref(),
+        "tests/data/test_ascii.cff".as_ref(),
+        "--at".as_ref(),
+        "-100".as_ref(),
+        "--shift".as_ref(),
+        "5".as_ref(),
+        "--channels".as_ref(),
+        "VA,IA".as_ref(),
+    ]);
+    assert_eq!(v["alignment"]["offset_s"], 0.005);
+    assert_eq!(v["pairs"].as_array().unwrap().len(), 2);
+    assert_eq!(v["pairs"][0]["a"], "IA");
+    assert_eq!(v["pairs"][1]["angle_difference"], -90.0);
+}
+
+#[test]
+fn compare_two_line_ends() {
+    let dir = tempfile::tempdir().unwrap();
+    let (a, b) = two_ends(dir.path());
+    let args = |extra: &[&str]| {
+        let mut v: Vec<std::ffi::OsString> = vec![a.clone().into(), b.clone().into()];
+        v.extend(extra.iter().map(Into::into));
+        v
+    };
+    let json = |extra: &[&str]| {
+        let v = args(extra);
+        compare_json(&v.iter().map(|s| s.as_os_str()).collect::<Vec<_>>())
+    };
+    let diff = |v: &serde_json::Value, p: usize| v["differential"]["phases"][p]["diff"].as_f64().unwrap();
+
+    // Before the fault the load passes through: B is A turned by 180°, the
+    // differential current is (almost) 0. B's kA are shown in A.
+    let v = json(&["--at", "-20", "--differential"]);
+    assert_eq!(v["alignment"]["offset_s"], 0.012);
+    assert_eq!(v["pairs"][0]["unit"], "A");
+    assert!((v["pairs"][1]["ratio"].as_f64().unwrap() - 1.0).abs() < 1e-3);
+    assert!((v["pairs"][1]["angle_difference"].as_f64().unwrap().abs() - 180.0).abs() < 0.5);
+    for p in 0..3 {
+        assert!(diff(&v, p) < 2.0, "{}", diff(&v, p));
+    }
+    // During the internal fault, phase A: |4000∠-80° + 2000∠-75°| / √2.
+    let v = json(&["--at", "40", "--differential"]);
+    assert!((diff(&v, 0) - 4239.0).abs() < 10.0, "{}", diff(&v, 0));
+    assert!(diff(&v, 1) < 2.0);
+    // B measured the other way: the load shows as twice the current.
+    let v = json(&["--at", "-20", "--differential", "--invert-b"]);
+    assert!((diff(&v, 1) - 707.1).abs() < 2.0, "{}", diff(&v, 1));
+    // Aligning the triggers ignores the 12 ms: 216° more.
+    let v = json(&["--at", "-20", "--align", "trigger"]);
+    assert!((v["pairs"][1]["angle_difference"].as_f64().unwrap() - 36.0).abs() < 0.5);
+    // The fault inceptions give the right alignment back.
+    let v = json(&["--at", "-20", "--align", "fault"]);
+    assert!((v["alignment"]["offset_s"].as_f64().unwrap() - 0.012).abs() < 1.5e-3);
+
+    cmd()
+        .arg("compare")
+        .args(args(&["--at", "40", "--differential"]))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("B's trigger at +12.00 ms in A's time"))
+        .stdout(predicate::str::contains(
+            "Differential: A IA IB IC · B IA IB IC, both measured into the line",
+        ))
+        .stdout(predicate::str::is_match(r"\nA +2\.828k +1\.414k +4\.239k").unwrap());
+}
+
+#[test]
+fn compare_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let (a, b) = two_ends(dir.path());
+    let other = write_end(dir.path(), "other", (1000, 1.0, 60.0), "A", 1.0, 500.0, (500.0, -20.0));
+    let run = |extra: &[&str], b: &std::path::Path| {
+        let mut c = cmd();
+        c.arg("compare").arg(&a).arg(b).args(extra);
+        c.assert()
+    };
+    run(&["--shift", "10000"], &b)
+        .code(1)
+        .stderr(predicate::str::contains("don't overlap in time"));
+    run(&[], &other).code(1).stderr(predicate::str::contains("--frequency"));
+    run(&["--frequency", "50"], &other).success();
+    run(&["--pair", "IA"], &b)
+        .code(2)
+        .stderr(predicate::str::contains("A_ID=B_ID"));
+    run(&["--pair", "IA=IL1"], &b)
+        .code(1)
+        .stderr(predicate::str::contains("B has no analog channel 'IL1'"));
+    cmd()
+        .args(["compare", "tests/data/fault_2013.cfg"])
+        .arg(&b)
+        .args(["--align", "trigger"])
+        .assert()
+        .success();
+    cmd()
+        .args([
+            "compare",
+            "tests/data/fault_2013.cfg",
+            "tests/data/old_1991.cfg",
+            "--channels",
+            "VA",
+        ])
+        .assert()
+        .code(1);
+}

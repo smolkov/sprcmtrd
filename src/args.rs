@@ -168,6 +168,20 @@ pub enum Command {
     #[command(verbatim_doc_comment)]
     Locate(LocateArgs),
 
+    /// Two recordings of the same event side by side: phasors per channel.
+    ///
+    /// Pairs the analog channels with the same id (or --pair), aligns the
+    /// time axes (by absolute time, the triggers or the fault inception) and
+    /// compares the phasors at --at in A's time: RMS, ratio B/A and the angle
+    /// difference, B's angles turned into A's time frame. With
+    /// --differential, the differential current of two line ends.
+    ///
+    /// Examples:
+    ///   sprcmtrd compare end_a.cfg end_b.cfg --at 40 --differential
+    ///   sprcmtrd compare relay.cfg recorder.cfg --align fault --pair IA=IL1,IB=IL2,IC=IL3
+    #[command(verbatim_doc_comment)]
+    Compare(CompareArgs),
+
     /// Active, reactive and apparent power and power factor of a three-phase
     /// circuit, per phase and in total.
     ///
@@ -445,6 +459,75 @@ fn parse_fit_cycles(s: &str) -> Result<f64, String> {
         Ok(v)
     } else {
         Err(format!("the fit needs at least 1 cycle, got {s}"))
+    }
+}
+
+/// Arguments of `compare`.
+#[derive(Debug, Args)]
+pub struct CompareArgs {
+    /// Recording A (any file of it: .cfg, .dat, .cff, ...); times refer to A.
+    #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
+    pub a: PathBuf,
+    /// Recording B, compared with A.
+    #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
+    pub b: PathBuf,
+    /// End of the window in ms relative to A's trigger.
+    #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+    pub at: f64,
+    /// Window length in cycles of the fundamental frequency.
+    #[arg(long, default_value_t = 1.0)]
+    pub cycles: f64,
+    /// How the time axes are aligned.
+    #[arg(long, value_enum, default_value_t = AlignArg::Time)]
+    pub align: AlignArg,
+    /// Moves B later by this many ms, after the alignment.
+    #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
+    pub shift: f64,
+    /// Only these channels of A (indices or ids). Default: all pairs.
+    #[arg(long, value_delimiter = ',')]
+    pub channels: Vec<String>,
+    /// Channel pairs with different ids: `A_ID=B_ID`, comma separated. Default: equal ids.
+    #[arg(long, value_delimiter = ',', value_parser = parse_pair)]
+    pub pair: Vec<(String, String)>,
+    /// Channel of A the angles refer to (index or id). Default: the first pair.
+    #[arg(long)]
+    pub reference: Option<String>,
+    /// Differential current of two line ends from the current groups of A and B.
+    #[arg(long)]
+    pub differential: bool,
+    /// Current channels of phases A, B, C in A (indices or ids). Default: found by unit.
+    #[arg(long, value_delimiter = ',', num_args = 1)]
+    pub current_a: Vec<String>,
+    /// Current channels of phases A, B, C in B (indices or ids). Default: found by unit.
+    #[arg(long, value_delimiter = ',', num_args = 1)]
+    pub current_b: Vec<String>,
+    /// B's currents are measured out of the line (for --differential).
+    #[arg(long)]
+    pub invert_b: bool,
+    /// Fundamental frequency in Hz. Default: the line frequency of A.
+    #[arg(long)]
+    pub frequency: Option<f64>,
+    /// Print JSON instead of text.
+    #[arg(long)]
+    pub json: bool,
+}
+
+/// Time alignment of `compare`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum AlignArg {
+    /// By the absolute trigger times (synchronized clocks).
+    Time,
+    /// Both triggers at 0.
+    Trigger,
+    /// The fault inception of A on that of B (as the fault command finds it).
+    Fault,
+}
+
+/// Parses an `A_ID=B_ID` channel pair.
+fn parse_pair(s: &str) -> Result<(String, String), String> {
+    match s.split_once('=') {
+        Some((a, b)) if !a.trim().is_empty() && !b.trim().is_empty() => Ok((a.trim().to_owned(), b.trim().to_owned())),
+        _ => Err(format!("expected A_ID=B_ID, got '{s}'")),
     }
 }
 

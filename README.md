@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `fault`, `dc-offset`, `stats`, `phasors`, `trend`, `frequency`, `harmonics`, `impedance`, `locate`, `power`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `fault`, `dc-offset`, `stats`, `phasors`, `trend`, `frequency`, `harmonics`, `impedance`, `locate`, `compare`, `power`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 The full documentation is the book at (source in [`docs/`](docs/), mdBook; locally `mdbook serve docs --open`).
@@ -75,6 +75,7 @@ sprcmtrd frequency FILE     # system frequency and its rate of change
 sprcmtrd harmonics FILE     # harmonic spectrum and THD at a time
 sprcmtrd impedance FILE     # apparent impedance of the fault loops
 sprcmtrd locate FILE ...    # distance to the fault (line data needed)
+sprcmtrd compare A B        # two recordings of one event side by side
 sprcmtrd power FILE         # active, reactive power and power factor
 sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
@@ -370,6 +371,43 @@ Takagi     28.81 km  72.0 %
   doesn't shift the result. Results off the line are noted, not clamped.
 - `--loop`, `--at` and `--cycles` choose the loop and window; `--json` for
   scripts.
+
+### `compare`
+
+```sh
+sprcmtrd compare end_a.cfg end_b.cfg --at 40 --differential
+```
+
+Both ends of a line during a phase A fault on it: B's relay triggered 12 ms
+later and records in kA at 2 kHz. Phase A is fed from both ends, so its
+differential current is large; B and C carry load through the line.
+
+```
+A          end_a.cfg (end_a)
+B          end_b.cfg (end_b)
+Alignment  absolute time: B's trigger at +12.00 ms in A's time
+Window     21.00 ms .. 40.00 ms in A (1 cycle, 20 samples, 50 Hz); 8.50 ms .. 28.00 ms in B (40 samples)
+Values     primary; RMS, angles relative to A IA
+
+A   B   unit  A       B       B/A    angle A  angle B  B − A
+IA  IA  A     2.828k  1.414k  0.500  0.0°     5.0°     5.0°
+IB  IB  A     353.6   353.6   1.000  -60.0°   120.0°   180.0°
+IC  IC  A     353.6   353.6   1.000  180.0°   0.0°     180.0°
+
+Differential: A IA IB IC · B IA IB IC, both measured into the line
+phase  I A [A]  I B [A]  I diff [A]  I restraint [A]  diff / restraint
+A      2.828k   1.414k   4.239k      2.121k           199.8 %
+B      353.6    353.6    0.000       353.6            0.0 %
+C      353.6    353.6    0.000       353.6            0.0 %
+```
+
+- Channels with the same id are paired (`--pair IA=IL1,…` for other
+  names, `--channels` to limit); V/kV and A/kA are scaled to A's unit.
+- `--align time` (default) uses the absolute trigger times, `trigger` puts
+  both triggers at 0, `fault` aligns the fault inceptions (unsynchronized
+  clocks); `--shift` adds an offset. B's angles are turned into A's time.
+- `--differential` with both currents into the line (`--invert-b` otherwise).
+  `--json` for scripts.
 
 ### `power`
 

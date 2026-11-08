@@ -114,6 +114,7 @@ sprcmtrd trend <FILE>          # the same over time, cycle by cycle
 sprcmtrd harmonics <FILE>      # harmonic spectrum and THD at a time
 sprcmtrd impedance <FILE>      # apparent impedance of the fault loops
 sprcmtrd locate <FILE> ...     # distance to the fault from line data
+sprcmtrd compare <A> <B>       # two recordings of one event, differential current
 sprcmtrd power <FILE>          # active, reactive power and power factor
 sprcmtrd export <FILE>         # samples as CSV or JSON
 sprcmtrd cut <FILE> -o <OUT>   # time window / channels as a new recording
@@ -436,6 +437,58 @@ end.
   (`method`, `distance_km`, `percent`, `note`).
 - Library: `analysis::locate` (`k0`, `fault_loop`, `loop_values`,
   `reactance`, `takagi`, `window`).
+
+### `compare` command
+
+Two recordings of the same event side by side: both ends of a line, relay
+and fault recorder of one bay, or a test before and after a change.
+
+- Arguments: `<A> <B>` (any file of each recording), `--at <ms>` (window end
+  in A's time, default 0), `--cycles <N>` (default 1), `--align
+  <time|trigger|fault>` (default `time`), `--shift <ms>` (moves B later, after
+  the alignment), `--channels <LIST>` (channels of A), `--pair
+  <A_ID=B_ID,...>`, `--reference <CH>` (channel of A, default the first
+  pair), `--differential`, `--current-a <A,B,C>` / `--current-b <A,B,C>`
+  (default found by unit), `--invert-b`, `--frequency <Hz>`, `--json`; global
+  `--secondary` for both.
+- Alignment gives the offset d with t_A = t_B + d (B's trigger at d in A's
+  time): `time` from the absolute trigger times (synchronized clocks),
+  `trigger` d = 0, `fault` the fault inception of A on that of B (inception as
+  in `fault`, from the current groups). `--shift` adds to d. With aligned time
+  spans that don't overlap: an error suggesting `--align trigger` / `fault` or
+  `--shift` (exit 1); no fault for `--align fault`: an error (exit 1).
+- Pairs: with `--pair`, exactly those (ids, case-insensitive; an unknown id
+  is an error naming A or B); otherwise every analog channel of A whose id B
+  has too, in A's order. No common id: an error naming `--pair`.
+  `--channels` keeps the pairs of those channels of A.
+- Units: equal units, or both voltages / both currents (V, kV, … and A, kA,
+  …), B scaled to A's unit; otherwise an error naming both units.
+- Frequency: `--frequency`, else A's line frequency; an error when B's
+  differs (exit 1).
+- Windows: A's window ends at `--at` as in `phasors`; B's window of the same
+  cycles ends at the same instant (t − d in B's time, nearest sample). Each
+  recording's phasors come from its own samples, so sample rates may differ.
+  B outside its recording there: B's values are "-" and a note says so.
+- B's phasors are turned into A's time frame, P_B · e^(−jω·d). Angles are
+  relative to the reference in A; the difference is B − A in (−180°, 180°].
+  The ratio is |B| / |A|. Angles of values below 1e-6 of the largest value of
+  that unit are left out (float residue).
+- Differential (`--differential`): per phase from the current groups (in A),
+  both taken as measured into the line (`--invert-b` turns B):
+  I_diff = |I_A + I_B|, I_restraint = (|I_A| + |I_B|) / 2 and their ratio in %.
+- Text output: key-value header (A and B with station, alignment, windows,
+  values), a table `A | B | unit | A | B | B/A | angle A | angle B | B − A`,
+  and with `--differential` a table `phase | I A | I B | I diff |
+  I restraint | diff / restraint`.
+- JSON (`--json`): `a`, `b` (`file`, `station`), `side`, `frequency`,
+  `alignment` (`mode`, `offset_s`, `shift_s`), `window_a`, `window_b`
+  (`from_s`, `to_s`, `samples`; `null` outside B), `reference`, `pairs[]`
+  (`a`, `b`, `unit`, `a_rms`, `b_rms`, `ratio`, `a_angle`, `b_angle`,
+  `angle_difference`), and with `--differential` `differential` (`a`, `b`,
+  `inverted_b`, `phases[]` with `phase`, `a`, `b`, `diff`, `restraint`,
+  `percent`; currents in A).
+- Library: `analysis::compare` (`Align`, `offset`, `fault_offset`, `rotate`,
+  `pairs`, `Differential`).
 
 ### `power` command
 
@@ -761,6 +814,7 @@ src/
     trend.rs         values over time, step by step (trend)
     harmonics.rs     harmonic spectrum, THD (harmonics)
     impedance.rs     fault loop impedances (impedance)
+    compare.rs       alignment, channel pairs, differential current (compare)
     locate.rs        fault location: reactance, Takagi (locate)
     power.rs         active, reactive, apparent power (power)
   comtrade/
@@ -786,6 +840,7 @@ src/
     trend.rs        Values over time, cycle by cycle
     harmonics.rs    Harmonic spectrum and THD
     impedance.rs    Apparent impedance of the fault loops
+    compare.rs      Two recordings side by side
     locate.rs       Fault location
     power.rs        Active, reactive power and power factor
     export.rs       Samples as CSV / JSON

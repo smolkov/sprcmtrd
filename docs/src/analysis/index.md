@@ -202,6 +202,23 @@ least one cycle after inception, so the DC offset of the fault current has
 decayed. Both methods need the line data to be right: a result beyond the
 line end often means wrong z1 or z0 rather than a fault on the next line.
 
+## Comparing two recordings
+
+`compare` aligns B's time axis to A's with an offset d, t_A = t_B + d: from
+the absolute trigger times, from the triggers, or from the fault inceptions.
+Each recording's phasors come from a DFT over its own samples, so the sample
+rates may differ. The DFT refers the angle to the recording's own time
+axis, so B's phasor is turned into A's frame: P_B · e^(−jω·d). An alignment
+error of 1 ms is 18° at 50 Hz (21.6° at 60 Hz): angles between unsynchronized
+recorders mean little, magnitudes still compare.
+
+For two line ends, with both currents measured into the line, the
+differential current I_diff = |I_A + I_B| is close to 0 for load and for
+faults outside the line (the current passes through), and close to the
+fault current for a fault on it. The restraint current
+I_restraint = (|I_A| + |I_B|) / 2 is what a differential relay compares it with.
+The line's charging current and CT errors show as a small I_diff.
+
 ## Noise
 
 Recordings store integer samples, so computed values carry tiny residues:

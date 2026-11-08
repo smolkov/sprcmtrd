@@ -2,6 +2,7 @@
 //! window selection they share. Formatting lives in [`crate::format`].
 
 pub mod check;
+pub mod compare;
 pub mod completions;
 pub mod convert;
 pub mod cut;
@@ -47,6 +48,7 @@ impl Command {
             Self::Phasors(a) => a.run(ctx),
             Self::Impedance(a) => a.run(ctx),
             Self::Locate(a) => a.run(ctx),
+            Self::Compare(a) => a.run(ctx),
             Self::Power(a) => a.run(ctx),
             Self::Harmonics(a) => a.run(ctx),
             Self::Trend(a) => a.run(ctx),

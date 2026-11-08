@@ -7,6 +7,7 @@
 //! commands; it does not depend on the command line or the TUI. Results are
 //! rounded to 12 significant digits where float noise would show.
 
+pub mod compare;
 pub mod complex;
 pub mod dc_offset;
 pub mod events;
