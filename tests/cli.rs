@@ -1267,6 +1267,129 @@ fn fault_json_and_options() {
 }
 
 #[test]
+fn locate_the_fault() {
+    let line = ["--z1", "0.03+j0.4", "--length", "40"];
+    // Phase to phase: the A-B loop sees about 11.7 Ω reactance, 29 km of line.
+    cmd()
+        .args(["locate", "tests/data/reclose_1999_ascii.cfg"])
+        .args(line)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Line      z1 0.0300+j0.4000 Ω/km, 40 km, primary",
+        ))
+        .stdout(predicate::str::contains("Fault     A-B at 0.000 s"))
+        .stdout(predicate::str::contains(
+            "Window    20.00 ms .. 39.00 ms (1 cycle, 20 samples, 50 Hz)",
+        ))
+        .stdout(predicate::str::is_match(r"\nreactance +29\.19 km +73\.0 %\n").unwrap())
+        .stdout(predicate::str::is_match(r"\nTakagi +28\.81 km +72\.0 %\n").unwrap());
+
+    // A ground fault needs z0; the synthetic B-N loop is almost purely resistive.
+    cmd()
+        .args(["locate", "tests/data/fault_2013.cfg"])
+        .args(line)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "the B-N loop needs the zero sequence impedance",
+        ));
+    cmd()
+        .args(["locate", "tests/data/fault_2013.cfg", "--z0", "0.1+j1.2"])
+        .args(line)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("k0 0.667 ∠ -0.7°"))
+        .stdout(predicate::str::is_match(r"\nreactance +0\.25 km +0\.6 %\n").unwrap());
+
+    // A short line: the fault lies beyond its end.
+    cmd()
+        .args([
+            "locate",
+            "tests/data/reclose_1999_ascii.cfg",
+            "--z1",
+            "0.4@85",
+            "--length",
+            "10",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("beyond the line end (or wrong line data)"));
+
+    // No fault in the search range.
+    cmd()
+        .args(["locate", "tests/data/reclose_1999_ascii.cfg", "--to", "-100"])
+        .args(line)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No fault found."));
+}
+
+#[test]
+fn locate_json_and_errors() {
+    let line = ["--z1", "0.03+j0.4", "--length", "40"];
+    let out = cmd()
+        .args(["locate", "tests/data/reclose_1999_ascii.cfg", "--json"])
+        .args(line)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["found"], true);
+    assert_eq!(v["fault_type"], "A-B");
+    assert_eq!(v["loop"]["name"], "A-B");
+    assert_eq!(v["line"]["length_km"], 40.0);
+    assert_eq!(v["window"]["samples"], 20);
+    assert_eq!(v["results"][0]["method"], "reactance");
+    let km = v["results"][1]["distance_km"].as_f64().unwrap();
+    assert!((km - 28.81).abs() < 0.01, "{km}");
+    assert!(v["results"][1]["note"].is_null());
+
+    // Choosing the loop and the window.
+    cmd()
+        .args([
+            "locate",
+            "tests/data/reclose_1999_ascii.cfg",
+            "--loop",
+            "BC",
+            "--at",
+            "60",
+        ])
+        .args(line)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Loop      B-C:"));
+
+    // Without three voltages there is nothing to locate with.
+    cmd()
+        .args(["locate", "tests/data/fault_1999.cfg"])
+        .args(line)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("--voltage and --current"));
+    cmd()
+        .args(["locate", "tests/data/reclose_1999_ascii.cfg", "--secondary"])
+        .args(line)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("the line data is primary"));
+    cmd()
+        .args(["locate", "tests/data/reclose_1999_ascii.cfg", "--loop", "XY"])
+        .args(line)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("unknown loop 'XY'"));
+    for bad in [["--z1", "0.03-j0.4"], ["--z1", "abc"], ["--length", "0"]] {
+        cmd()
+            .args(["locate", "tests/data/reclose_1999_ascii.cfg"])
+            .args(line)
+            .args(bad)
+            .assert()
+            .code(2);
+    }
+}
+
+#[test]
 fn power_of_the_load_and_the_fault() {
     // Load before the fault: 63.5 kV and 318.2 A in phase, 60.6 MW forward.
     cmd()

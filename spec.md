@@ -112,6 +112,7 @@ sprcmtrd phasors <FILE>        # phasors and symmetrical components at a time
 sprcmtrd trend <FILE>          # the same over time, cycle by cycle
 sprcmtrd harmonics <FILE>      # harmonic spectrum and THD at a time
 sprcmtrd impedance <FILE>      # apparent impedance of the fault loops
+sprcmtrd locate <FILE> ...     # distance to the fault from line data
 sprcmtrd power <FILE>          # active, reactive power and power factor
 sprcmtrd export <FILE>         # samples as CSV or JSON
 sprcmtrd cut <FILE> -o <OUT>   # time window / channels as a new recording
@@ -355,6 +356,48 @@ Apparent impedance of the six fault loops, as a distance relay measures it.
 - R or X below 1e-6 of |Z| is shown as 0 (residue of integer samples).
 - Library: `analysis::impedance` (`Loop`, `loop_quantities`, `impedance`,
   `find_pair`, `unit_factor`).
+
+### `locate` command
+
+Single-ended fault location: distance to the fault from the recording's line
+end.
+
+- Arguments: `<FILE>`, `--z1 <Z>` (required) and `--z0 <Z>` in Ω/km primary
+  as `R+jX` / `R+Xj` or `MAG@ANGLE` (degrees), with a reactance above 0;
+  `--length <km>` (required, above 0); `--loop <LOOP>`; `--at <ms>` and
+  `--cycles <N>` (default 1); `--from` / `--to` (fault search range);
+  `--voltage` / `--current` (as in `impedance`); `--frequency <Hz>`;
+  `--json`. Invalid line data is a command line error (exit 2).
+- Primary values only: the line data is primary, so the global `--secondary`
+  is an error (exit 1). No voltage or current group: error naming
+  `--voltage` / `--current` (exit 1).
+- The fault is found as in `fault` (`analysis::fault::analyse`); none:
+  "No fault found." (exit 0).
+- Loop: `--loop`, else from the faulted phases: a single phase → its ground
+  loop, otherwise the loop of the first two faulted phases (A-B for A-B, A-B-N
+  and A-B-C). A ground loop needs `--z0` (error naming it, exit 1); k0 =
+  (Z0 − Z1) / (3·Z1), the loop current I + k0·3I0.
+- Window: `--cycles` cycles ending at `--at`; by default ending in the middle
+  of the fault (inception to interruption or the end of the range), starting
+  at least one cycle after inception; for shorter faults the `fault` window.
+  The pre-fault window of `fault` gives ΔI.
+- Reactance method: d = Im(V / I) / Im(z1). Takagi: d = Im(V·ΔI*) /
+  Im(z1·I·ΔI*) with ΔI the superimposed current of the loop (the phase's ΔI
+  for ground loops, ΔI₁ − ΔI₂ for phase loops). No loop current or ΔI: no
+  result for that method.
+- Results are not clamped: d < 0 is noted "behind the relay", d > length
+  "beyond the line end (or wrong line data)". Fault resistance is not shown.
+- Text output: header (file, channels, line data with k0, fault type and
+  inception, window, loop with V, I and Z), then `method | distance | of line
+  | note` for `reactance` and `Takagi`. A missing value in the window gives a
+  note instead of the table.
+- JSON: `file`, `frequency`, `voltage`, `current`, `line` (`z1`, `z0`,
+  `length_km`, `k0`, complex values as `{re, im}`), `found`, and when found
+  `fault_type`, `inception_s`, `window` (`from_s`, `to_s`, `samples`), `loop`
+  (`name`, `v`, `i` as RMS phasors in V and A, `z` in Ω), `results[]`
+  (`method`, `distance_km`, `percent`, `note`).
+- Library: `analysis::locate` (`k0`, `fault_loop`, `loop_values`,
+  `reactance`, `takagi`, `window`).
 
 ### `power` command
 
@@ -679,6 +722,7 @@ src/
     trend.rs         values over time, step by step (trend)
     harmonics.rs     harmonic spectrum, THD (harmonics)
     impedance.rs     fault loop impedances (impedance)
+    locate.rs        fault location: reactance, Takagi (locate)
     power.rs         active, reactive, apparent power (power)
   comtrade/
     mod.rs           Comtrade, AnalogChannel, BinaryChannel, public API
@@ -702,6 +746,7 @@ src/
     trend.rs        Values over time, cycle by cycle
     harmonics.rs    Harmonic spectrum and THD
     impedance.rs    Apparent impedance of the fault loops
+    locate.rs       Fault location
     power.rs        Active, reactive power and power factor
     export.rs       Samples as CSV / JSON
     cut.rs          Time window / channels as a new recording

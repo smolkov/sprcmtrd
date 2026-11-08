@@ -21,6 +21,7 @@
   - [frequency](commands/frequency.md)
   - [harmonics](commands/harmonics.md)
   - [impedance](commands/impedance.md)
+  - [locate](commands/locate.md)
   - [power](commands/power.md)
   - [export](commands/export.md)
   - [cut](commands/cut.md)

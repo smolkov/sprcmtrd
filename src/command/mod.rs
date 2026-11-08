@@ -13,6 +13,7 @@ pub mod harmonics;
 pub mod impedance;
 pub mod info;
 pub mod list;
+pub mod locate;
 pub mod phasors;
 pub mod power;
 pub mod stats;
@@ -43,6 +44,7 @@ impl Command {
             Self::Fault(a) => a.run(ctx),
             Self::Phasors(a) => a.run(ctx),
             Self::Impedance(a) => a.run(ctx),
+            Self::Locate(a) => a.run(ctx),
             Self::Power(a) => a.run(ctx),
             Self::Harmonics(a) => a.run(ctx),
             Self::Trend(a) => a.run(ctx),

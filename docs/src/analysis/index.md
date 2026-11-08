@@ -152,6 +152,39 @@ P > 0 means power flows in the direction the currents are measured, usually
 from the busbar into the line; reverse flow gives P < 0 and a negative power
 factor. The voltages must be phase to neutral.
 
+## Fault detection
+
+`fault` and `locate` find the fault inception from the superimposed current
+Δi(n) = i(n) − i(n − N), N samples per cycle: in steady state it is close to
+0, a fault makes it jump. Inception is the first of 3 samples in a row where
+|Δi| of a phase is above 20 % of the pre-fault peak (at least 2 % of the
+largest current). The faulted phases come from the change of the phasors
+against the cycle before inception, ΔI = I(fault) − I(pre-fault), so load
+current doesn't count: a phase is faulted when its |ΔI| is at least half the
+largest, ground is involved when 3·|ΔI0| is at least 20 % of it.
+
+## Fault location
+
+`locate` measures the faulted loop (A-N, B-C, …) with voltage V and current I,
+ground loops compensated as I + k0·3I0 with k0 = (Z0 − Z1) / (3·Z1) from the
+line data. The loop sees V = d·z1·I + Rf·If, with the distance d, the line's
+z1 per km, the fault resistance Rf and the fault current If.
+
+- **Reactance method:** d = Im(V / I) / Im(z1). Exact for a bolted fault.
+  With fault resistance, Rf·If / I adds reactance whenever If and I differ in
+  phase: load flow before the fault and infeed from the other line end make
+  the fault look nearer (exporting end) or farther (importing end).
+- **Takagi:** d = Im(V·ΔI*) / Im(z1·I·ΔI*) with the superimposed current
+  ΔI, which flows only because of the fault and is nearly in phase with If.
+  The Rf term then is (nearly) real and drops out. It's exact when the source
+  and line impedances have the same angle; in strongly non-homogeneous
+  systems an error remains.
+
+The measurement window is one cycle in the middle of the fault, starting at
+least one cycle after inception, so the DC offset of the fault current has
+decayed. Both methods need the line data to be right: a result beyond the
+line end often means wrong z1 or z0 rather than a fault on the next line.
+
 ## Noise
 
 Recordings store integer samples, so computed values carry tiny residues:

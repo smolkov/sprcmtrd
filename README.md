@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `fault`, `stats`, `phasors`, `trend`, `frequency`, `harmonics`, `impedance`, `power`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `fault`, `stats`, `phasors`, `trend`, `frequency`, `harmonics`, `impedance`, `locate`, `power`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 The full documentation is the book at (source in [`docs/`](docs/), mdBook; locally `mdbook serve docs --open`).
@@ -73,6 +73,7 @@ sprcmtrd trend FILE         # the same over time, cycle by cycle
 sprcmtrd frequency FILE     # system frequency and its rate of change
 sprcmtrd harmonics FILE     # harmonic spectrum and THD at a time
 sprcmtrd impedance FILE     # apparent impedance of the fault loops
+sprcmtrd locate FILE ...    # distance to the fault (line data needed)
 sprcmtrd power FILE         # active, reactive power and power factor
 sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
@@ -310,6 +311,34 @@ C-A   110.0   551.1   199.6  0.000    199.6    0.0°
   --current IA,IB,IC` chooses them. `--loops BN,BC` limits the loops.
 - `--trend` gives R and X per loop over time (`--from`, `--to`, `--step`), to
   compare with the relay's zones; `--format csv` or `json` for other tools.
+
+### `locate`
+
+```sh
+sprcmtrd locate tests/data/reclose_1999_ascii.cfg --z1 0.03+j0.4 --length 40
+```
+
+The distance to the fault from this line end, from the faulted loop and the
+line data (Ω/km primary, as `R+jX` or `MAG@ANGLE`; `--z0` for ground faults).
+
+```
+File      tests/data/reclose_1999_ascii.cfg
+Channels  VA VB VC [kV] · IA IB IC [A]
+Line      z1 0.0300+j0.4000 Ω/km, 40 km, primary
+Fault     A-B at 0.000 s
+Window    20.00 ms .. 39.00 ms (1 cycle, 20 samples, 50 Hz)
+Loop      A-B: V 70.17kV, I 5.977kA, Z -1.234+j11.67 Ω
+
+method     distance  of line  note
+reactance  29.19 km  73.0 %
+Takagi     28.81 km  72.0 %
+```
+
+- The reactance method is exact for a bolted fault; Takagi uses the change of
+  the current against the pre-fault cycle, so fault resistance under load
+  doesn't shift the result. Results off the line are noted, not clamped.
+- `--loop`, `--at` and `--cycles` choose the loop and window; `--json` for
+  scripts.
 
 ### `power`
 

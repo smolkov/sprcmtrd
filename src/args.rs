@@ -139,6 +139,21 @@ pub enum Command {
     #[command(verbatim_doc_comment)]
     Impedance(ImpedanceArgs),
 
+    /// Single-ended fault location: distance to the fault from this line end.
+    ///
+    /// Finds the fault as the fault command does, measures the faulted loop
+    /// (ground loops compensated with k0 from --z1 / --z0) over one cycle in
+    /// the middle of the fault, and computes the distance with the reactance
+    /// method, Im(V/I) / Im(z1), and with Takagi, which uses the change of the
+    /// current against the pre-fault cycle to remove the fault resistance.
+    /// Line data per km on the primary side.
+    ///
+    /// Examples:
+    ///   sprcmtrd locate fault.cfg --z1 0.03+j0.33 --z0 0.1+j1.1 --length 42
+    ///   sprcmtrd locate fault.cfg --z1 0.33@85 --length 42 --loop BC --json
+    #[command(verbatim_doc_comment)]
+    Locate(LocateArgs),
+
     /// Active, reactive and apparent power and power factor of a three-phase
     /// circuit, per phase and in total.
     ///
@@ -429,6 +444,103 @@ pub struct PhasorsArgs {
     pub json: bool,
 }
 
+/// Arguments of `locate`.
+#[derive(Debug, Args)]
+pub struct LocateArgs {
+    /// Any file of the recording (.cfg, .dat, .cff, ...).
+    #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
+    pub file: PathBuf,
+    /// Positive sequence impedance of the line in Ω/km primary: `R+jX` or `MAG@ANGLE`.
+    #[arg(long, value_parser = parse_line_impedance, allow_hyphen_values = true)]
+    pub z1: LineImpedance,
+    /// Zero sequence impedance of the line in Ω/km primary (needed for ground faults).
+    #[arg(long, value_parser = parse_line_impedance, allow_hyphen_values = true)]
+    pub z0: Option<LineImpedance>,
+    /// Length of the line in km.
+    #[arg(long, value_parser = parse_length)]
+    pub length: f64,
+    /// Loop to measure (`AN`, `BC`, ...). Default: from the faulted phases.
+    #[arg(long = "loop")]
+    pub fault_loop: Option<String>,
+    /// End of the measurement window in ms relative to the trigger. Default: the middle of the fault.
+    #[arg(long, allow_hyphen_values = true)]
+    pub at: Option<f64>,
+    /// Measurement window length in cycles of the fundamental frequency.
+    #[arg(long, default_value_t = 1.0)]
+    pub cycles: f64,
+    /// Start of the fault search in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub from: Option<f64>,
+    /// End of the fault search in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub to: Option<f64>,
+    /// Voltage channels of phases A, B, C to neutral (indices or ids). Default: found by unit.
+    #[arg(long, value_delimiter = ',', num_args = 1)]
+    pub voltage: Vec<String>,
+    /// Current channels of phases A, B, C (indices or ids). Default: found by unit.
+    #[arg(long, value_delimiter = ',', num_args = 1)]
+    pub current: Vec<String>,
+    /// Fundamental frequency in Hz. Default: the line frequency of the recording.
+    #[arg(long)]
+    pub frequency: Option<f64>,
+    /// Print JSON instead of text.
+    #[arg(long)]
+    pub json: bool,
+}
+
+/// A line impedance per km: resistance and reactance in Ω/km.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LineImpedance {
+    /// Resistance.
+    pub r: f64,
+    /// Reactance.
+    pub x: f64,
+}
+
+/// Splits `MAG@ANGLE` (degrees; `MAG` alone is angle 0) into its numbers.
+fn parse_polar(s: &str) -> Option<(f64, f64)> {
+    let (m, a) = s.split_once('@').unwrap_or((s, "0"));
+    Some((m.trim().parse().ok()?, a.trim().parse().ok()?))
+}
+
+/// Parses `R+jX` / `R-jX` (also `R+Xj`, spaces allowed) into R and X.
+fn parse_rectangular(s: &str) -> Option<(f64, f64)> {
+    let s: String = s.chars().filter(|c| !c.is_whitespace()).collect();
+    // The sign before the imaginary part, not the one of an exponent or of R.
+    let split = s
+        .char_indices()
+        .skip(1)
+        .find(|&(i, c)| (c == '+' || c == '-') && !s[..i].ends_with(['e', 'E']))?
+        .0;
+    let (r, x) = s.split_at(split);
+    let (sign, x) = x.split_at(1);
+    let x = x.strip_prefix('j').or_else(|| x.strip_suffix('j'))?;
+    let x: f64 = x.parse().ok()?;
+    Some((r.parse().ok()?, if sign == "-" { -x } else { x }))
+}
+
+/// Parses `--z1` / `--z0`: `R+jX` or `MAG@ANGLE` in Ω/km, with a reactance above 0.
+fn parse_line_impedance(s: &str) -> Result<LineImpedance, String> {
+    let (r, x) = if s.contains('j') {
+        parse_rectangular(s)
+    } else {
+        parse_polar(s).map(|(m, a)| (m * a.to_radians().cos(), m * a.to_radians().sin()))
+    }
+    .ok_or_else(|| format!("expected R+jX or MAG@ANGLE, got '{s}'"))?;
+    if !(x > 0.0 && r.is_finite() && x.is_finite()) {
+        return Err(format!("the reactance of a line must be above 0, got '{s}'"));
+    }
+    Ok(LineImpedance { r, x })
+}
+
+/// Parses `--length`: km above 0.
+fn parse_length(s: &str) -> Result<f64, String> {
+    match s.trim().parse::<f64>() {
+        Ok(v) if v > 0.0 && v.is_finite() => Ok(v),
+        _ => Err(format!("expected a length in km above 0, got '{s}'")),
+    }
+}
+
 /// Arguments of `impedance`.
 #[derive(Debug, Args)]
 pub struct ImpedanceArgs {
@@ -526,16 +638,8 @@ pub struct K0 {
 
 /// Parses `--k0`: `MAG` or `MAG@ANGLE` (degrees).
 fn parse_k0(s: &str) -> Result<K0, String> {
-    let (m, a) = s.split_once('@').unwrap_or((s, "0"));
-    let parse = |v: &str| {
-        v.trim()
-            .parse::<f64>()
-            .map_err(|_| format!("expected MAG or MAG@ANGLE, got '{s}'"))
-    };
-    let k0 = K0 {
-        magnitude: parse(m)?,
-        angle: parse(a)?,
-    };
+    let (magnitude, angle) = parse_polar(s).ok_or_else(|| format!("expected MAG or MAG@ANGLE, got '{s}'"))?;
+    let k0 = K0 { magnitude, angle };
     if k0.magnitude < 0.0 {
         return Err("the magnitude of k0 can't be negative".into());
     }
@@ -926,6 +1030,19 @@ mod tests {
             })
         );
         assert!(parse_k0("x").is_err() && parse_k0("-1").is_err());
+
+        let z = |r, x| Ok(LineImpedance { r, x });
+        assert_eq!(parse_line_impedance("0.03+j0.33"), z(0.03, 0.33));
+        assert_eq!(parse_line_impedance(" 0.03 + 0.33j"), z(0.03, 0.33));
+        assert_eq!(parse_line_impedance("-0.01+j0.3"), z(-0.01, 0.3));
+        assert_eq!(parse_line_impedance("3e-2+j3.3e-1"), z(0.03, 0.33));
+        let polar = parse_line_impedance("2@90").unwrap();
+        assert!(polar.r.abs() < 1e-12 && (polar.x - 2.0).abs() < 1e-12);
+        assert!(parse_line_impedance("0.03-j0.33").is_err());
+        assert!(parse_line_impedance("0.03+k0.33").is_err());
+        assert!(parse_line_impedance("1@0").is_err());
+        assert_eq!(parse_length("42.5"), Ok(42.5));
+        assert!(parse_length("0").is_err() && parse_length("-3").is_err());
 
         assert_eq!(parse_step("1"), Ok(TrendStep::Cycles(1.0)));
         assert_eq!(parse_step("0.5"), Ok(TrendStep::Cycles(0.5)));
