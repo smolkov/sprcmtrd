@@ -154,7 +154,7 @@ factor. The voltages must be phase to neutral.
 
 ## Fault detection
 
-`fault` and `locate` find the fault inception from the superimposed current
+`fault`, `dc-offset` and `locate` find the fault inception from the superimposed current
 Δi(n) = i(n) − i(n − N), N samples per cycle: in steady state it is close to
 0, a fault makes it jump. Inception is the first of 3 samples in a row where
 |Δi| of a phase is above 20 % of the pre-fault peak (at least 2 % of the
@@ -162,6 +162,23 @@ largest current). The faulted phases come from the change of the phasors
 against the cycle before inception, ΔI = I(fault) − I(pre-fault), so load
 current doesn't count: a phase is faulted when its |ΔI| is at least half the
 largest, ground is involved when 3·|ΔI0| is at least 20 % of it.
+
+## DC offset
+
+`dc-offset` fits each phase current from inception over a few cycles as
+
+i(t) = a·sin(ωt) + b·cos(ωt) + D·e^(−t/τ)
+
+the current of an R-L circuit switched onto a fault. For a fixed τ the model
+is linear in a, b and D, solved by least squares; τ is searched from 1 ms to
+1 s on a logarithmic grid of 64 values and refined by golden section. τ = L/R
+of the fault loop, so X/R = ω·τ. D depends on the point on the wave at
+inception: largest at a voltage zero, none at a voltage peak.
+
+The τ of a tiny DC term is noise, so τ is shown only for a DC part of at least
+5 % of the AC peak. The model has one exponential: a saturating CT, an arc
+whose resistance changes, or two sources with different X/R make it fit
+worse, which the fit error (RMS of the residual in % of the AC peak) shows.
 
 ## Fault location
 

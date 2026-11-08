@@ -1574,3 +1574,70 @@ fn frequency_errors() {
         .failure()
         .stderr(predicate::str::contains("unknown channel 'X'"));
 }
+
+#[test]
+fn dc_offset_of_the_fault_current() {
+    // Phase B of fault_2013 carries 3 kA DC decaying with τ = 40 ms.
+    cmd()
+        .args(["dc-offset", "tests/data/fault_2013.cfg"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Fault     B-N at 0.000 s, interrupted at +0.100 s",
+        ))
+        .stdout(predicate::str::contains("(3 cycles, 120 samples, 50 Hz)"))
+        .stdout(predicate::str::is_match(r"B +faulted +3\.000k +60\.0 % +40\.0 ms +12\.6").unwrap())
+        .stdout(predicate::str::is_match(r"A +0\.000 +0\.0 % +- +-").unwrap());
+    // No DC in fault_1999: no τ.
+    cmd()
+        .args(["dc-offset", "tests/data/fault_1999.cfg"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r"A +faulted +\S+ +0\.0 % +- +-").unwrap());
+    cmd()
+        .args(["dc-offset", "tests/data/fault_1999.cfg", "--to", "-30"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No fault found."));
+}
+
+#[test]
+fn dc_offset_json_and_errors() {
+    let out = cmd()
+        .args([
+            "dc-offset",
+            "tests/data/reclose_1999_ascii.cfg",
+            "--json",
+            "--cycles",
+            "2",
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["found"], true);
+    assert_eq!(v["fault_type"], "A-B");
+    assert_eq!(v["window"]["samples"], 40);
+    let phase = |p: usize, key: &str| v["phases"][p][key].as_f64().unwrap();
+    // A and B: ±2.5 kA, τ = 30 ms, opposite signs.
+    assert!((phase(0, "dc") - 2500.0).abs() < 5.0, "{}", phase(0, "dc"));
+    assert!((phase(1, "dc") + 2500.0).abs() < 5.0, "{}", phase(1, "dc"));
+    for p in 0..2 {
+        assert!((phase(p, "tau_s") - 0.030).abs() < 3e-4);
+        assert_eq!(v["phases"][p]["faulted"], true);
+    }
+    assert!(v["phases"][2]["tau_s"].is_null());
+    assert_eq!(v["phases"][2]["channel"], "IC");
+    assert_eq!(v["phases"][2]["tau_above_limit"], false);
+
+    cmd()
+        .args(["dc-offset", "tests/data/fault_2013.cfg", "--cycles", "0"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("at least 1 cycle"));
+    cmd()
+        .args(["dc-offset", "tests/data/fault_2013.cfg", "--current", "IA,IB"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("--current"));
+}

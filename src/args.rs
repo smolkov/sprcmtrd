@@ -114,6 +114,20 @@ pub enum Command {
     #[command(verbatim_doc_comment)]
     Fault(FaultArgs),
 
+    /// Decaying DC offset of the fault current: DC part, time constant, X/R.
+    ///
+    /// Finds the fault as the fault command does and fits each phase current
+    /// from inception over --cycles cycles (cut at the interruption) as
+    /// a·sin(ωt) + b·cos(ωt) + D·e^(−t/τ). Shows D (in A and % of the AC
+    /// peak), τ and X/R = ω·τ, relevant for CT dimensioning and breaker duty.
+    /// τ only for a DC part of at least 5 % of the AC peak.
+    ///
+    /// Examples:
+    ///   sprcmtrd dc-offset fault.cfg
+    ///   sprcmtrd dc-offset fault.cfg --cycles 5 --json
+    #[command(verbatim_doc_comment)]
+    DcOffset(DcOffsetArgs),
+
     /// Phasors of the fundamental frequency and symmetrical components.
     ///
     /// A DFT over whole cycles ending at --at, as a protection relay sees the
@@ -396,6 +410,42 @@ pub struct FaultArgs {
     /// Print JSON instead of text.
     #[arg(long)]
     pub json: bool,
+}
+
+/// Arguments of `dc-offset`.
+#[derive(Debug, Args)]
+pub struct DcOffsetArgs {
+    /// Any file of the recording (.cfg, .dat, .cff, ...).
+    #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
+    pub file: PathBuf,
+    /// Fit window from inception in cycles of the fundamental frequency (at least 1).
+    #[arg(long, default_value_t = 3.0, value_parser = parse_fit_cycles)]
+    pub cycles: f64,
+    /// Current channels of phases A, B, C (indices or ids). Default: found by unit.
+    #[arg(long, value_delimiter = ',', num_args = 1)]
+    pub current: Vec<String>,
+    /// Start of the fault search in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub from: Option<f64>,
+    /// End of the fault search in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub to: Option<f64>,
+    /// Fundamental frequency in Hz. Default: the line frequency of the recording.
+    #[arg(long)]
+    pub frequency: Option<f64>,
+    /// Print JSON instead of text.
+    #[arg(long)]
+    pub json: bool,
+}
+
+/// Parses the `dc-offset` fit window: a number of cycles of at least 1.
+fn parse_fit_cycles(s: &str) -> Result<f64, String> {
+    let v: f64 = s.trim().parse().map_err(|_| format!("'{s}' is not a number"))?;
+    if v.is_finite() && v >= 1.0 {
+        Ok(v)
+    } else {
+        Err(format!("the fit needs at least 1 cycle, got {s}"))
+    }
 }
 
 /// Arguments of `events`.

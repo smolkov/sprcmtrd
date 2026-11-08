@@ -92,10 +92,10 @@ struct Json {
 }
 
 /// Three channels of a group with the factor from their unit to V or A.
-struct Phases<'a> {
-    channels: [&'a AnalogChannel; 3],
-    unit: String,
-    factor: f64,
+pub(super) struct Phases<'a> {
+    pub(super) channels: [&'a AnalogChannel; 3],
+    pub(super) unit: String,
+    pub(super) factor: f64,
 }
 
 impl<'a> Phases<'a> {
@@ -107,7 +107,7 @@ impl<'a> Phases<'a> {
         })
     }
 
-    fn ids(&self) -> [String; 3] {
+    pub(super) fn ids(&self) -> [String; 3] {
         self.channels.map(|ch| ch.info.id.clone())
     }
 
@@ -122,7 +122,7 @@ impl<'a> Phases<'a> {
 }
 
 /// The current group from `--current`, else found by unit.
-fn currents<'a>(c: &'a Comtrade, tokens: &[String]) -> anyhow::Result<Phases<'a>> {
+pub(super) fn currents<'a>(c: &'a Comtrade, tokens: &[String]) -> anyhow::Result<Phases<'a>> {
     let g = if tokens.is_empty() {
         let infos: Vec<&AnalogInfo> = c.analog_channels().map(|ch| &ch.info).collect();
         find_current(&infos).context("no current A/B/C channel group found; give it with --current")?

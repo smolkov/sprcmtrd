@@ -107,6 +107,7 @@ sprcmtrd view <FILE>           # print summary and terminal plots to stdout
 sprcmtrd check <PATH>          # validate recordings (exit code 4 on errors)
 sprcmtrd events <FILE>         # timeline of binary channel changes
 sprcmtrd fault <FILE>          # fault summary: inception, phases, operate times
+sprcmtrd dc-offset <FILE>      # DC offset of the fault current, τ, X/R
 sprcmtrd stats <FILE>          # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors <FILE>        # phasors and symmetrical components at a time
 sprcmtrd trend <FILE>          # the same over time, cycle by cycle
@@ -329,6 +330,43 @@ currents and operate times.
 - Library: `analysis::fault` (`analyse`, `inception`, `classify`,
   `interruption`, `Role`, `operate`), `analysis::impedance::find_current` /
   `find_voltage`.
+
+### `dc-offset` command
+
+The decaying DC offset of the fault current per phase, for CT dimensioning
+(transient saturation grows with τ) and breaker duty.
+
+- Arguments: `<FILE>`, `--cycles <N>` (fit window, default 3, at least 1),
+  `--current <A,B,C>` (default found by unit, as in `fault`), `--from` /
+  `--to` (fault search range), `--frequency <Hz>`, `--json`; global
+  `--secondary`.
+- The fault is found as in `fault` (inception, faulted phases, interruption).
+- Fit: from inception over `--cycles` cycles, cut at the interruption and at
+  the end of the range, each phase current is fitted as
+  a·sin(ωt) + b·cos(ωt) + D·e^(−t/τ) (t from inception) by least squares: a
+  grid of 64 τ values from 1 ms to 1 s (logarithmic), refined by golden
+  section; for each τ, a, b and D are solved linearly. Missing values are left
+  out. A window shorter than one cycle gives no fit and a note.
+- Results per phase: D at inception (A and % of the AC peak, with its sign),
+  τ, X/R = ω·τ, the RMS of the AC part, the measured instantaneous peak from
+  inception to the interruption and its time, and the fit error (RMS of the
+  residual in % of the AC peak).
+- τ (and X/R) only when |D| is at least 5 % of the AC peak; at the 1 s limit
+  τ shows as "> 1 s". Unfaulted phases are shown too.
+- No fault: "No fault found." (exit 0); no current group: error naming
+  `--current` (exit 1); `--cycles` below 1: exit 2.
+- Text output: key-value header (file, currents, side, fault type with
+  inception and interruption, fit window), a table `phase | | DC [A] | DC % |
+  τ | X/R | AC RMS [A] | peak [A] | peak at | fit error` and a note on the 5 %
+  rule.
+- JSON (`--json`): `file`, `side`, `frequency`, `current`, `found`, and when
+  found `fault_type`, `inception_s`, `interruption_s`, `window` (`from_s`,
+  `to_s`, `samples`), `phases[]` (`phase`, `channel`, `faulted`, `dc`,
+  `dc_percent`, `tau_s`, `tau_above_limit`, `x_over_r`, `ac_rms`, `peak`,
+  `peak_s`, `fit_error_percent`). Currents in A, times in s.
+- Library: `analysis::dc_offset` (`fit`, `analyse`, `Decay`, `TimeConstant`).
+- Limits: one exponential; a CT that saturates, or a fault resistance that
+  changes (arc), distorts the fit, which shows as a larger fit error.
 
 ### `impedance` command
 
@@ -719,6 +757,7 @@ src/
     stats.rs         channel statistics (stats)
     events.rs        binary channel changes (events)
     fault.rs         inception, faulted phases, operate times (fault)
+    dc_offset.rs     DC offset fit of the fault current: D, τ (dc-offset)
     trend.rs         values over time, step by step (trend)
     harmonics.rs     harmonic spectrum, THD (harmonics)
     impedance.rs     fault loop impedances (impedance)
@@ -741,6 +780,7 @@ src/
     check.rs        Validate recordings
     events.rs       Timeline of binary channel changes
     fault.rs        Fault summary
+    dc_offset.rs    DC offset of the fault current
     stats.rs        Channel statistics
     phasors.rs      Phasors and symmetrical components
     trend.rs        Values over time, cycle by cycle

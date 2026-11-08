@@ -10,7 +10,7 @@ and disturbance recorders during power system faults.
 
 - **An interactive TUI** to browse recordings and inspect analog channels as
   line plots and binary channels as status strips, with zoom, pan and a cursor.
-- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `fault`, `stats`, `phasors`, `trend`, `frequency`, `harmonics`, `impedance`, `locate`, `power`, `export`, `cut`, `convert`) that print to stdout and can be used
+- **CLI commands** (`info`, `list`, `check`, `view`, `events`, `fault`, `dc-offset`, `stats`, `phasors`, `trend`, `frequency`, `harmonics`, `impedance`, `locate`, `power`, `export`, `cut`, `convert`) that print to stdout and can be used
   in scripts and over SSH.
 
 The full documentation is the book at (source in [`docs/`](docs/), mdBook; locally `mdbook serve docs --open`).
@@ -67,6 +67,7 @@ sprcmtrd view FILE          # summary and plots printed to stdout
 sprcmtrd check PATH         # validate recordings (exit code 4 on errors)
 sprcmtrd events FILE        # timeline of binary channel changes
 sprcmtrd fault FILE         # fault summary: inception, phases, operate times
+sprcmtrd dc-offset FILE     # DC offset of the fault current, τ, X/R
 sprcmtrd stats FILE         # min, max, mean, RMS, peak; binary changes
 sprcmtrd phasors FILE       # phasors and symmetrical components at a time
 sprcmtrd trend FILE         # the same over time, cycle by cycle
@@ -278,6 +279,36 @@ current interrupted  +59.5 ms         +60.0 ms
 - Currents (and voltages, if any) are found by unit, start, trip and breaker
   channels by name; `--current`, `--voltage`, `--start`, `--trip` and
   `--breaker` choose them. `--json` for scripts.
+
+### `dc-offset`
+
+```sh
+sprcmtrd dc-offset tests/data/fault_2013.cfg
+```
+
+```
+File      tests/data/fault_2013.cfg
+Currents  IA IB IC [A]
+Values    primary
+Fault     B-N at 0.000 s, interrupted at +0.100 s
+Fit       0.00 ms .. 59.50 ms (3 cycles, 120 samples, 50 Hz)
+
+phase           DC [A]  DC %    τ        X/R   AC RMS [A]  peak [A]  peak at   fit error
+A               0.000   0.0 %   -        -     318.2       450.0     +0.005 s  0.0 %
+B      faulted  3.000k  60.0 %  40.0 ms  12.6  3.536k      7.244k    +0.011 s  0.0 %
+C               0.000   0.0 %   -        -     318.2       449.4     +0.008 s  0.0 %
+
+DC at inception in % of the AC peak; τ only for a DC part of at least 5 %.
+```
+
+- Each phase current is fitted from inception over 3 cycles (`--cycles`,
+  cut at the interruption) as a sine plus D·e^(−t/τ): the DC part at
+  inception, its time constant τ and X/R = ω·τ, for CT dimensioning and
+  breaker duty.
+- τ only for a DC part of at least 5 % of the AC peak; a large fit error
+  means the model doesn't fit (CT saturation, arc).
+- The fault is found as in `fault`; `--current`, `--from` / `--to`,
+  `--json` as there.
 
 ### `impedance`
 

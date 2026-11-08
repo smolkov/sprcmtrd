@@ -5,6 +5,7 @@ pub mod check;
 pub mod completions;
 pub mod convert;
 pub mod cut;
+pub mod dc_offset;
 pub mod events;
 pub mod export;
 pub mod fault;
@@ -42,6 +43,7 @@ impl Command {
             Self::Check(a) => a.run(ctx),
             Self::Events(a) => a.run(ctx),
             Self::Fault(a) => a.run(ctx),
+            Self::DcOffset(a) => a.run(ctx),
             Self::Phasors(a) => a.run(ctx),
             Self::Impedance(a) => a.run(ctx),
             Self::Locate(a) => a.run(ctx),

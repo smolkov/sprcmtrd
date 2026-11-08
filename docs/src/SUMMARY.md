@@ -15,6 +15,7 @@
   - [view](commands/view.md)
   - [events](commands/events.md)
   - [fault](commands/fault.md)
+  - [dc-offset](commands/dc-offset.md)
   - [stats](commands/stats.md)
   - [phasors](commands/phasors.md)
   - [trend](commands/trend.md)
