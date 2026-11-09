@@ -31,6 +31,8 @@ async fn main() -> ExitCode {
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
+        // The reader of stdout has gone (`| head`): nothing more to say.
+        Err(e) if broken_pipe(&e) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e:#}");
             ExitCode::from(exit_code(&e))
@@ -46,6 +48,13 @@ async fn run(cli: Cli, config: AppConfig) -> anyhow::Result<()> {
         Some(cmd) => cmd.run(&ctx),
         None => sprcmtrd::tui::run(cli.path, &ctx).await,
     }
+}
+
+fn broken_pipe(e: &anyhow::Error) -> bool {
+    e.chain().any(|c| {
+        c.downcast_ref::<std::io::Error>()
+            .is_some_and(|io| io.kind() == std::io::ErrorKind::BrokenPipe)
+    })
 }
 
 fn exit_code(e: &anyhow::Error) -> u8 {

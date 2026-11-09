@@ -1,5 +1,6 @@
 //! `info` command: summary of one recording.
 
+use crate::term::{out, outln};
 use std::path::Path;
 
 use serde::Serialize;
@@ -39,7 +40,7 @@ impl InfoArgs {
                 header,
                 info,
             };
-            println!("{}", serde_json::to_string_pretty(&out)?);
+            outln!("{}", serde_json::to_string_pretty(&out)?)?;
             return Ok(());
         }
 
@@ -57,7 +58,7 @@ impl InfoArgs {
                 out += &format!("\n{title}\n{}\n", text.trim_end());
             }
         }
-        print!("{out}");
+        out!("{out}")?;
         Ok(())
     }
 }

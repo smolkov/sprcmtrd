@@ -6,6 +6,7 @@ use crate::comtrade::{Cell, Comtrade};
 use crate::context::Context;
 use crate::format::{key_values, summary, time};
 use crate::term;
+use crate::term::out;
 
 impl ViewArgs {
     /// Runs the `view` command.
@@ -49,7 +50,7 @@ impl ViewArgs {
                 .collect();
             out += &format!("{strip} D{} {}\n", ch.info.index, ch.info.id);
         }
-        print!("{out}");
+        out!("{out}")?;
         Ok(())
     }
 }

@@ -1,5 +1,6 @@
 //! `phasors` command: fundamental phasors and symmetrical components at a time.
 
+use crate::term::{out, outln};
 use anyhow::{Context as _, bail};
 use serde::Serialize;
 
@@ -147,7 +148,7 @@ impl PhasorsArgs {
                 phasors,
                 sequences,
             };
-            println!("{}", serde_json::to_string_pretty(&out)?);
+            outln!("{}", serde_json::to_string_pretty(&out)?)?;
             return Ok(());
         }
 
@@ -219,7 +220,7 @@ impl PhasorsArgs {
                 )
             );
         }
-        print!("{out}");
+        out!("{out}")?;
         Ok(())
     }
 }

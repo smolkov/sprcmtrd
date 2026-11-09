@@ -1,6 +1,7 @@
 //! `convert` command: writes a recording as another revision, data format or
 //! file layout (`.cfg` + `.dat` or combined `.cff`).
 
+use crate::term::outln;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, bail};
@@ -53,7 +54,7 @@ impl ConvertArgs {
             rev.map(Revision::from),
             force,
         )?;
-        println!(
+        outln!(
             "{} ({} {}) -> {} ({} {})",
             file.display(),
             src.config.revision,
@@ -61,8 +62,8 @@ impl ConvertArgs {
             output.display(),
             saved.revision,
             saved.format
-        );
-        saved.print();
+        )?;
+        saved.print()?;
         Ok(())
     }
 }
@@ -83,19 +84,19 @@ pub struct Saved {
 
 impl Saved {
     /// Prints the files, notes and read-back result as indented lines.
-    pub fn print(&self) {
+    pub fn print(&self) -> std::io::Result<()> {
         for (path, size) in &self.files {
-            println!("  wrote {}  {}", path.display(), bytes(*size as u64));
+            outln!("  wrote {}  {}", path.display(), bytes(*size as u64))?;
         }
         for note in &self.notes {
-            println!("  note: {note}");
+            outln!("  note: {note}")?;
         }
-        println!(
+        outln!(
             "  read back: {} samples, {} analog, {} binary channels",
             self.back.len(),
             self.back.analog_channels().len(),
             self.back.binary_channels().len()
-        );
+        )
     }
 }
 

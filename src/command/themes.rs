@@ -4,6 +4,7 @@
 use super::Context;
 use crate::args::ThemesArgs;
 use crate::format::table;
+use crate::term::out;
 use crate::term::themes::Source;
 
 impl ThemesArgs {
@@ -11,7 +12,7 @@ impl ThemesArgs {
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let catalog = ctx.themes();
         if let Some(name) = self.print {
-            print!("{}", catalog.load(&name)?.to_toml());
+            out!("{}", catalog.load(&name)?.to_toml())?;
             return Ok(());
         }
         let mut rows = Vec::new();
@@ -30,7 +31,7 @@ impl ThemesArgs {
             };
             rows.push(vec![entry.name, kind, source]);
         }
-        print!("{}", table(&["NAME", "KIND", "SOURCE"], &rows));
+        out!("{}", table(&["NAME", "KIND", "SOURCE"], &rows))?;
         for e in errors {
             eprintln!("error: {e}");
         }

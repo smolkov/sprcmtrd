@@ -315,6 +315,45 @@ fn invalid_config_file_is_reported() {
         .stderr(predicate::str::contains("invalid config"));
 }
 
+/// Runs sprcmtrd with `args`, reads one line of its output and closes the
+/// pipe, like `| head -1`; returns the exit status and stderr.
+#[cfg(unix)]
+fn closed_after_one_line(args: &[&str]) -> (std::process::ExitStatus, String) {
+    use std::io::{BufRead, BufReader, Read};
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_sprcmtrd"))
+        .args(args)
+        .env("SPRCMTRD_CONFIG", "/nonexistent/config.toml")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut line = String::new();
+    BufReader::new(child.stdout.take().unwrap())
+        .read_line(&mut line)
+        .unwrap();
+    assert!(!line.is_empty());
+    // The reader is dropped here: the pipe is closed.
+    let mut stderr = String::new();
+    child.stderr.take().unwrap().read_to_string(&mut stderr).unwrap();
+    (child.wait().unwrap(), stderr)
+}
+
+#[cfg(unix)]
+#[test]
+fn a_closed_pipe_ends_quietly() {
+    // Each writes far more than a pipe holds (64 KiB), so writing goes on
+    // after the reader has gone.
+    for args in [
+        &["export", "tests/data/fault_2013.cfg"][..],
+        &["export", "tests/data/fault_2013.cfg", "--format", "json"],
+        &["trend", "tests/data/fault_2013.cfg", "--step", "0.5ms"],
+    ] {
+        let (status, stderr) = closed_after_one_line(args);
+        assert!(status.success(), "{args:?}: {status} {stderr}");
+        assert_eq!(stderr, "", "{args:?}");
+    }
+}
+
 #[test]
 fn window_and_channel_options_read_the_same_everywhere() {
     let help = |command: &str| {

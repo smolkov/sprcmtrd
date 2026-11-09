@@ -3,6 +3,7 @@
 //! ends, at one moment, cycle by cycle (`--trend`) or as waveforms
 //! (`--plot`).
 
+use crate::term::{out, outln};
 use anyhow::{Context as _, anyhow, bail};
 use serde::Serialize;
 
@@ -584,7 +585,7 @@ impl CompareArgs {
                     }),
                 }),
             };
-            println!("{}", serde_json::to_string_pretty(&out)?);
+            outln!("{}", serde_json::to_string_pretty(&out)?)?;
             return Ok(());
         }
 
@@ -694,7 +695,7 @@ impl CompareArgs {
         } else if rows.iter().any(|r| r.pa.is_none() || r.pb.is_none()) {
             out += "\nA value is missing in the window of a channel; its row has no values.\n";
         }
-        print!("{out}");
+        out!("{out}")?;
         Ok(())
     }
 
@@ -839,7 +840,7 @@ impl CompareArgs {
                         })
                         .collect(),
                 };
-                println!("{}", serde_json::to_string_pretty(&out)?);
+                outln!("{}", serde_json::to_string_pretty(&out)?)?;
             }
             TableFormat::Csv => {
                 let mut head = vec!["time_ms".to_owned()];
@@ -864,7 +865,7 @@ impl CompareArgs {
                     }
                     out += &(row.join(",") + "\n");
                 }
-                print!("{out}");
+                out!("{out}")?;
             }
             TableFormat::Text => {
                 let mut headers = vec!["time".to_owned()];
@@ -943,7 +944,7 @@ impl CompareArgs {
                 if missing {
                     out += "\n-: B has no samples there, a value is missing, or A is 0.\n";
                 }
-                print!("{out}");
+                out!("{out}")?;
             }
         }
         Ok(())
@@ -1000,7 +1001,7 @@ impl CompareArgs {
                 out += &difference_plot(s, p, scale, (t0, t1), cols, rows);
             }
         }
-        print!("{out}");
+        out!("{out}")?;
         Ok(())
     }
 }

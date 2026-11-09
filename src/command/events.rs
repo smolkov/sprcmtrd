@@ -1,5 +1,6 @@
 //! `events` command: timeline of binary channel changes.
 
+use crate::term::{out, outln};
 use anyhow::bail;
 use chrono::NaiveDateTime;
 use serde::Serialize;
@@ -74,7 +75,7 @@ impl EventsArgs {
                     })
                     .collect(),
             };
-            println!("{}", serde_json::to_string_pretty(&out)?);
+            outln!("{}", serde_json::to_string_pretty(&out)?)?;
             return Ok(());
         }
 
@@ -93,12 +94,12 @@ impl EventsArgs {
         ]);
         if binary.is_empty() {
             out += "\nThe recording has no binary channels.\n";
-            print!("{out}");
+            out!("{out}")?;
             return Ok(());
         }
         if list.is_empty() {
             out += &format!("\nNo changes in {} binary channels.\n", binary.len());
-            print!("{out}");
+            out!("{out}")?;
             return Ok(());
         }
 
@@ -135,7 +136,7 @@ impl EventsArgs {
         }
         out += &format!("\n{}", table(&["time", "Δ", "absolute", "channel", "change"], &rows));
         out += &format!("\n{} changes in {} binary channels\n", list.len(), binary.len());
-        print!("{out}");
+        out!("{out}")?;
         Ok(())
     }
 }

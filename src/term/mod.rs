@@ -8,12 +8,40 @@ mod table;
 mod theme;
 pub mod themes;
 
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Write};
 
 pub use spinner::Spinner;
 pub use style::{Palette, Role};
 pub use table::LiveTable;
 pub use theme::ThemeKind;
+
+/// Writes to stdout and flushes, returning the I/O error instead of
+/// panicking like `print!`: when the reader has gone (`| head`) it is a
+/// `BrokenPipe`, which `main` takes as a quiet end.
+pub fn write_stdout(args: std::fmt::Arguments) -> std::io::Result<()> {
+    let mut out = std::io::stdout().lock();
+    out.write_fmt(args)?;
+    out.flush()
+}
+
+/// `print!` that returns an `io::Result` (see [`write_stdout`]).
+macro_rules! out {
+    ($($arg:tt)*) => {
+        $crate::term::write_stdout(format_args!($($arg)*))
+    };
+}
+
+/// `println!` that returns an `io::Result` (see [`write_stdout`]).
+macro_rules! outln {
+    () => {
+        $crate::term::write_stdout(format_args!("\n"))
+    };
+    ($($arg:tt)*) => {
+        $crate::term::write_stdout(format_args!("{}\n", format_args!($($arg)*)))
+    };
+}
+
+pub(crate) use {out, outln};
 
 /// Width of the terminal stdout is connected to, `None` when it is not a
 /// terminal.

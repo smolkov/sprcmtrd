@@ -1,6 +1,7 @@
 //! `cut` command: a time window and/or some channels of a recording as a new
 //! recording.
 
+use crate::term::outln;
 use anyhow::bail;
 
 use super::convert;
@@ -38,14 +39,14 @@ impl CutArgs {
 
         let (first, last) = cut.time_span();
         let span = last - first;
-        println!(
+        outln!(
             "{} -> {} ({} {})",
             file.display(),
             output.display(),
             saved.revision,
             saved.format
-        );
-        println!(
+        )?;
+        outln!(
             "  kept samples {}..={} of {} ({} .. {}), {} of {} analog and {} of {} binary channels",
             range.start + 1,
             range.end,
@@ -56,11 +57,11 @@ impl CutArgs {
             src.analog_channels().len(),
             binary.len(),
             src.binary_channels().len()
-        );
+        )?;
         if !(first..=last).contains(&0.0) {
-            println!("  note: the trigger is outside the window; times stay relative to it");
+            outln!("  note: the trigger is outside the window; times stay relative to it")?;
         }
-        saved.print();
+        saved.print()?;
         Ok(())
     }
 }

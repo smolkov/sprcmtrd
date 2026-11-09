@@ -1,6 +1,7 @@
 //! `impedance` command: apparent impedance of the fault loops, at one moment
 //! or over time.
 
+use crate::term::{out, outln};
 use anyhow::{Context as _, bail};
 use serde::Serialize;
 
@@ -192,7 +193,7 @@ impl ImpedanceArgs {
                             loops: setup.loops.iter().zip(z).map(|(&l, z)| JsonLoop::new(l, *z)).collect(),
                         })
                         .collect();
-                    println!("{}", serde_json::to_string_pretty(&json)?);
+                    outln!("{}", serde_json::to_string_pretty(&json)?)?;
                 }
                 TableFormat::Csv => {
                     let mut out = String::from("time_ms");
@@ -211,7 +212,7 @@ impl ImpedanceArgs {
                         }
                         out.push('\n');
                     }
-                    print!("{out}");
+                    out!("{out}")?;
                 }
                 TableFormat::Text => {
                     let mut headers = vec!["time".to_owned()];
@@ -234,7 +235,7 @@ impl ImpedanceArgs {
                         })
                         .collect();
                     let names: Vec<&str> = headers.iter().map(String::as_str).collect();
-                    print!(
+                    out!(
                         "{}",
                         header(&format!(
                             "{} {} ({} samples) at {}, {} rows",
@@ -244,8 +245,8 @@ impl ImpedanceArgs {
                             rate(frequency),
                             rows.len()
                         ))
-                    );
-                    print!("\n{}", table(&names, &table_rows));
+                    )?;
+                    out!("\n{}", table(&names, &table_rows))?;
                 }
             }
             return Ok(());
@@ -271,7 +272,7 @@ impl ImpedanceArgs {
                     .zip(&values)
                     .map(|(&l, v)| JsonLoop::new(l, *v))
                     .collect();
-                println!("{}", serde_json::to_string_pretty(&json)?);
+                outln!("{}", serde_json::to_string_pretty(&json)?)?;
             }
             TableFormat::Csv => {
                 let mut out = String::from("loop,voltage_v,current_a,r_ohm,x_ohm,z_ohm,angle_deg\n");
@@ -289,10 +290,10 @@ impl ImpedanceArgs {
                         f(j.angle)
                     );
                 }
-                print!("{out}");
+                out!("{out}")?;
             }
             TableFormat::Text => {
-                print!("{}", header(&describe_window(&window, t0, t1, self.cycles, frequency)));
+                out!("{}", header(&describe_window(&window, t0, t1, self.cycles, frequency)))?;
                 let headers = [
                     format!("V [{}]", pair.voltage.unit),
                     format!("I [{}]", pair.current.unit),
@@ -320,13 +321,13 @@ impl ImpedanceArgs {
                         ],
                     })
                     .collect();
-                print!(
+                out!(
                     "\n{}",
                     table(
                         &["loop", &headers[0], &headers[1], "R [Ω]", "X [Ω]", "|Z| [Ω]", "φ"],
                         &rows
                     )
-                );
+                )?;
             }
         }
         Ok(())

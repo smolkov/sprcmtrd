@@ -1,6 +1,7 @@
 //! `fault` command: fault summary of a recording (inception, faulted phases,
 //! duration, peak currents, operate times).
 
+use crate::term::{out, outln};
 use anyhow::{Context as _, bail};
 use serde::Serialize;
 
@@ -272,7 +273,7 @@ impl FaultArgs {
                 found: fault.is_some(),
                 fault,
             };
-            println!("{}", serde_json::to_string_pretty(&out)?);
+            outln!("{}", serde_json::to_string_pretty(&out)?)?;
             return Ok(());
         }
 
@@ -295,7 +296,7 @@ impl FaultArgs {
         ));
         let Some(f) = found else {
             head.push(("Searched", format!("{} .. {}", signed(t0), signed(t1))));
-            print!("{}\nNo fault found.\n", key_values(&head));
+            out!("{}\nNo fault found.\n", key_values(&head))?;
             return Ok(());
         };
         let inception = time[f.inception];
@@ -343,7 +344,7 @@ impl FaultArgs {
         if !missing.is_empty() {
             out += &format!("\n{}\n", missing.join("\n"));
         }
-        print!("{out}");
+        out!("{out}")?;
         Ok(())
     }
 }

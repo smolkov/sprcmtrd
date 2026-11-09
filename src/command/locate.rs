@@ -1,6 +1,7 @@
 //! `locate` command: single-ended fault location (reactance method and
 //! Takagi) from the recording of one line end.
 
+use crate::term::{out, outln};
 use anyhow::{Context as _, bail};
 use serde::Serialize;
 
@@ -219,10 +220,10 @@ impl LocateArgs {
                     found: false,
                     fault: None,
                 };
-                println!("{}", serde_json::to_string_pretty(&out)?);
+                outln!("{}", serde_json::to_string_pretty(&out)?)?;
             } else {
                 head.push(("Searched", format!("{} .. {}", signed(t0), signed(t1))));
-                print!("{}\nNo fault found.\n", key_values(&head));
+                out!("{}\nNo fault found.\n", key_values(&head))?;
             }
             return Ok(());
         };
@@ -290,7 +291,7 @@ impl LocateArgs {
                         .collect(),
                 }),
             };
-            println!("{}", serde_json::to_string_pretty(&out)?);
+            outln!("{}", serde_json::to_string_pretty(&out)?)?;
             return Ok(());
         }
 
@@ -298,10 +299,10 @@ impl LocateArgs {
         head.push(("Window", describe_window(&window, w0, w1, self.cycles, frequency)));
         let Some(m) = values else {
             head.push(("Loop", l.name().to_owned()));
-            print!(
+            out!(
                 "{}\nA value is missing in the window; no location. Try another --at.\n",
                 key_values(&head)
-            );
+            )?;
             return Ok(());
         };
         let rms = |z: Complex| z.abs() / 2f64.sqrt();
@@ -328,11 +329,11 @@ impl LocateArgs {
                 ]
             })
             .collect();
-        print!(
+        out!(
             "{}\n{}",
             key_values(&head),
             table(&["method", "distance", "of line", "note"], &rows)
-        );
+        )?;
         Ok(())
     }
 }

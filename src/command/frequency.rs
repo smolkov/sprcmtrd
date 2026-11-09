@@ -1,5 +1,6 @@
 //! `frequency` command: system frequency over time and its rate of change.
 
+use crate::term::{out, outln};
 use anyhow::{anyhow, bail};
 use serde::Serialize;
 
@@ -73,7 +74,7 @@ impl FrequencyArgs {
         let summary = frequency::summary(&points);
 
         match self.format {
-            TableFormat::Csv => print!("{}", csv(&points, nominal)),
+            TableFormat::Csv => out!("{}", csv(&points, nominal))?,
             TableFormat::Json => {
                 let json = Json {
                     file: c.name(),
@@ -106,7 +107,7 @@ impl FrequencyArgs {
                         })
                         .collect(),
                 };
-                println!("{}", serde_json::to_string_pretty(&json)?);
+                outln!("{}", serde_json::to_string_pretty(&json)?)?;
             }
             TableFormat::Text => {
                 let cycles = |n: f64| format!("{n} {}", if n == 1.0 { "cycle" } else { "cycles" });
@@ -152,8 +153,8 @@ impl FrequencyArgs {
                     }
                     None => pairs.push(("Frequency", "no signal to measure".into())),
                 }
-                print!("{}", key_values(&pairs));
-                println!("\n{}", text(&points, nominal, span).trim_end());
+                out!("{}", key_values(&pairs))?;
+                outln!("\n{}", text(&points, nominal, span).trim_end())?;
             }
         }
         Ok(())

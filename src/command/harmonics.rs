@@ -1,5 +1,6 @@
 //! `harmonics` command: harmonic spectrum and THD per channel at one moment.
 
+use crate::term::{out, outln};
 use anyhow::bail;
 use serde::Serialize;
 
@@ -102,7 +103,7 @@ impl HarmonicsArgs {
                     .map(|(ch, s)| json_channel(ch, s))
                     .collect(),
             };
-            println!("{}", serde_json::to_string_pretty(&out)?);
+            outln!("{}", serde_json::to_string_pretty(&out)?)?;
             return Ok(());
         }
 
@@ -141,8 +142,8 @@ impl HarmonicsArgs {
                 out += &format!("\nA{} {}: {e}", ch.info.index, ch.info.id);
             }
         }
-        print!("{}", out.trim_end());
-        println!();
+        out!("{}", out.trim_end())?;
+        outln!()?;
         Ok(())
     }
 }

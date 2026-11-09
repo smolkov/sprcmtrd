@@ -1,6 +1,7 @@
 //! `dc-offset` command: the decaying DC offset of the fault current per
 //! phase (DC part at inception, time constant, X/R).
 
+use crate::term::{out, outln};
 use anyhow::bail;
 use serde::Serialize;
 
@@ -144,7 +145,7 @@ impl DcOffsetArgs {
                 found: fault.is_some(),
                 fault,
             };
-            println!("{}", serde_json::to_string_pretty(&out)?);
+            outln!("{}", serde_json::to_string_pretty(&out)?)?;
             return Ok(());
         }
 
@@ -161,7 +162,7 @@ impl DcOffsetArgs {
         ];
         let (Some(f), Some(r)) = (found, result) else {
             head.push(("Searched", format!("{} .. {}", signed(t0), signed(t1))));
-            print!("{}\nNo fault found.\n", key_values(&head));
+            out!("{}\nNo fault found.\n", key_values(&head))?;
             return Ok(());
         };
         head.push((
@@ -188,7 +189,7 @@ impl DcOffsetArgs {
         let mut out = key_values(&head);
         if r.window.len() < f.per_cycle {
             out += "\nThe fault is shorter than one cycle; no fit.\n";
-            print!("{out}");
+            out!("{out}")?;
             return Ok(());
         }
         let dash = || "-".to_owned();
@@ -236,7 +237,7 @@ impl DcOffsetArgs {
         if r.phases.iter().any(Option::is_none) {
             out += "A phase without values in the window has no fit.\n";
         }
-        print!("{out}");
+        out!("{out}")?;
         Ok(())
     }
 }

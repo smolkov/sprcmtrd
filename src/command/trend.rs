@@ -1,5 +1,6 @@
 //! `trend` command: values over time, cycle by cycle.
 
+use crate::term::{out, outln};
 use anyhow::{anyhow, bail};
 use serde::Serialize;
 
@@ -119,10 +120,10 @@ impl TrendArgs {
             rms: self.rms,
         };
         match self.format {
-            TableFormat::Csv => print!("{}", table.csv(&result.steps, reference)),
+            TableFormat::Csv => out!("{}", table.csv(&result.steps, reference))?,
             TableFormat::Json => {
                 let json = table.json(&c, &result.steps, reference, frequency, samples, step_samples, side);
-                println!("{}", serde_json::to_string_pretty(&json)?);
+                outln!("{}", serde_json::to_string_pretty(&json)?)?;
             }
             TableFormat::Text => {
                 let name = c.name();
@@ -132,7 +133,7 @@ impl TrendArgs {
                     TrendStep::Cycles(n) => cycles(n),
                     TrendStep::Seconds(s) => time(s, s),
                 };
-                print!(
+                out!(
                     "{}",
                     key_values(&[
                         ("File", name),
@@ -159,8 +160,8 @@ impl TrendArgs {
                         ),
                         ("Values", format!("{}, RMS of the fundamental", side.name()),),
                     ])
-                );
-                println!("\n{}", table.text(&result.steps, reference).trim_end());
+                )?;
+                outln!("\n{}", table.text(&result.steps, reference).trim_end())?;
             }
         }
         Ok(())

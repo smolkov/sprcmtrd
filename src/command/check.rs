@@ -1,5 +1,6 @@
 //! `check` command: validates one recording or all recordings in a directory.
 
+use crate::term::{out, outln};
 use std::ops::ControlFlow;
 
 use serde::Serialize;
@@ -81,10 +82,10 @@ impl CheckArgs {
                     report,
                 })
                 .collect();
-            println!("{}", serde_json::to_string_pretty(&out)?);
+            outln!("{}", serde_json::to_string_pretty(&out)?)?;
         } else {
             let palette = Palette::stdout(ctx.theme_kind(), ctx.global.colors_disabled());
-            print!("{}", text(&reports, &palette));
+            out!("{}", text(&reports, &palette))?;
             if path.is_dir() && !reports.is_empty() {
                 let n = reports.len();
                 let recordings = if n == 1 { "recording" } else { "recordings" };
@@ -93,12 +94,12 @@ impl CheckArgs {
                     let s = format!("{n} {what}");
                     if n > 0 { palette.paint(&s, role) } else { s }
                 };
-                println!(
+                outln!(
                     "\n{n} {recordings}: {}, {}, {}",
                     count(ok, "ok", Role::Ok),
                     count(warnings, "with warnings", Role::Warning),
                     count(errors, "with errors", Role::Error)
-                );
+                )?;
             }
         }
 

@@ -1,6 +1,7 @@
 //! `power` command: active, reactive and apparent power and power factor of
 //! a three-phase circuit, at one moment or over time.
 
+use crate::term::{out, outln};
 use anyhow::bail;
 use serde::Serialize;
 
@@ -204,11 +205,11 @@ impl PowerArgs {
                             }
                         })
                         .collect();
-                    println!("{}", serde_json::to_string_pretty(&json)?);
+                    outln!("{}", serde_json::to_string_pretty(&json)?)?;
                 }
-                TableFormat::Csv => print!("{}", trend_csv(&rows)),
+                TableFormat::Csv => out!("{}", trend_csv(&rows))?,
                 TableFormat::Text => {
-                    print!(
+                    out!(
                         "{}",
                         header(&format!(
                             "{} {} ({} samples) at {}, {} rows",
@@ -218,8 +219,8 @@ impl PowerArgs {
                             rate(frequency),
                             rows.len()
                         ))
-                    );
-                    print!("\n{}", trend_text(&rows, self.phases));
+                    )?;
+                    out!("\n{}", trend_text(&rows, self.phases))?;
                 }
             }
             return Ok(());
@@ -242,7 +243,7 @@ impl PowerArgs {
                 json.phases = Some(phases);
                 json.total = Some(total);
                 json.flow = x.as_ref().map(|x| flow(x.power.total));
-                println!("{}", serde_json::to_string_pretty(&json)?);
+                outln!("{}", serde_json::to_string_pretty(&json)?)?;
             }
             TableFormat::Csv => {
                 let (phases, total) = json_rows(x.as_ref(), true);
@@ -260,12 +261,12 @@ impl PowerArgs {
                         f(j.pf)
                     );
                 }
-                print!("{out}");
+                out!("{out}")?;
             }
             TableFormat::Text => {
-                print!("{}", header(&describe_window(&window, t0, t1, self.cycles, frequency)));
+                out!("{}", header(&describe_window(&window, t0, t1, self.cycles, frequency)))?;
                 let Some(x) = x else {
-                    println!("\nNo power: a sample in the window has no value.");
+                    outln!("\nNo power: a sample in the window has no value.")?;
                     return Ok(());
                 };
                 let rms = |c: Complex, factor: f64| si(c.abs() / 2f64.sqrt() / factor);
@@ -283,19 +284,19 @@ impl PowerArgs {
                 rows.push(row("total", x.power.total, None));
                 let v = format!("V [{}]", vc.pair.voltage.unit);
                 let i = format!("I [{}]", vc.pair.current.unit);
-                print!(
+                out!(
                     "\n{}",
                     table(&["phase", &v, &i, "P [W]", "Q [var]", "S [VA]", "PF"], &rows)
-                );
+                )?;
                 let total = x.power.total;
-                println!(
+                outln!(
                     "\nFlow: {}",
                     match flow(total) {
                         "forward" => format!("forward, {} W as the currents are measured", si(total.re)),
                         "reverse" => format!("reverse, {} W against the current direction", si(-total.re)),
                         _ => "no active power".to_owned(),
                     }
-                );
+                )?;
             }
         }
         Ok(())

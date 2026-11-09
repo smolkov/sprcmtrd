@@ -1,5 +1,6 @@
 //! `stats` command: statistics per channel over a time window.
 
+use crate::term::{out, outln};
 use serde::Serialize;
 
 use crate::analysis::stats::{self, AnalogStats, BinaryStats};
@@ -59,7 +60,7 @@ impl StatsArgs {
                 analog,
                 binary,
             };
-            println!("{}", serde_json::to_string_pretty(&out)?);
+            outln!("{}", serde_json::to_string_pretty(&out)?)?;
             return Ok(());
         }
 
@@ -115,7 +116,7 @@ impl StatsArgs {
                 .collect();
             out += &format!("\nBinary channels\n{}", table(&headers, &rows));
         }
-        print!("{out}");
+        out!("{out}")?;
         Ok(())
     }
 }

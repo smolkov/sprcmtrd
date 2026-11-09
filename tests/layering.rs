@@ -68,3 +68,23 @@ fn the_check_finds_a_wrong_use() {
     assert!(used.iter().any(|(m, _)| m == "format"));
     assert!(!used.iter().any(|(m, _)| m == "tui"));
 }
+
+#[test]
+fn commands_write_through_term() {
+    // `print!` panics when stdout is closed (`| head`); the commands use
+    // `term::out!` / `outln!`, which return the error.
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/command");
+    let mut wrong = Vec::new();
+    for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+        let text = std::fs::read_to_string(entry.path()).unwrap();
+        for (n, line) in text.lines().enumerate() {
+            let code = line.split("//").next().unwrap_or("");
+            if code.contains("print!(") && !code.contains("eprint")
+                || code.contains("println!(") && !code.contains("eprintln!(")
+            {
+                wrong.push(format!("{}:{}", entry.path().display(), n + 1));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "print! in the commands:\n{}", wrong.join("\n"));
+}
