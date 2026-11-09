@@ -63,6 +63,29 @@ impl GlobalOpts {
     }
 }
 
+/// Time window of `view`, `stats`, `export`, `cut` and `events`.
+#[derive(Debug, Clone, Default, Args)]
+pub struct TimeWindow {
+    /// Start of the time window in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub from: Option<f64>,
+    /// End of the time window in ms relative to the trigger.
+    #[arg(long, allow_hyphen_values = true)]
+    pub to: Option<f64>,
+}
+
+/// Channels and time window of `view`, `stats`, `export` and `cut`.
+#[derive(Debug, Clone, Default, Args)]
+pub struct Selection {
+    /// Channels: comma separated 1-based indices or ids
+    /// (analog: `3` or `IA`, binary: `d2` or `TRIP`). Default: all.
+    #[arg(long, value_delimiter = ',')]
+    pub channels: Vec<String>,
+    /// Time window.
+    #[command(flatten)]
+    pub window: TimeWindow,
+}
+
 /// Theme selection: `auto` or the name of a theme. The names are checked
 /// when the theme is loaded, because user themes are files.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
@@ -409,16 +432,9 @@ pub struct ViewArgs {
     /// Any file of the recording (.cfg, .dat, .cff, ...).
     #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
     pub file: PathBuf,
-    /// Channels to show: comma separated 1-based indices or ids
-    /// (analog: `3` or `IA`, binary: `d2` or `TRIP`). Default: all.
-    #[arg(long, value_delimiter = ',')]
-    pub channels: Vec<String>,
-    /// Start of the time window in ms relative to the trigger.
-    #[arg(long, allow_hyphen_values = true)]
-    pub from: Option<f64>,
-    /// End of the time window in ms relative to the trigger.
-    #[arg(long, allow_hyphen_values = true)]
-    pub to: Option<f64>,
+    /// Channels and time window.
+    #[command(flatten)]
+    pub selection: Selection,
     /// Plot width in columns (default: terminal width).
     #[arg(long)]
     pub width: Option<u16>,
@@ -621,12 +637,9 @@ pub struct EventsArgs {
     /// Binary channels: comma separated `dN` indices or ids. Default: all.
     #[arg(long, value_delimiter = ',')]
     pub channels: Vec<String>,
-    /// Start of the time window in ms relative to the trigger.
-    #[arg(long, allow_hyphen_values = true)]
-    pub from: Option<f64>,
-    /// End of the time window in ms relative to the trigger.
-    #[arg(long, allow_hyphen_values = true)]
-    pub to: Option<f64>,
+    /// Time window.
+    #[command(flatten)]
+    pub window: TimeWindow,
     /// Print JSON instead of text.
     #[arg(long)]
     pub json: bool,
@@ -1015,16 +1028,9 @@ pub struct StatsArgs {
     /// Any file of the recording (.cfg, .dat, .cff, ...).
     #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
     pub file: PathBuf,
-    /// Channels: comma separated 1-based indices or ids
-    /// (analog: `3` or `IA`, binary: `d2` or `TRIP`). Default: all.
-    #[arg(long, value_delimiter = ',')]
-    pub channels: Vec<String>,
-    /// Start of the time window in ms relative to the trigger.
-    #[arg(long, allow_hyphen_values = true)]
-    pub from: Option<f64>,
-    /// End of the time window in ms relative to the trigger.
-    #[arg(long, allow_hyphen_values = true)]
-    pub to: Option<f64>,
+    /// Channels and time window.
+    #[command(flatten)]
+    pub selection: Selection,
     /// Print JSON instead of text.
     #[arg(long)]
     pub json: bool,
@@ -1039,16 +1045,9 @@ pub struct ExportArgs {
     /// Output format (default: json for a .json output file, otherwise csv).
     #[arg(long, value_enum)]
     pub format: Option<ExportFormat>,
-    /// Channels to export: comma separated 1-based indices or ids
-    /// (analog: `3` or `IA`, binary: `d2` or `TRIP`). Default: all.
-    #[arg(long, value_delimiter = ',')]
-    pub channels: Vec<String>,
-    /// Start of the time window in ms relative to the trigger.
-    #[arg(long, allow_hyphen_values = true)]
-    pub from: Option<f64>,
-    /// End of the time window in ms relative to the trigger.
-    #[arg(long, allow_hyphen_values = true)]
-    pub to: Option<f64>,
+    /// Channels and time window.
+    #[command(flatten)]
+    pub selection: Selection,
     /// Export only every Nth sample (no filtering).
     #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
     pub every: u32,
@@ -1069,16 +1068,9 @@ pub struct CutArgs {
     /// Output file: NAME.cfg (with NAME.dat) or NAME.cff.
     #[arg(short, long, value_hint = ValueHint::FilePath)]
     pub output: PathBuf,
-    /// Start of the time window in ms relative to the trigger.
-    #[arg(long, allow_hyphen_values = true)]
-    pub from: Option<f64>,
-    /// End of the time window in ms relative to the trigger.
-    #[arg(long, allow_hyphen_values = true)]
-    pub to: Option<f64>,
-    /// Channels to keep: comma separated 1-based indices or ids
-    /// (analog: `3` or `IA`, binary: `d2` or `TRIP`). Default: all.
-    #[arg(long, value_delimiter = ',')]
-    pub channels: Vec<String>,
+    /// Channels and time window.
+    #[command(flatten)]
+    pub selection: Selection,
     /// Overwrite existing output files.
     #[arg(long)]
     pub force: bool,
@@ -1286,11 +1278,12 @@ mod tests {
         assert!(c.command.is_none());
         assert_eq!(c.global.theme, Some(ThemeChoice::named("light")));
         let c = Cli::parse_from(["sprcmtrd", "view", "x.cfg", "--from", "-20", "--channels", "IA,d1"]);
-        let Some(Command::View(ViewArgs { from, channels, .. })) = c.command else {
+        let Some(Command::View(ViewArgs { selection, .. })) = c.command else {
             panic!()
         };
-        assert_eq!(from, Some(-20.0));
-        assert_eq!(channels, ["IA", "d1"]);
+        assert_eq!(selection.window.from, Some(-20.0));
+        assert_eq!(selection.window.to, None);
+        assert_eq!(selection.channels, ["IA", "d1"]);
         let c = Cli::parse_from(["sprcmtrd", "completions", "zsh", "-o", "_sprcmtrd"]);
         let Some(Command::Completions(CompletionsArgs { shell, output })) = c.command else {
             panic!()

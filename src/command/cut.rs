@@ -3,7 +3,7 @@
 
 use anyhow::bail;
 
-use super::{convert, select_channels, time_window};
+use super::convert;
 use crate::args::CutArgs;
 use crate::comtrade::Comtrade;
 use crate::context::Context;
@@ -17,14 +17,12 @@ impl CutArgs {
         let Self {
             file,
             output,
-            from: from_ms,
-            to: to_ms,
-            channels,
+            selection,
             force,
         } = self;
         let src = Comtrade::open(&file)?;
-        let (analog, binary) = select_channels(&src, &channels)?;
-        let (t0, t1) = time_window(&src, from_ms, to_ms)?;
+        let (analog, binary) = selection.channels(&src)?;
+        let (t0, t1) = selection.range(&src)?;
         let range = src.index_range(t0, t1);
         if range.is_empty() {
             let (first, last) = src.time_span();

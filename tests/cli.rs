@@ -316,6 +316,38 @@ fn invalid_config_file_is_reported() {
 }
 
 #[test]
+fn window_and_channel_options_read_the_same_everywhere() {
+    let help = |command: &str| {
+        let out = cmd().args([command, "--help"]).output().unwrap();
+        String::from_utf8(out.stdout).unwrap()
+    };
+    let lines = |text: &str, option: &str| {
+        let start = text
+            .find(&format!("      --{option} "))
+            .unwrap_or_else(|| panic!("--{option}:\n{text}"));
+        // Clap puts the help beside or below the option, by command.
+        let raw = text[start..].split("\n      --").next().unwrap();
+        raw.split_whitespace().collect::<Vec<_>>().join(" ")
+    };
+    let view = help("view");
+    for command in ["stats", "export", "cut", "events"] {
+        let other = help(command);
+        for option in ["from", "to"] {
+            assert_eq!(lines(&other, option), lines(&view, option), "{command} --{option}");
+        }
+        if command != "events" {
+            assert_eq!(
+                lines(&other, "channels"),
+                lines(&view, "channels"),
+                "{command} --channels"
+            );
+        }
+    }
+    assert!(lines(&view, "from").contains("Start of the time window in ms relative to the trigger"));
+    assert!(lines(&help("events"), "channels").contains("Binary channels"));
+}
+
+#[test]
 fn themes_lists_and_prints() {
     let dir = tempfile::tempdir().unwrap();
     let themes = dir.path().join("themes");

@@ -7,7 +7,6 @@ use std::path::Path;
 
 use anyhow::{Context as _, bail};
 
-use super::{select_channels, time_window};
 use crate::args::{ExportArgs, ExportFormat};
 use crate::comtrade::Comtrade;
 use crate::comtrade::export::{Export, Format};
@@ -27,8 +26,8 @@ impl ExportArgs {
     /// Runs the `export` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let c = Comtrade::open(&self.file)?;
-        let (analog, binary) = select_channels(&c, &self.channels)?;
-        let (t0, t1) = time_window(&c, self.from, self.to)?;
+        let (analog, binary) = self.selection.channels(&c)?;
+        let (t0, t1) = self.selection.range(&c)?;
         let export = Export {
             analog: analog
                 .iter()

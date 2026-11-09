@@ -112,6 +112,25 @@ pub fn window_at(c: &Comtrade, at_ms: f64, cycles: f64, frequency: f64) -> anyho
     })
 }
 
+impl crate::args::TimeWindow {
+    /// The window in seconds relative to the trigger, see [`time_window`].
+    pub fn range(&self, c: &Comtrade) -> anyhow::Result<(f64, f64)> {
+        time_window(c, self.from, self.to)
+    }
+}
+
+impl crate::args::Selection {
+    /// The selected analog and binary positions, see [`select_channels`].
+    pub fn channels(&self, c: &Comtrade) -> anyhow::Result<(Vec<usize>, Vec<usize>)> {
+        select_channels(c, &self.channels)
+    }
+
+    /// The window in seconds relative to the trigger.
+    pub fn range(&self, c: &Comtrade) -> anyhow::Result<(f64, f64)> {
+        self.window.range(c)
+    }
+}
+
 /// Time window in seconds relative to the trigger from `--from` / `--to` in
 /// ms; the whole recording when they are not given.
 pub fn time_window(c: &Comtrade, from_ms: Option<f64>, to_ms: Option<f64>) -> anyhow::Result<(f64, f64)> {

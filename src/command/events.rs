@@ -4,7 +4,7 @@ use anyhow::bail;
 use chrono::NaiveDateTime;
 use serde::Serialize;
 
-use super::{select_channels, time_window};
+use super::select_channels;
 use crate::analysis::events::{self, Event};
 use crate::args::EventsArgs;
 use crate::comtrade::Comtrade;
@@ -36,8 +36,7 @@ impl EventsArgs {
         let Self {
             file,
             channels,
-            from: from_ms,
-            to: to_ms,
+            window,
             json,
         } = self;
         let c = Comtrade::open(&file)?;
@@ -54,7 +53,7 @@ impl EventsArgs {
             .iter()
             .map(|&i| c.binary(i).expect("selected index is valid"))
             .collect();
-        let (t0, t1) = time_window(&c, from_ms, to_ms)?;
+        let (t0, t1) = window.range(&c)?;
         let range = c.index_range(t0, t1);
         let list = events::events(&binary, c.time(), range.clone());
         let trigger = c.config.trigger_time;

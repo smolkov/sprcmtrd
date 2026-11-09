@@ -2,7 +2,6 @@
 
 use serde::Serialize;
 
-use super::{select_channels, time_window};
 use crate::analysis::stats::{self, AnalogStats, BinaryStats};
 use crate::args::StatsArgs;
 use crate::comtrade::Comtrade;
@@ -26,17 +25,11 @@ struct Json {
 impl StatsArgs {
     /// Runs the `stats` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
-        let Self {
-            file,
-            channels,
-            from: from_ms,
-            to: to_ms,
-            json,
-        } = self;
+        let Self { file, selection, json } = self;
         let c = Comtrade::open(&file)?;
         let side = ctx.global.side();
-        let (analog, binary) = select_channels(&c, &channels)?;
-        let (t0, t1) = time_window(&c, from_ms, to_ms)?;
+        let (analog, binary) = selection.channels(&c)?;
+        let (t0, t1) = selection.range(&c)?;
         let range = c.index_range(t0, t1);
         let analog: Vec<AnalogStats> = analog
             .iter()

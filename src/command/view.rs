@@ -1,7 +1,6 @@
 //! `view` command: summary and plots printed to stdout.
 
 use super::chart::{self, LABEL_WIDTH};
-use super::{select_channels, time_window};
 use crate::args::ViewArgs;
 use crate::comtrade::{Cell, Comtrade};
 use crate::context::Context;
@@ -13,8 +12,8 @@ impl ViewArgs {
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let c = Comtrade::open(&self.file)?;
         let side = ctx.global.side();
-        let (analog, binary) = select_channels(&c, &self.channels)?;
-        let (t0, t1) = time_window(&c, self.from, self.to)?;
+        let (analog, binary) = self.selection.channels(&c)?;
+        let (t0, t1) = self.selection.range(&c)?;
         let width = self.width.map(usize::from).or_else(term::terminal_width).unwrap_or(100);
         let plot_cols = width.saturating_sub(LABEL_WIDTH).max(16);
         let range = c.index_range(t0, t1);
