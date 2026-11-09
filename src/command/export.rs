@@ -90,16 +90,7 @@ impl ExportArgs {
 
 /// Refuses to replace a file of the source recording with the export.
 fn refuse_source(c: &Comtrade, output: &Path) -> anyhow::Result<()> {
-    let Ok(out) = output.canonicalize() else {
-        return Ok(()); // does not exist yet
-    };
-    let source = c
-        .path
-        .iter()
-        .flat_map(|p| [&p.cfg, &p.dat, &p.cff, &p.hdr, &p.inf])
-        .flatten()
-        .any(|p| p.canonicalize().is_ok_and(|p| p == out));
-    if source {
+    if c.path.as_ref().is_some_and(|p| p.contains(output)) {
         bail!(
             "{} is part of the source recording; choose another output name",
             output.display()

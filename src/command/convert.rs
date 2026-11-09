@@ -192,19 +192,9 @@ pub fn save(
 /// Refuses to write over the source recording, and over other existing
 /// files unless `force`.
 fn check_outputs(src: &Comtrade, files: &[(PathBuf, Vec<u8>)], force: bool) -> anyhow::Result<()> {
-    let sources: Vec<PathBuf> = src
-        .path
-        .iter()
-        .flat_map(|p| [&p.cfg, &p.dat, &p.cff, &p.hdr, &p.inf])
-        .flatten()
-        .filter_map(|p| p.canonicalize().ok())
-        .collect();
     let mut existing = Vec::new();
-    for (path, _) in files {
-        let Ok(real) = path.canonicalize() else {
-            continue; // does not exist yet
-        };
-        if sources.contains(&real) {
+    for (path, _) in files.iter().filter(|(p, _)| p.exists()) {
+        if src.path.as_ref().is_some_and(|p| p.contains(path)) {
             bail!(
                 "{} is part of the source recording; choose another output name",
                 path.display()

@@ -110,6 +110,23 @@ impl RecordingPath {
         }
     }
 
+    /// All files of the recording.
+    pub fn files(&self) -> impl Iterator<Item = &Path> {
+        [&self.cfg, &self.dat, &self.cff, &self.hdr, &self.inf]
+            .into_iter()
+            .filter_map(|p| p.as_deref())
+    }
+
+    /// Whether `path` is one of the recording's files, however it is
+    /// spelled (relative, `..`, a symbolic link). A path that doesn't exist
+    /// is none of them.
+    pub fn contains(&self, path: &Path) -> bool {
+        let Ok(path) = path.canonicalize() else {
+            return false;
+        };
+        self.files().any(|f| f.canonicalize().is_ok_and(|f| f == path))
+    }
+
     /// The file that identifies the recording (`.cfg`, else `.cff`).
     pub fn main_file(&self) -> &Path {
         self.cfg
@@ -213,6 +230,31 @@ pub fn find_recordings(dir: &Path, recursive: bool) -> Result<Vec<RecordingPath>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn contains_each_file_of_the_recording() {
+        let dir = tempfile::tempdir().unwrap();
+        for ext in ["cfg", "dat", "hdr", "inf"] {
+            fs::write(dir.path().join(format!("rec.{ext}")), "").unwrap();
+        }
+        fs::write(dir.path().join("other.cfg"), "").unwrap();
+        let rec = RecordingPath::from_file(dir.path().join("rec.cfg")).unwrap();
+        assert_eq!(rec.files().count(), 4);
+        for ext in ["cfg", "dat", "hdr", "inf"] {
+            assert!(rec.contains(&dir.path().join(format!("rec.{ext}"))), "{ext}");
+        }
+        // Another spelling of the same file.
+        let sub = dir.path().join("sub");
+        fs::create_dir(&sub).unwrap();
+        assert!(rec.contains(&sub.join("..").join("rec.dat")));
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(dir.path().join("rec.cfg"), dir.path().join("link.cfg")).unwrap();
+            assert!(rec.contains(&dir.path().join("link.cfg")));
+        }
+        assert!(!rec.contains(&dir.path().join("other.cfg")));
+        assert!(!rec.contains(&dir.path().join("rec.cff")));
+    }
 
     #[test]
     fn finds_siblings_and_recordings() {
