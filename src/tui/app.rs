@@ -40,6 +40,8 @@ pub enum PlotView {
     Rms,
     /// The RMS of harmonic orders over time, one row per channel and order.
     Harmonics,
+    /// The fault loop impedances as trajectories in the R-X plane.
+    Impedance,
 }
 
 /// Kind of a footer status message.
@@ -167,6 +169,12 @@ const NO_LINE_FREQUENCY: &str = "no RMS view: the recording has no line frequenc
 /// Shown when the harmonics view has no window length to use.
 const NO_HARMONICS: &str = "no harmonics view: the recording has no line frequency";
 
+/// Shown when the impedance view has no window length to use.
+const NO_IMPEDANCE_FREQUENCY: &str = "no impedance view: the recording has no line frequency";
+
+/// Shown when the impedance view has no loops to measure.
+const NO_LOOPS: &str = "no impedance view: no voltage and current A/B/C groups found";
+
 /// How long footer messages stay.
 const STATUS_TIME: Duration = Duration::from_secs(5);
 
@@ -289,10 +297,15 @@ impl App {
         if self.plot_view != PlotView::Waveform && !self.rms_available() {
             let text = match self.plot_view {
                 PlotView::Harmonics => NO_HARMONICS,
+                PlotView::Impedance => NO_IMPEDANCE_FREQUENCY,
                 _ => NO_LINE_FREQUENCY,
             };
             self.plot_view = PlotView::Waveform;
             self.set_status(text, StatusKind::Error);
+        } else if self.plot_view == PlotView::Impedance && self.recording.as_ref().is_some_and(|r| r.loops().is_none())
+        {
+            self.plot_view = PlotView::Waveform;
+            self.set_status(NO_LOOPS, StatusKind::Error);
         }
     }
 
@@ -453,6 +466,7 @@ impl App {
             Action::TimeMode => self.absolute_time = !self.absolute_time,
             Action::RmsView => self.toggle_rms_view(),
             Action::HarmonicsView => self.toggle_harmonics_view(),
+            Action::ImpedanceView => self.toggle_impedance_view(),
             Action::Harmonic(order) => {
                 if self.plot_view == PlotView::Harmonics {
                     self.toggle_order(usize::from(order));
@@ -516,6 +530,30 @@ impl App {
         }
         self.plot_view = PlotView::Harmonics;
         let text = format!("{}, 1 cycle ({})", self.orders_label(), self.window_label());
+        self.set_status(text, StatusKind::Info);
+    }
+
+    fn toggle_impedance_view(&mut self) {
+        if self.plot_view == PlotView::Impedance {
+            self.plot_view = PlotView::Waveform;
+            self.set_status("showing the waveform", StatusKind::Info);
+            return;
+        }
+        let Some(rec) = &self.recording else {
+            self.no_recording();
+            return;
+        };
+        if rec.line_frequency().is_none() {
+            self.set_status(NO_IMPEDANCE_FREQUENCY, StatusKind::Error);
+            return;
+        }
+        let Some(loops) = rec.loops() else {
+            self.set_status(NO_LOOPS, StatusKind::Error);
+            return;
+        };
+        let (v, i) = loops.ids();
+        let text = format!("impedance from {} and {}, k0 = 0", v.join(" "), i.join(" "));
+        self.plot_view = PlotView::Impedance;
         self.set_status(text, StatusKind::Info);
     }
 

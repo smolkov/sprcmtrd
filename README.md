@@ -780,6 +780,18 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
   false 2nd harmonic). The title lists the orders, the shown ones in brackets
   (`Harmonics [1] 2 [3] 4 …`; on a narrow terminal only the shown ones,
   `Harmonics 1 3`). Orders at or above half the sample rate can't be shown.
+- **Impedance view:** `z` draws the apparent impedance of the fault loops as
+  trajectories in the R-X plane: the phase-to-ground loops A-N, B-N, C-N
+  (`L-N`, without residual compensation, k0 = 0) and the phase-to-phase loops
+  A-B, B-C, C-A (`L-L`), side by side or, on a narrow terminal, stacked. The
+  trajectories cover the visible time window, so zoom and pan (`+` / `-`,
+  `H` / `L`, `0`) set the range. The cursor (`←` / `→`, `t`) marks each loop's
+  point with its name (`A`, `BC`, …; lower case at the end of the trajectory),
+  and the tables show R, X, |Z| and φ at the cursor, the same values as
+  `sprcmtrd impedance --at`. Points with less than 5 % of the loop's largest
+  current in the window (breaker open) are left out. Both axes have the same
+  Ω per dot, so angles look right. It needs a voltage and a current A/B/C
+  group (found by unit).
 - **Scrolling:** analog plots are at least 5 rows high. When the shown channels
   don't fit, the plots scroll (`PgUp` / `PgDn`, or select a channel in the
   sidebar); a scrollbar on the right border and `channels 4–9 of 18` in the
@@ -814,6 +826,7 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
 | `d`                 | RMS with / without DC                         |
 | `f`                 | Waveform / harmonics over time                |
 | `1` … `9`           | Harmonics view: show / hide order 1 … 9       |
+| `z`                 | Waveform / impedance trajectories (R-X)       |
 | `m`                 | Relative / absolute time                      |
 | `s`                 | Show / hide sidebar                           |
 | `T`                 | Dark / light theme (not saved)                |

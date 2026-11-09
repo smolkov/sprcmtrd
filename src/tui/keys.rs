@@ -46,6 +46,7 @@ pub enum Action {
     HarmonicsView,
     /// Show / hide harmonic order 1 … 9 in the harmonics view.
     Harmonic(u8),
+    ImpedanceView,
 }
 
 /// Default key binding of an action.
@@ -315,6 +316,13 @@ pub const BINDINGS: &[Binding] = &[
         name: "harmonic_9",
         keys: &["9"],
         help: "Harmonics view: show / hide the order 9",
+        hint: None,
+    },
+    Binding {
+        action: Action::ImpedanceView,
+        name: "impedance_view",
+        keys: &["z"],
+        help: "Toggle waveform / impedance trajectories (R-X)",
         hint: None,
     },
     Binding {

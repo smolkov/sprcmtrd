@@ -54,6 +54,8 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 
 ## TUI ideas
 
+* [x] Impedance view (`z`, issue #6): trajectories of the six loops in two R-X diagrams over the visible time window, values at the cursor. See `tasks/6-tui-impedance-view.md`.
+* [ ] Impedance view: k0 for the ground loops from the configuration file (`[impedance] k0 = "0.8@-5"`), and relay zones (polygons, circles) drawn into the diagrams.
 * [x] Harmonics view (`f`): orders 1 … 9 over time, switched with `1` … `9`, windows fitted to the measured frequency. See `tasks/tui-harmonics-view.md`.
 
 * [ ] Write log to a file in TUI mode (already in spec, not implemented).

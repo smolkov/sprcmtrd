@@ -6,6 +6,7 @@ mod filepicker;
 mod footer;
 mod header;
 mod help;
+mod impedance;
 mod info;
 mod plot;
 mod time_axis;
@@ -263,23 +264,23 @@ mod tests {
         assert_eq!(app.theme_kind, ThemeKind::Light);
         assert_eq!(AppConfig::load_from(&path).unwrap().theme, Some(ThemeChoice::Light));
 
-        // Rebind zoom_in to z.
+        // Rebind zoom_in to x (free).
         let row = 1 + BINDINGS.iter().position(|b| b.name == "zoom_in").unwrap();
         for _ in 0..row {
             press(&mut app, KeyCode::Down, KeyModifiers::NONE);
         }
         press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
         assert!(render(&app, 100, 30).contains("press a key"));
-        press(&mut app, KeyCode::Char('z'), KeyModifiers::NONE);
-        let z = KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE);
-        assert_eq!(app.keymap.action(&z), Some(Action::ZoomIn));
-        assert_eq!(AppConfig::load_from(&path).unwrap().keys["zoom_in"], ["z"]);
+        press(&mut app, KeyCode::Char('x'), KeyModifiers::NONE);
+        let x = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE);
+        assert_eq!(app.keymap.action(&x), Some(Action::ZoomIn));
+        assert_eq!(AppConfig::load_from(&path).unwrap().keys["zoom_in"], ["x"]);
 
         // A key used by another action is refused.
         press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
         press(&mut app, KeyCode::Char('q'), KeyModifiers::NONE);
         assert!(render(&app, 100, 30).contains("already used by 'quit'"));
-        assert_eq!(app.keymap.action(&z), Some(Action::ZoomIn));
+        assert_eq!(app.keymap.action(&x), Some(Action::ZoomIn));
 
         // Backspace restores the default.
         press(&mut app, KeyCode::Backspace, KeyModifiers::NONE);
@@ -784,6 +785,105 @@ mod tests {
         press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
         press(&mut app, KeyCode::Char('9'), KeyModifiers::NONE);
         assert!(app.harmonics[8]);
+    }
+
+    /// App with `fault_2013` (voltages VA, VB, VC and currents IA, IB, IC).
+    fn app_with_loops() -> App {
+        let mut app = app();
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/fault_2013.cfg");
+        app.set_recording(Comtrade::open(path).unwrap());
+        app
+    }
+
+    #[test]
+    fn impedance_view_shows_the_loops_at_the_cursor() {
+        use crate::tui::app::PlotView;
+
+        let mut app = app_with_loops();
+        press(&mut app, KeyCode::Char('z'), KeyModifiers::NONE);
+        assert_eq!(app.plot_view, PlotView::Impedance);
+        let rec = app.recording.as_mut().unwrap();
+        rec.view = (-0.02, 0.08);
+        rec.set_cursor(0.04);
+        let screen = render(&app, 140, 40);
+        assert!(
+            screen.contains(" Impedance · -20.0 ms … 80.0 ms · primary Ω "),
+            "{screen}"
+        );
+        assert!(
+            screen.contains("L-N (k0 = 0)") && screen.contains("L-L  R "),
+            "{screen}"
+        );
+        assert!(
+            screen.contains("impedance from VA VB VC and IA IB IC, k0 = 0"),
+            "{screen}"
+        );
+        // As `sprcmtrd impedance tests/data/fault_2013.cfg --at 40`.
+        for row in [
+            "A-N       199.6     0.000     199.6     0.0°",
+            "B-N       5.108   -204.5m     5.112    -2.3°",
+            "A-B       14.23    -14.67     20.44   -45.9°",
+            "B-C       15.22     13.47     20.32    41.5°",
+        ] {
+            assert!(screen.contains(row), "{row}\n{screen}");
+        }
+        // Without colors the loops are told apart by their names.
+        let canvas: String = screen
+            .lines()
+            .filter(|l| !l.contains("-N ") && !l.contains("-B "))
+            .collect();
+        for name in ["AB", "BC", "CA"] {
+            assert!(canvas.contains(name), "{name}\n{screen}");
+        }
+
+        // The zoom sets the time range.
+        press(&mut app, KeyCode::Char('-'), KeyModifiers::NONE);
+        let screen = render(&app, 140, 40);
+        assert!(!screen.contains("-20.0 ms … 80.0 ms"), "{screen}");
+
+        press(&mut app, KeyCode::Char('z'), KeyModifiers::NONE);
+        assert_eq!(app.plot_view, PlotView::Waveform);
+    }
+
+    #[test]
+    fn impedance_view_stacks_on_a_narrow_terminal() {
+        let mut app = app_with_loops();
+        press(&mut app, KeyCode::Char('z'), KeyModifiers::NONE);
+        let screen = render(&app, 80, 24);
+        let row_of = |text: &str| {
+            screen
+                .lines()
+                .position(|l| l.contains(text))
+                .unwrap_or_else(|| panic!("{text}\n{screen}"))
+        };
+        assert!(row_of("L-N (k0 = 0)") < row_of("L-L  R "), "{screen}");
+        assert!(row_of("C-N ") < row_of("L-L  R "), "{screen}");
+        assert!(screen.contains("C-A "), "{screen}");
+    }
+
+    #[test]
+    fn impedance_view_needs_voltages_and_currents() {
+        use crate::tui::app::PlotView;
+
+        // fault_1999 has one voltage only, no voltage group.
+        let mut app = app();
+        press(&mut app, KeyCode::Char('z'), KeyModifiers::NONE);
+        assert_eq!(app.plot_view, PlotView::Waveform);
+        assert!(
+            app.status
+                .as_ref()
+                .unwrap()
+                .text
+                .contains("no voltage and current A/B/C groups")
+        );
+
+        // Opening such a recording in the view goes back to the waveform.
+        let mut app = app_with_loops();
+        press(&mut app, KeyCode::Char('z'), KeyModifiers::NONE);
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/fault_1999.cfg");
+        app.set_recording(Comtrade::open(path).unwrap());
+        assert_eq!(app.plot_view, PlotView::Waveform);
+        assert!(app.status.as_ref().unwrap().text.contains("no impedance view"));
     }
 
     #[test]

@@ -25,8 +25,7 @@ pub mod view;
 
 use anyhow::{Context as _, anyhow, bail};
 
-use crate::analysis::Complex;
-use crate::analysis::impedance::{Pair, Quantity, find_pair, unit_factor};
+use crate::analysis::impedance::{Loops, Pair, Quantity, find_pair, unit_factor};
 use crate::analysis::phasor::{Window, WindowError};
 use crate::analysis::sequence::Group;
 use crate::analysis::trend::Trend;
@@ -130,17 +129,22 @@ pub fn time_window(c: &Comtrade, from_ms: Option<f64>, to_ms: Option<f64>) -> an
     Ok((t0, t1))
 }
 
-/// A voltage and a current A/B/C group (`impedance`, `power`): the six
-/// channels and the factors from their units to volts and amperes.
+/// A voltage and a current A/B/C group (`impedance`, `power`, `locate`):
+/// the groups and their six channels with the unit factors
+/// ([`Loops`], also used by the TUI).
 pub struct VoltageCurrent<'a> {
     /// The groups, as positions of analog channels.
     pub pair: Pair,
-    /// Voltages A, B, C, then currents A, B, C.
-    pub channels: [&'a AnalogChannel; 6],
-    /// Factor from the voltage unit to V.
-    pub voltage_factor: f64,
-    /// Factor from the current unit to A.
-    pub current_factor: f64,
+    /// The channels and their factors to V and A.
+    pub loops: Loops<'a>,
+}
+
+impl<'a> std::ops::Deref for VoltageCurrent<'a> {
+    type Target = Loops<'a>;
+
+    fn deref(&self) -> &Loops<'a> {
+        &self.loops
+    }
 }
 
 impl<'a> VoltageCurrent<'a> {
@@ -160,38 +164,11 @@ impl<'a> VoltageCurrent<'a> {
             },
             _ => bail!("give both --voltage and --current, or neither"),
         };
-        let ch = |i: usize| c.analog(i).expect("channel position is valid");
-        let [va, vb, vc] = pair.voltage.phases.map(ch);
-        let [ia, ib, ic] = pair.current.phases.map(ch);
-        Ok(Self {
-            channels: [va, vb, vc, ia, ib, ic],
-            voltage_factor: factor(&pair.voltage, Quantity::Voltage)?,
-            current_factor: factor(&pair.current, Quantity::Current)?,
-            pair,
-        })
-    }
-
-    /// Channel ids of the voltages and of the currents.
-    pub fn ids(&self) -> ([String; 3], [String; 3]) {
-        let id = |k: usize| self.channels[k].info.id.clone();
-        ([0, 1, 2].map(id), [3, 4, 5].map(id))
-    }
-
-    /// The phasors of the six channels (in their order) in V and A; `None`
-    /// if one is missing.
-    pub fn scaled(&self, phasors: &[Option<Complex>]) -> Option<([Complex; 3], [Complex; 3])> {
-        let get = |k: usize, f: f64| phasors.get(k).copied().flatten().map(|p| p.scale(f));
-        let v = [
-            get(0, self.voltage_factor)?,
-            get(1, self.voltage_factor)?,
-            get(2, self.voltage_factor)?,
-        ];
-        let i = [
-            get(3, self.current_factor)?,
-            get(4, self.current_factor)?,
-            get(5, self.current_factor)?,
-        ];
-        Some((v, i))
+        // The factors first, for the errors that name the unit.
+        factor(&pair.voltage, Quantity::Voltage)?;
+        factor(&pair.current, Quantity::Current)?;
+        let loops = Loops::new(c, &pair).context("a channel of the groups is missing")?;
+        Ok(Self { pair, loops })
     }
 }
 
