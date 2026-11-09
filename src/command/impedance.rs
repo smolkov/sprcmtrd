@@ -33,7 +33,7 @@ impl Setup<'_> {
             .map(|&l| {
                 let (v, i) = scaled?;
                 let (lv, li) = impedance::loop_quantities(l, v, i, self.k0);
-                Some((lv, li, clean(impedance::impedance(lv, li)?)))
+                Some((lv, li, impedance::clean(impedance::impedance(lv, li)?)))
             })
             .collect()
     }
@@ -342,15 +342,5 @@ impl ImpedanceArgs {
             }
         }
         Ok(())
-    }
-}
-
-/// `z` with a part below 1e-6 of |Z| set to 0: residue of integer samples,
-/// which would show as `-31.65µ` next to 199.6 Ω (and as an angle of -0.0°).
-fn clean(z: Complex) -> Complex {
-    let small = |v: f64| if v.abs() <= 1e-6 * z.abs() { 0.0 } else { v };
-    Complex {
-        re: small(z.re),
-        im: small(z.im),
     }
 }

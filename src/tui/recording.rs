@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::analysis::frequency::Track;
 use crate::analysis::harmonics;
+use crate::analysis::impedance::{Loops, Pair, find_pair};
 use crate::analysis::phasor::Window;
 use crate::comtrade::{Comtrade, RecordingPath};
 
@@ -29,6 +30,8 @@ pub struct Recording {
     /// Frequency track for the RMS window. It covers all samples, so it is
     /// measured once, when the RMS view first needs it.
     track: OnceCell<Option<Track>>,
+    /// Voltage and current groups for the impedance view, found once.
+    pair: OnceCell<Option<Pair>>,
 }
 
 /// Default number of analog channels shown after loading.
@@ -63,6 +66,7 @@ impl Recording {
             view,
             cursor,
             track: OnceCell::new(),
+            pair: OnceCell::new(),
         }
     }
 
@@ -79,6 +83,19 @@ impl Recording {
                 Track::new(&channels, self.data.time(), self.line_frequency()?)
             })
             .as_ref()
+    }
+
+    /// The fault loop channels: the voltage and current groups found by unit
+    /// (as `sprcmtrd impedance` finds them), `None` without both.
+    pub fn loops(&self) -> Option<Loops<'_>> {
+        let pair = self
+            .pair
+            .get_or_init(|| {
+                let infos: Vec<_> = self.data.analog_channels().map(|ch| &ch.info).collect();
+                find_pair(&infos)
+            })
+            .as_ref()?;
+        Loops::new(&self.data, pair)
     }
 
     /// Length in s of the sliding RMS window ending at sample `i`: one cycle,

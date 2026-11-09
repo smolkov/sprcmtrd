@@ -2,8 +2,9 @@
 //! it: phase to ground with residual compensation, and phase to phase.
 
 use super::Complex;
+use super::phasor::{self, Window};
 use super::sequence::{self, Group};
-use crate::comtrade::AnalogInfo;
+use crate::comtrade::{AnalogChannel, AnalogInfo, Comtrade, Side};
 
 /// A fault loop.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,6 +82,16 @@ pub fn impedance(v: Complex, i: Complex) -> Option<Complex> {
     (i.abs() > 0.0).then(|| v / i)
 }
 
+/// `z` with a part below 1e-6 of |Z| set to 0: residue of integer samples,
+/// which would show as `-31.65µ` next to 199.6 Ω (and as an angle of -0.0°).
+pub fn clean(z: Complex) -> Complex {
+    let small = |v: f64| if v.abs() <= 1e-6 * z.abs() { 0.0 } else { v };
+    Complex {
+        re: small(z.re),
+        im: small(z.im),
+    }
+}
+
 /// Factor from a unit to volts or amperes (`kV` → 1000), `None` for other units.
 pub fn unit_factor(unit: &str) -> Option<(Quantity, f64)> {
     let (q, factor) = match unit.trim() {
@@ -130,6 +141,107 @@ pub fn find_current(channels: &[&AnalogInfo]) -> Option<Group> {
 /// The first voltage group among `channels`, preferring one of `circuit`.
 pub fn find_voltage(channels: &[&AnalogInfo], circuit: &str) -> Option<Group> {
     find_group(channels, Quantity::Voltage, Some(circuit))
+}
+
+/// The six channels of a [`Pair`] (voltages A, B, C, then currents A, B, C)
+/// and the factors from their units to V and A.
+#[derive(Debug, Clone, Copy)]
+pub struct Loops<'a> {
+    /// Voltages A, B, C, then currents A, B, C.
+    pub channels: [&'a AnalogChannel; 6],
+    /// Factor from the voltage unit to V.
+    pub voltage_factor: f64,
+    /// Factor from the current unit to A.
+    pub current_factor: f64,
+}
+
+impl<'a> Loops<'a> {
+    /// The channels of `pair` in `c`, `None` when the voltage group's unit is
+    /// not a voltage or the current group's not a current.
+    pub fn new(c: &'a Comtrade, pair: &Pair) -> Option<Self> {
+        let factor = |g: &Group, q: Quantity| unit_factor(&g.unit).filter(|&(k, _)| k == q).map(|(_, f)| f);
+        let ch = |i: usize| c.analog(i);
+        let [va, vb, vc] = pair.voltage.phases.map(ch);
+        let [ia, ib, ic] = pair.current.phases.map(ch);
+        Some(Self {
+            channels: [va?, vb?, vc?, ia?, ib?, ic?],
+            voltage_factor: factor(&pair.voltage, Quantity::Voltage)?,
+            current_factor: factor(&pair.current, Quantity::Current)?,
+        })
+    }
+
+    /// Channel ids of the voltages and of the currents.
+    pub fn ids(&self) -> ([String; 3], [String; 3]) {
+        let id = |k: usize| self.channels[k].info.id.clone();
+        ([0, 1, 2].map(id), [3, 4, 5].map(id))
+    }
+
+    /// The phasors of the six channels (in their order) in V and A; `None`
+    /// if one is missing.
+    pub fn scaled(&self, phasors: &[Option<Complex>]) -> Option<([Complex; 3], [Complex; 3])> {
+        let get = |k: usize, f: f64| phasors.get(k).copied().flatten().map(|p| p.scale(f));
+        let v = [
+            get(0, self.voltage_factor)?,
+            get(1, self.voltage_factor)?,
+            get(2, self.voltage_factor)?,
+        ];
+        let i = [
+            get(3, self.current_factor)?,
+            get(4, self.current_factor)?,
+            get(5, self.current_factor)?,
+        ];
+        Some((v, i))
+    }
+}
+
+/// Impedance (Ω) and loop current (A) of one loop at one point.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LoopPoint {
+    /// Apparent impedance V / I.
+    pub z: Complex,
+    /// Loop current (peak phasor).
+    pub current: Complex,
+}
+
+/// The six loops ([`Loop::ALL`] order) at each of the samples `points`,
+/// from the phasors over the window of `samples` samples ending there at
+/// `frequency`, as `impedance --trend` measures them. `None` where the window
+/// doesn't fit, a value is missing or the loop has no current.
+pub fn trajectory(
+    loops: &Loops,
+    time: &[f64],
+    points: &[usize],
+    samples: usize,
+    frequency: f64,
+    k0: Complex,
+    side: Side,
+) -> Vec<[Option<LoopPoint>; 6]> {
+    points
+        .iter()
+        .map(|&end| {
+            let window = Window {
+                end,
+                samples,
+                frequency,
+            };
+            let phasors: Vec<Option<Complex>> = loops
+                .channels
+                .iter()
+                .map(|ch| phasor::phasor(ch, time, &window, side).ok())
+                .collect();
+            let scaled = (end + 1 >= samples && end < time.len())
+                .then(|| loops.scaled(&phasors))
+                .flatten();
+            Loop::ALL.map(|l| {
+                let (v, i) = scaled?;
+                let (lv, li) = loop_quantities(l, v, i, k0);
+                Some(LoopPoint {
+                    z: clean(impedance(lv, li)?),
+                    current: li,
+                })
+            })
+        })
+        .collect()
 }
 
 /// The first group of quantity `q`, preferring one of `circuit` when given.
@@ -189,5 +301,66 @@ mod tests {
         assert_eq!(unit_factor("kV"), Some((Quantity::Voltage, 1e3)));
         assert_eq!(unit_factor("A"), Some((Quantity::Current, 1.0)));
         assert_eq!(unit_factor("Hz"), None);
+    }
+
+    /// 1 kHz, 100 ms at 50 Hz: currents IA, IB, IC of 100 A, from 60 ms on
+    /// 0 (breaker open); voltages V = Z · I with Z = 3 + j4 Ω in each phase.
+    fn loop_recording() -> crate::comtrade::Comtrade {
+        let mut cfg = String::from("S,D,1999\n6,6A,0D\n");
+        for (i, (id, unit)) in ["VA", "VB", "VC", "IA", "IB", "IC"]
+            .iter()
+            .zip(["V", "V", "V", "A", "A", "A"])
+            .enumerate()
+        {
+            cfg += &format!("{},{id},{},LINE,{unit},0.001,0,0,-1e9,1e9,1,1,P\n", i + 1, &id[1..]);
+        }
+        cfg += "50\n1\n1000,100\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+        let z = Complex { re: 3.0, im: 4.0 };
+        let mut dat = String::new();
+        for k in 0..100 {
+            let t = k as f64 / 1000.0;
+            let on = if k < 60 { 1.0 } else { 0.0 };
+            dat += &format!("{},{}", k + 1, k * 1000);
+            let phase = |p: usize| 2.0 * std::f64::consts::PI * (50.0 * t - p as f64 / 3.0);
+            for p in 0..3 {
+                let v = (Complex::from_polar(100.0 * on, phase(p)) * z).re;
+                dat += &format!(",{}", (v * 1000.0).round());
+            }
+            for p in 0..3 {
+                dat += &format!(",{}", (100.0 * on * phase(p).cos() * 1000.0).round());
+            }
+            dat += "\n";
+        }
+        crate::comtrade::Comtrade::from_readers(cfg.as_bytes(), dat.as_bytes()).unwrap()
+    }
+
+    #[test]
+    fn trajectory_of_known_loops() {
+        let c = loop_recording();
+        let infos: Vec<&AnalogInfo> = c.analog_channels().map(|ch| &ch.info).collect();
+        let pair = find_pair(&infos).unwrap();
+        let loops = Loops::new(&c, &pair).unwrap();
+        assert_eq!(loops.ids().0, ["VA", "VB", "VC"]);
+        let t = trajectory(
+            &loops,
+            c.time(),
+            &[10, 19, 40, 99],
+            20,
+            50.0,
+            Complex::default(),
+            Side::Primary,
+        );
+        // Before a whole window: nothing.
+        assert!(t[0].iter().all(Option::is_none));
+        // Every loop sees 3 + j4 Ω (balanced: phase to phase too).
+        for k in [1, 2] {
+            for p in t[k] {
+                let z = p.unwrap().z;
+                assert!(close(z.re, 3.0, 1e-3) && close(z.im, 4.0, 1e-3), "{z:?}");
+            }
+        }
+        assert!(close(t[2][0].unwrap().current.abs(), 100.0, 1e-3));
+        // Breaker open: no current, no impedance.
+        assert!(t[3].iter().all(Option::is_none));
     }
 }

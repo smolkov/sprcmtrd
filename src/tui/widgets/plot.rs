@@ -33,6 +33,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         (PlotView::Rms, Dc::Keep) => "RMS",
         (PlotView::Rms, Dc::Remove) => "RMS-DC",
         (PlotView::Harmonics, _) => "Harmonics",
+        (PlotView::Impedance, _) => "Impedance",
     };
     let Some(rec) = &app.recording else {
         let block = Block::bordered()
@@ -82,6 +83,29 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     let inner = Block::bordered().inner(area);
     if inner.width <= GUTTER + 4 || inner.height < 2 {
         f.render_widget(block(""), area);
+        return;
+    }
+
+    if app.plot_view == PlotView::Impedance {
+        // The trajectories cover the visible time window; the time axis
+        // shows it and the cursor.
+        let side = format!("{:?}", app.side).to_lowercase();
+        f.render_widget(
+            block(&format!(" · {} … {} · {side} Ω", time(t0, span), time(t1, span))),
+            area,
+        );
+        let diagrams = Rect {
+            height: inner.height - 1,
+            ..inner
+        };
+        super::impedance::render(f, diagrams, app, rec);
+        let axis = Rect {
+            x: inner.x + GUTTER,
+            y: inner.y + inner.height - 1,
+            width: inner.width - GUTTER,
+            height: 1,
+        };
+        time_axis::render(f, axis, app, rec);
         return;
     }
 
@@ -444,7 +468,7 @@ fn analog_plot(
 /// Samples of `range` to compute and draw: all of them when they fit in one
 /// per braille dot column (`columns`, two per character), else one per dot
 /// column, evenly spread.
-fn plot_points(range: std::ops::Range<usize>, columns: usize) -> Vec<usize> {
+pub(super) fn plot_points(range: std::ops::Range<usize>, columns: usize) -> Vec<usize> {
     let n = range.len();
     let wanted = columns.max(2);
     if n <= wanted {

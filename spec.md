@@ -901,6 +901,7 @@ src/
       header.rs
       channels.rs    channel list sidebar
       plot.rs        analog line plot + binary status strip
+      impedance.rs   R-X diagrams of the impedance view
       footer.rs
       filepicker.rs  overlay
       info.rs        recording info overlay
@@ -1056,6 +1057,25 @@ runs the event loop and always restores the terminal, also on panic
   window) stay fixed; a scrollbar on the right border and
   `channels 4–9 of 18` in the title show the position.
 - Cursor: shows time and value of every visible channel at the cursor position.
+- Impedance view (`z`, binding `impedance_view`): the plot area shows two R-X
+  diagrams instead of the channel rows, `L-N (k0 = 0)` with A-N, B-N, C-N and
+  `L-L` with A-B, B-C, C-A, side by side from 100 columns of plot area, else
+  stacked; each with a title line (its R and X range in Ω) and a table of R, X,
+  |Z| and φ of its loops at the cursor. Block title
+  ` Impedance · <from> … <to> · primary Ω ` (the visible time window, which zoom
+  and pan set); the time axis stays on the bottom row. The loops come from the
+  voltage and current groups found by unit (`impedance::find_pair`, as the
+  `impedance` command) and are computed as `impedance --trend` does: 1-cycle
+  DFT at the line frequency ending at each point, k0 = 0
+  (`impedance::trajectory`, `impedance::Loops` shared with the commands), so
+  the cursor values equal `impedance --at`. Points: at most two per column of
+  the wider diagram. A point is left out where the loop current is below 5 %
+  of the loop's largest in the window (the table shows `-`). Both axes have
+  the same Ω per dot; the range covers the points and the origin, with 5 %
+  margin; R and X axes through the origin. Each trajectory has its loop name
+  at its end (lower case) and at the cursor (reversed), and phase colors.
+  Without a line frequency or the groups, the view can't be opened (footer);
+  opening another recording without them goes back to the waveform.
 - The channel selected in the sidebar is marked in the plot area: its gutter
   name starts with `▶` and has the selection style (all its rows in the
   harmonics view; binary strips too).
@@ -1124,6 +1144,7 @@ runs the event loop and always restores the terminal, also on panic
 | `d`                 | RMS with / without DC                    |
 | `f`                 | Toggle waveform / harmonics over time    |
 | `1` … `9`           | Harmonics view: show / hide order 1 … 9  |
+| `z`                 | Toggle waveform / impedance trajectories |
 | `T`                 | Toggle dark / light theme                |
 | `Ctrl+,`, `c`       | Open configuration overlay               |
 | `Esc`               | Close overlay                            |
