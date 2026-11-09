@@ -1703,7 +1703,12 @@ fn two_ends(dir: &std::path::Path) -> (std::path::PathBuf, std::path::PathBuf) {
 }
 
 fn compare_json(args: &[&std::ffi::OsStr]) -> serde_json::Value {
-    let out = cmd().arg("compare").args(args).arg("--json").output().unwrap();
+    let out = cmd()
+        .arg("compare")
+        .args(args)
+        .args(["--format", "json"])
+        .output()
+        .unwrap();
     assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
     serde_json::from_slice(&out.stdout).unwrap()
 }
@@ -1795,6 +1800,128 @@ fn compare_two_line_ends() {
 }
 
 #[test]
+fn compare_trend_of_two_line_ends() {
+    let dir = tempfile::tempdir().unwrap();
+    let (a, b) = two_ends(dir.path());
+    // The internal fault starts at A's 0 ms: phase A's differential current
+    // rises from 0 to |4000∠-80° + 2000∠-75°| / √2 one cycle later.
+    let out = cmd()
+        .arg("compare")
+        .arg(&a)
+        .arg(&b)
+        .args(["--trend", "--differential", "--from", "-40", "--to", "60"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("step 1 cycle, 6 rows"))
+        .stdout(predicate::str::contains("time      A diff [A]  A %"))
+        .stdout(predicate::str::contains("IA B/A").not())
+        .stdout(predicate::str::is_match(r"-20\.0 ms +0\.000 +0\.0 %").unwrap())
+        .stdout(predicate::str::is_match(r"40\.0 ms +4\.239k +199\.8 %").unwrap());
+    drop(out);
+
+    let v = compare_json(&[
+        a.as_os_str(),
+        b.as_os_str(),
+        "--trend".as_ref(),
+        "--differential".as_ref(),
+        "--channels".as_ref(),
+        "IB".as_ref(),
+        "--from".as_ref(),
+        "-40".as_ref(),
+        "--to".as_ref(),
+        "60".as_ref(),
+    ]);
+    assert_eq!(v["samples"], 20);
+    assert_eq!(v["step_s"], 0.02);
+    assert_eq!(v["differential"]["b"][0], "IA");
+    let steps = v["steps"].as_array().unwrap();
+    assert_eq!(steps.len(), 6);
+    for s in steps {
+        // Phase B carries the load through the line.
+        assert!((s["pairs"][0]["ratio"].as_f64().unwrap() - 1.0).abs() < 1e-3);
+        assert!(s["differential"][1]["diff"].as_f64().unwrap() < 2.0);
+    }
+    let diff_a = |s: &serde_json::Value| s["differential"][0]["diff"].as_f64().unwrap();
+    assert!(diff_a(&steps[0]) < 2.0);
+    assert!((diff_a(&steps[5]) - 4239.0).abs() < 10.0, "{}", diff_a(&steps[5]));
+
+    let out = cmd()
+        .arg("compare")
+        .arg(&a)
+        .arg(&b)
+        .args([
+            "--trend",
+            "--channels",
+            "IA,IB",
+            "--step",
+            "10ms",
+            "--from",
+            "-20",
+            "--to",
+            "20",
+        ])
+        .args(["--format", "csv"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let text = String::from_utf8(out.stdout).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(
+        lines[0],
+        "time_ms,IA_ratio,IA_angle_difference_deg,IB_ratio,IB_angle_difference_deg"
+    );
+    assert_eq!(lines.len(), 6);
+    let first: Vec<f64> = lines[1].split(',').map(|x| x.parse().unwrap()).collect();
+    assert_eq!(first[0], -20.0);
+    for (x, want) in first[1..].iter().zip([1.0, 180.0, 1.0, 180.0]) {
+        assert!((x - want).abs() < 1e-3, "{}", lines[1]);
+    }
+}
+
+#[test]
+fn compare_trend_of_the_same_recording() {
+    cmd()
+        .args([
+            "compare",
+            "tests/data/fault_2013.cfg",
+            "tests/data/test_ascii.cff",
+            "--trend",
+            "--channels",
+            "IA,VA",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(r"\n-?\d+\.\d+ ms +1\.000 +0\.0° +1\.000 +0\.0°\n").unwrap())
+        .stdout(predicate::str::is_match(r"ms +(0\.|1\.00[1-9]|[2-9])").unwrap().not());
+}
+
+#[test]
+fn compare_plot() {
+    let dir = tempfile::tempdir().unwrap();
+    let (a, b) = two_ends(dir.path());
+    let out = cmd()
+        .arg("compare")
+        .arg(&a)
+        .arg(&b)
+        .args(["--plot", "--channels", "IA,IB", "--from", "-40", "--to", "80"])
+        .args(["--width", "60", "--height", "4"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let text = String::from_utf8(out.stdout).unwrap();
+    assert!(text.contains("Window     -40.0 ms .. 80.0 ms in A's time"), "{text}");
+    assert!(text.contains("\nIA (A) [A]\n"));
+    assert!(text.contains("\nIA (B) [A], shifted by +12.00 ms, from kA\n"));
+    assert!(text.contains("\nIB (B) [A], shifted by +12.00 ms, from kA\n"));
+    // A and B on the same y range: both plots of a pair have the same labels.
+    assert_eq!(text.matches(" 3.961k\n").count(), 2, "{text}");
+    assert_eq!(text.matches(" -3.961k\n").count(), 2, "{text}");
+    assert_eq!(text.matches(" 498.8\n").count(), 2, "{text}");
+    // The width holds: no line longer than 60 columns.
+    assert!(text.lines().skip(5).all(|l| l.chars().count() <= 60), "{text}");
+}
+
+#[test]
 fn compare_errors() {
     let dir = tempfile::tempdir().unwrap();
     let (a, b) = two_ends(dir.path());
@@ -1831,4 +1958,14 @@ fn compare_errors() {
         ])
         .assert()
         .code(1);
+    run(&["--trend", "--plot"], &b).code(2);
+    run(&["--format", "csv"], &b)
+        .code(1)
+        .stderr(predicate::str::contains("--format csv needs --trend"));
+    run(&["--plot", "--format", "json"], &b)
+        .code(1)
+        .stderr(predicate::str::contains("--plot draws text only"));
+    run(&["--trend", "--from", "500", "--to", "600"], &b)
+        .code(1)
+        .stderr(predicate::str::contains("no window"));
 }

@@ -449,8 +449,13 @@ and fault recorder of one bay, or a test before and after a change.
   the alignment), `--channels <LIST>` (channels of A), `--pair
   <A_ID=B_ID,...>`, `--reference <CH>` (channel of A, default the first
   pair), `--differential`, `--current-a <A,B,C>` / `--current-b <A,B,C>`
-  (default found by unit), `--invert-b`, `--frequency <Hz>`, `--json`; global
-  `--secondary` for both.
+  (default found by unit), `--invert-b`, `--frequency <Hz>`, `--format
+  <text|csv|json>` (default text); global `--secondary` for both. Over time:
+  `--trend`, `--from <ms>` / `--to <ms>` (A's time), `--step <N|time>`
+  (default 1 cycle). Waveforms: `--plot`, `--from` / `--to`, `--width <cols>`,
+  `--height <rows>` (default 8). `--trend` with `--plot`: a usage error
+  (exit 2); `--format csv` without `--trend` or a non-text format with
+  `--plot`: an error (exit 1).
 - Alignment gives the offset d with t_A = t_B + d (B's trigger at d in A's
   time): `time` from the absolute trigger times (synchronized clocks),
   `trigger` d = 0, `fault` the fault inception of A on that of B (inception as
@@ -480,15 +485,34 @@ and fault recorder of one bay, or a test before and after a change.
   values), a table `A | B | unit | A | B | B/A | angle A | angle B | B − A`,
   and with `--differential` a table `phase | I A | I B | I diff |
   I restraint | diff / restraint`.
-- JSON (`--json`): `a`, `b` (`file`, `station`), `side`, `frequency`,
+- JSON (`--format json`): `a`, `b` (`file`, `station`), `side`, `frequency`,
   `alignment` (`mode`, `offset_s`, `shift_s`), `window_a`, `window_b`
   (`from_s`, `to_s`, `samples`; `null` outside B), `reference`, `pairs[]`
   (`a`, `b`, `unit`, `a_rms`, `b_rms`, `ratio`, `a_angle`, `b_angle`,
   `angle_difference`), and with `--differential` `differential` (`a`, `b`,
   `inverted_b`, `phases[]` with `phase`, `a`, `b`, `diff`, `restraint`,
   `percent`; currents in A).
+- `--trend`: rows at every step (in A's samples, as `impedance --trend`)
+  over `--from` / `--to`, each a window of `--cycles` ending there; B's window
+  ends at the aligned instant (`window_b`). Columns per pair `<id> B/A` and
+  `<id> B − A`; with `--differential` per phase `<phase> diff [A]` (RMS) and
+  `<phase> %` (I_diff / I_restraint). With `--differential` and neither
+  `--channels` nor `--pair`, only the differential columns (no pairing, so no
+  common id is needed). Values below 1e-6 of the column's largest are 0 or
+  left out. Missing values: "-" (text), empty (CSV), `null` (JSON). No window
+  in the range: an error. CSV header `time_ms`, `<id>_ratio`,
+  `<id>_angle_difference_deg`, `<phase>_diff_A`, `<phase>_diff_percent`.
+  JSON: `a`, `b`, `side`, `frequency`, `alignment`, `cycles`, `samples`,
+  `step_s`, `differential` (`a`, `b`, `inverted_b`) with `--differential`, and
+  `steps[]` (`time_s`, `pairs[]` with `a`, `b`, `ratio`, `angle_difference`,
+  and `differential[]` with `phase`, `diff`, `percent`).
+- `--plot`: per pair a braille chart of A, then one of B (times shifted by d,
+  values scaled to A's unit) over `--from` / `--to` in A's time, both on the
+  y range of A and B together; labels `<id> (A) [unit]` and `<id> (B) [unit],
+  shifted by <d>` (plus `, from <B's unit>` when scaled). The chart is the one
+  of `view` (`command::chart`).
 - Library: `analysis::compare` (`Align`, `offset`, `fault_offset`, `rotate`,
-  `pairs`, `Differential`).
+  `window_b`, `pairs`, `Pair`, `trend`, `Differential`).
 
 ### `power` command
 
@@ -814,7 +838,7 @@ src/
     trend.rs         values over time, step by step (trend)
     harmonics.rs     harmonic spectrum, THD (harmonics)
     impedance.rs     fault loop impedances (impedance)
-    compare.rs       alignment, channel pairs, differential current (compare)
+    compare.rs       alignment, channel pairs, trend, differential current (compare)
     locate.rs        fault location: reactance, Takagi (locate)
     power.rs         active, reactive, apparent power (power)
   comtrade/
@@ -831,6 +855,7 @@ src/
     info.rs
     list.rs
     view.rs
+    chart.rs        Braille line charts (view, compare --plot)
     check.rs        Validate recordings
     events.rs       Timeline of binary channel changes
     fault.rs        Fault summary

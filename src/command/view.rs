@@ -1,16 +1,12 @@
 //! `view` command: summary and plots printed to stdout.
 
-use textplots::{Chart, LabelBuilder, LabelFormat, Plot, Shape};
-
+use super::chart::{self, LABEL_WIDTH};
 use super::{select_channels, time_window};
 use crate::args::ViewArgs;
 use crate::comtrade::{Cell, Comtrade, Side};
 use crate::context::Context;
-use crate::format::{key_values, si, summary, time};
+use crate::format::{key_values, summary, time};
 use crate::term;
-
-/// Width reserved right of the plot for textplots' y labels.
-const LABEL_WIDTH: usize = 12;
 
 impl ViewArgs {
     /// Runs the `view` command.
@@ -42,7 +38,7 @@ impl ViewArgs {
             let ch = c.analog(i).expect("selected index is valid");
             out += &format!("\nA{} {} [{}]\n", ch.info.index, ch.info.id, ch.info.unit);
             let segments = ch.plot_segments(c.time(), range.clone(), (t0, t1), plot_cols * 2, side);
-            out += &plot(&segments, (t0, t1), plot_cols, self.height.max(1) as usize);
+            out += &chart::plot(&segments, (t0, t1), None, plot_cols, self.height.max(1) as usize);
         }
 
         if !binary.is_empty() {
@@ -65,57 +61,4 @@ impl ViewArgs {
         print!("{out}");
         Ok(())
     }
-}
-
-/// Renders line segments with textplots.
-fn plot(segments: &[Vec<(f64, f64)>], (t0, t1): (f64, f64), cols: usize, rows: usize) -> String {
-    let (lo, hi) = segments
-        .iter()
-        .flatten()
-        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
-            (lo.min(p.1), hi.max(p.1))
-        });
-    if !lo.is_finite() {
-        return "  (no samples in window)\n".into();
-    }
-    let (lo, hi) = if hi - lo < 1e-12 {
-        (lo - 1.0, hi + 1.0)
-    } else {
-        (lo, hi)
-    };
-
-    let points: Vec<Vec<(f32, f32)>> = segments
-        .iter()
-        .map(|s| s.iter().map(|&(t, v)| ((t * 1e3) as f32, v as f32)).collect())
-        .collect();
-    let shapes: Vec<Shape> = points
-        .iter()
-        .map(|p| {
-            if p.len() == 1 {
-                Shape::Points(p)
-            } else {
-                Shape::Lines(p)
-            }
-        })
-        .collect();
-
-    let span = t1 - t0;
-    let mut chart = Chart::new_with_y_range(
-        (cols * 2) as u32,
-        (rows * 4).max(3) as u32,
-        (t0 * 1e3) as f32,
-        (t1 * 1e3) as f32,
-        lo as f32,
-        hi as f32,
-    );
-    let mut c = chart
-        .x_label_format(LabelFormat::Custom(Box::new(move |ms| time(ms as f64 / 1e3, span))))
-        .y_label_format(LabelFormat::Custom(Box::new(|v| si(v as f64))));
-    for s in &shapes {
-        c = c.lineplot(s);
-    }
-    c.axis();
-    c.figures();
-    // textplots pads with U+2800 (blank braille); plain spaces copy better.
-    c.to_string().replace('\u{2800}', " ")
 }

@@ -8,9 +8,11 @@
 //! P_B · e^(−jω·d).
 
 use std::f64::consts::TAU;
+use std::ops::Range;
 
 use super::Complex;
 use super::fault;
+use super::phasor::{self, Window};
 use crate::comtrade::{AnalogChannel, Comtrade, Side};
 
 /// How the time axes of A and B are aligned.
@@ -96,6 +98,97 @@ pub fn offset(
 /// B's phasor `p` in A's time frame, for the offset `d` (s).
 pub fn rotate(p: Complex, d: f64, frequency: f64) -> Complex {
     p * Complex::from_polar(1.0, -TAU * frequency * d)
+}
+
+/// The window of `cycles` cycles of B that ends at `t_b` (B's time), `None`
+/// when B has no samples there or no whole window fits.
+pub fn window_b(b: &Comtrade, t_b: f64, cycles: f64, frequency: f64) -> Option<Window> {
+    let (b0, b1) = b.time_span();
+    let n = b.len();
+    let dt = if n > 1 { (b1 - b0) / (n - 1) as f64 } else { 0.0 };
+    if t_b < b0 - dt / 2.0 || t_b > b1 + dt / 2.0 {
+        return None;
+    }
+    Window::ending_at(b, t_b, cycles, frequency).ok()
+}
+
+/// A channel of A and the channel of B it is compared with; B's values times
+/// `scale` are in A's unit.
+#[derive(Debug, Clone, Copy)]
+pub struct Pair<'a> {
+    /// The channel of A.
+    pub a: &'a AnalogChannel,
+    /// The channel of B.
+    pub b: &'a AnalogChannel,
+    /// Factor from B's unit to A's.
+    pub scale: f64,
+}
+
+/// One step of [`trend`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrendStep {
+    /// End of A's window, s relative to A's trigger.
+    pub time: f64,
+    /// Per pair the phasors (peak) of A and of B, B's in A's time frame and
+    /// unit; `None` where a value is missing or B has no samples.
+    pub phasors: Vec<(Option<Complex>, Option<Complex>)>,
+}
+
+/// The recordings and how B lies in A's time, for [`trend`].
+#[derive(Debug, Clone, Copy)]
+pub struct Aligned<'a> {
+    /// Recording A.
+    pub a: &'a Comtrade,
+    /// Recording B.
+    pub b: &'a Comtrade,
+    /// The offset `d`: t_A = t_B + d.
+    pub offset: f64,
+}
+
+/// The `pairs` cycle by cycle: A's windows of `samples` samples end at every
+/// `step`-th sample of A within `range` (the first one where a whole window
+/// fits), B's windows of `cycles` cycles end at the same instant.
+#[allow(clippy::too_many_arguments)]
+pub fn trend(
+    ab: Aligned,
+    pairs: &[Pair],
+    range: Range<usize>,
+    samples: usize,
+    step: usize,
+    cycles: f64,
+    frequency: f64,
+    side: Side,
+) -> Vec<TrendStep> {
+    let (a, b, d) = (ab.a, ab.b, ab.offset);
+    let end = range.end.min(a.len());
+    let first = range.start.max(samples.saturating_sub(1));
+    if samples == 0 || step == 0 {
+        return Vec::new();
+    }
+    (first..end)
+        .step_by(step)
+        .map(|last| {
+            let wa = Window {
+                end: last,
+                samples,
+                frequency,
+            };
+            let t = a.time()[last];
+            let wb = window_b(b, t - d, cycles, frequency);
+            let phasors = pairs
+                .iter()
+                .map(|p| {
+                    let pa = phasor::phasor(p.a, a.time(), &wa, side).ok();
+                    let pb = wb
+                        .as_ref()
+                        .and_then(|w| phasor::phasor(p.b, b.time(), w, side).ok())
+                        .map(|x| rotate(x, d, frequency).scale(p.scale));
+                    (pa, pb)
+                })
+                .collect();
+            TrendStep { time: t, phasors }
+        })
+        .collect()
 }
 
 /// Why the channels can't be paired.
@@ -274,6 +367,52 @@ mod tests {
             pairs(&a, &b, &bad),
             Err(PairError::Unknown { which: "B", .. })
         ));
+    }
+
+    #[test]
+    fn trend_follows_both_recordings() {
+        // The same signal, B 12 ms later and at half the rate; the fault on
+        // phase A at 1.050 s absolute.
+        let a = recording(2000, 1.0, 100.0, 30.0, 1.050);
+        let b = recording(1000, 1.012, 100.0, 30.0, 1.050);
+        let d = offset(&a, &b, Align::Time, None, 0.0).unwrap();
+        let ab = Aligned {
+            a: &a,
+            b: &b,
+            offset: d,
+        };
+        let pairs: Vec<Pair> = (0..3)
+            .map(|i| Pair {
+                a: a.analog(i).unwrap(),
+                b: b.analog(i).unwrap(),
+                scale: 1.0,
+            })
+            .collect();
+        // A runs -0.1 .. 0.2 s, B -0.1 .. 0.2 s in its own time, so
+        // -0.088 .. 0.212 s in A's: B has no samples before A's -0.068 s
+        // (its first whole cycle).
+        let steps = trend(ab, &pairs, 0..a.len(), 40, 40, 1.0, 50.0, Side::Primary);
+        assert_eq!(steps.len(), 15);
+        for s in &steps {
+            let (pa, pb) = s.phasors[0];
+            let pa = pa.unwrap();
+            if s.time < -0.068 {
+                assert_eq!(pb, None, "{}", s.time);
+                continue;
+            }
+            let pb = pb.unwrap();
+            // A window over the fault step depends on where B's samples lie.
+            if (0.05..0.07).contains(&s.time) {
+                continue;
+            }
+            assert!((pb.abs() / pa.abs() - 1.0).abs() < 0.01, "{} {pa:?} {pb:?}", s.time);
+            assert!((degrees(pa) - degrees(pb)).abs() < 0.5, "{}", s.time);
+        }
+        // The fault (10 times the current) shows in both after 0.050 s.
+        let last = steps.last().unwrap();
+        assert!(last.phasors[0].0.unwrap().abs() > 900.0);
+        assert!(last.phasors[0].1.unwrap().abs() > 900.0);
+        assert!(trend(ab, &pairs, 0..a.len(), 0, 40, 1.0, 50.0, Side::Primary).is_empty());
     }
 
     #[test]

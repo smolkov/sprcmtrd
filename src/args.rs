@@ -174,11 +174,14 @@ pub enum Command {
     /// time axes (by absolute time, the triggers or the fault inception) and
     /// compares the phasors at --at in A's time: RMS, ratio B/A and the angle
     /// difference, B's angles turned into A's time frame. With
-    /// --differential, the differential current of two line ends.
+    /// --differential, the differential current of two line ends. --trend
+    /// shows the values cycle by cycle, --plot the waveforms of each pair.
     ///
     /// Examples:
     ///   sprcmtrd compare end_a.cfg end_b.cfg --at 40 --differential
     ///   sprcmtrd compare relay.cfg recorder.cfg --align fault --pair IA=IL1,IB=IL2,IC=IL3
+    ///   sprcmtrd compare end_a.cfg end_b.cfg --trend --differential --from -20 --to 100
+    ///   sprcmtrd compare end_a.cfg end_b.cfg --plot --channels IA --from -40 --to 80
     #[command(verbatim_doc_comment)]
     Compare(CompareArgs),
 
@@ -471,12 +474,34 @@ pub struct CompareArgs {
     /// Recording B, compared with A.
     #[arg(value_hint = ValueHint::FilePath, add = ArgValueCompleter::new(recordings))]
     pub b: PathBuf,
-    /// End of the window in ms relative to A's trigger.
+    /// End of the window in ms relative to A's trigger (without --trend / --plot).
     #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
     pub at: f64,
     /// Window length in cycles of the fundamental frequency.
     #[arg(long, default_value_t = 1.0)]
     pub cycles: f64,
+    /// Ratio, angle difference and differential current over time instead of
+    /// at one moment.
+    #[arg(long, conflicts_with = "plot")]
+    pub trend: bool,
+    /// Waveforms of each pair, A above B on the same scale, in A's time.
+    #[arg(long)]
+    pub plot: bool,
+    /// Start of the time range in ms relative to A's trigger (with --trend / --plot).
+    #[arg(long, allow_hyphen_values = true)]
+    pub from: Option<f64>,
+    /// End of the time range in ms relative to A's trigger (with --trend / --plot).
+    #[arg(long, allow_hyphen_values = true)]
+    pub to: Option<f64>,
+    /// Distance between rows with --trend: cycles (`1`) or a time (`10ms`).
+    #[arg(long, default_value = "1", value_parser = parse_step)]
+    pub step: TrendStep,
+    /// Plot width in columns with --plot (default: terminal width).
+    #[arg(long)]
+    pub width: Option<u16>,
+    /// Height of each plot in rows with --plot.
+    #[arg(long, default_value_t = 8)]
+    pub height: u16,
     /// How the time axes are aligned.
     #[arg(long, value_enum, default_value_t = AlignArg::Time)]
     pub align: AlignArg,
@@ -507,9 +532,9 @@ pub struct CompareArgs {
     /// Fundamental frequency in Hz. Default: the line frequency of A.
     #[arg(long)]
     pub frequency: Option<f64>,
-    /// Print JSON instead of text.
-    #[arg(long)]
-    pub json: bool,
+    /// Output format (csv only with --trend, text only with --plot).
+    #[arg(long, value_enum, default_value_t = TableFormat::Text)]
+    pub format: TableFormat,
 }
 
 /// Time alignment of `compare`.

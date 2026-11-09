@@ -218,6 +218,9 @@ faults outside the line (the current passes through), and close to the
 fault current for a fault on it. The restraint current
 I_restraint = (|I_A| + |I_B|) / 2 is what a differential relay compares it with.
 The line's charging current and CT errors show as a small I_diff.
+`compare --trend` computes it cycle by cycle, with B's windows ending at the
+same instants as A's, so the rise at inception and the fall at each
+breaker opening show.
 
 ## Noise
 

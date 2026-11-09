@@ -1,6 +1,7 @@
 //! The subcommands (`sprcmtrd <command>`): dispatch and the channel and time
 //! window selection they share. Formatting lives in [`crate::format`].
 
+mod chart;
 pub mod check;
 pub mod compare;
 pub mod completions;
@@ -238,6 +239,37 @@ pub fn describe_window(window: &Window, t0: f64, t1: f64, cycles: f64, frequency
     )
 }
 
+/// The sample grid of a trend over `--from` / `--to`: the window of
+/// `cycles` cycles, the sample range and the step in samples. An error if no
+/// window fits.
+pub fn step_grid(
+    c: &Comtrade,
+    from_ms: Option<f64>,
+    to_ms: Option<f64>,
+    step: TrendStep,
+    cycles: f64,
+    frequency: f64,
+) -> anyhow::Result<(Window, std::ops::Range<usize>, usize)> {
+    let (first, last) = c.time_span();
+    let window = window_at(c, last * 1e3, cycles, frequency)?;
+    let dt = cycles / frequency / window.samples as f64;
+    let step = match step {
+        TrendStep::Cycles(n) => n / frequency,
+        TrendStep::Seconds(s) => s,
+    };
+    let (t0, t1) = time_window(c, from_ms, to_ms)?;
+    let range = c.index_range(t0, t1);
+    if range.end <= range.start.max(window.samples - 1) {
+        bail!(
+            "no window of {} samples fits in the time range; the recording runs from {} to {}",
+            window.samples,
+            time(first, last - first),
+            time(last, last - first)
+        );
+    }
+    Ok((window, range, ((step / dt).round() as usize).max(1)))
+}
+
 /// Steps of `--trend` (`impedance`, `power`): windows of `cycles` cycles
 /// every `step` within `--from` / `--to`, with the window length. An error if
 /// no window fits.
@@ -252,31 +284,7 @@ pub fn trend_steps(
     frequency: f64,
     side: Side,
 ) -> anyhow::Result<(Window, Trend)> {
-    let (first, last) = c.time_span();
-    let window = window_at(c, last * 1e3, cycles, frequency)?;
-    let dt = cycles / frequency / window.samples as f64;
-    let step = match step {
-        TrendStep::Cycles(n) => n / frequency,
-        TrendStep::Seconds(s) => s,
-    };
-    let (t0, t1) = time_window(c, from_ms, to_ms)?;
-    let result = crate::analysis::trend::trend(
-        channels,
-        c.time(),
-        c.index_range(t0, t1),
-        window.samples,
-        ((step / dt).round() as usize).max(1),
-        frequency,
-        0,
-        side,
-    );
-    if result.steps.is_empty() {
-        bail!(
-            "no window of {} samples fits in the time range; the recording runs from {} to {}",
-            window.samples,
-            time(first, last - first),
-            time(last, last - first)
-        );
-    }
+    let (window, range, step) = step_grid(c, from_ms, to_ms, step, cycles, frequency)?;
+    let result = crate::analysis::trend::trend(channels, c.time(), range, window.samples, step, frequency, 0, side);
     Ok((window, result))
 }

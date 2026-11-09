@@ -36,8 +36,9 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 * [x] `locate <FILE> --z1 Z1 --z0 Z0 --length KM`: single-ended fault location (reactance method and Takagi) from the pre-fault and fault phasors, as distance in km and % of the line. Needs the line data from the user.
 * [x] `dc-offset <FILE>`: DC component of the fault current and its decay time constant (fitted over the first cycles after inception), relevant for CT dimensioning and breaker duty.
 * [x] `compare <A> <B>`: two recordings of the same event (e.g. both line ends), aligned by absolute time, trigger or fault inception; differences of magnitudes and angles per channel. Differential current for two-ended recordings. See `tasks/compare-command.md`.
-* [ ] `compare --trend`: the differences and the differential current cycle by cycle over `--from` / `--to`, as `impedance --trend`.
-* [ ] `compare --plot`: A and B overlaid in one terminal plot per channel pair.
+* [x] `compare --trend`: the differences and the differential current cycle by cycle over `--from` / `--to`, as `impedance --trend`. See `tasks/compare-trend-plot.md`.
+* [x] `compare --plot`: A above B per channel pair, same scale and time axis. See `tasks/compare-trend-plot.md`.
+* [ ] `compare --plot`: a third plot of B − A per pair (B resampled onto A's samples).
 * [ ] TUI: show phasors and harmonics of the cursor position in an overlay (phasor diagram drawn with braille characters), sharing the library code with the commands.
 
 ## Commands that write files (non-goal for v1, needs spec decision)

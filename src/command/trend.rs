@@ -372,7 +372,7 @@ impl Table<'_> {
 }
 
 /// A CSV header name without separators or quotes.
-fn csv_name(s: &str) -> String {
+pub(super) fn csv_name(s: &str) -> String {
     s.replace([',', '"', ' '], "_")
 }
 

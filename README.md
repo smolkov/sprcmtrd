@@ -407,7 +407,10 @@ C      353.6    353.6    0.000       353.6            0.0 %
   both triggers at 0, `fault` aligns the fault inceptions (unsynchronized
   clocks); `--shift` adds an offset. B's angles are turned into A's time.
 - `--differential` with both currents into the line (`--invert-b` otherwise).
-  `--json` for scripts.
+- `--trend` shows the ratios, angle differences and the differential current
+  cycle by cycle over `--from` / `--to`; `--plot` draws A above B per pair on
+  the same scale, B shifted into A's time. `--format csv` (with `--trend`) or
+  `json` for other tools.
 
 ### `power`
 
