@@ -38,6 +38,8 @@ pub enum PlotView {
     Waveform,
     /// The sliding RMS.
     Rms,
+    /// The RMS of harmonic orders over time, one row per channel and order.
+    Harmonics,
 }
 
 /// Kind of a footer status message.
@@ -130,6 +132,8 @@ pub struct App {
     pub plot_view: PlotView,
     /// What the RMS view does with the DC part.
     pub rms_dc: Dc,
+    /// Orders 1 … 9 shown in the harmonics view.
+    pub harmonics: [bool; 9],
     /// First channel row drawn in the plot area (index into the shown
     /// channels). The plot widget clamps it to the area when drawing.
     pub plot_scroll: Cell<usize>,
@@ -159,6 +163,9 @@ pub struct App {
 
 /// Shown when the RMS view has no window length to use.
 const NO_LINE_FREQUENCY: &str = "no RMS view: the recording has no line frequency";
+
+/// Shown when the harmonics view has no window length to use.
+const NO_HARMONICS: &str = "no harmonics view: the recording has no line frequency";
 
 /// How long footer messages stay.
 const STATUS_TIME: Duration = Duration::from_secs(5);
@@ -209,6 +216,7 @@ impl App {
             },
             plot_view: PlotView::Waveform,
             rms_dc: Dc::Keep,
+            harmonics: [true, false, false, false, false, false, false, false, false],
             plot_scroll: Cell::new(0),
             plot_page: Cell::new(0),
             plot_follow: Cell::new(true),
@@ -278,9 +286,13 @@ impl App {
         self.selected = 0;
         self.plot_scroll.set(0);
         self.plot_follow.set(true);
-        if self.plot_view == PlotView::Rms && !self.rms_available() {
+        if self.plot_view != PlotView::Waveform && !self.rms_available() {
+            let text = match self.plot_view {
+                PlotView::Harmonics => NO_HARMONICS,
+                _ => NO_LINE_FREQUENCY,
+            };
             self.plot_view = PlotView::Waveform;
-            self.set_status(NO_LINE_FREQUENCY, StatusKind::Error);
+            self.set_status(text, StatusKind::Error);
         }
     }
 
@@ -440,6 +452,12 @@ impl App {
             }
             Action::TimeMode => self.absolute_time = !self.absolute_time,
             Action::RmsView => self.toggle_rms_view(),
+            Action::HarmonicsView => self.toggle_harmonics_view(),
+            Action::Harmonic(order) => {
+                if self.plot_view == PlotView::Harmonics {
+                    self.toggle_order(usize::from(order));
+                }
+            }
             Action::RmsDc => {
                 self.rms_dc = match self.rms_dc {
                     Dc::Keep => Dc::Remove,
@@ -472,19 +490,83 @@ impl App {
             self.no_recording();
             return;
         };
-        let Some(frequency) = rec.line_frequency() else {
+        if rec.line_frequency().is_none() {
             self.set_status(NO_LINE_FREQUENCY, StatusKind::Error);
             return;
-        };
+        }
         self.plot_view = PlotView::Rms;
-        let cycle = 1.0 / frequency;
-        let window = match rec.track().and_then(|t| rec.data.analog(t.reference)) {
+        // The DC setting first: a long message is cut off on the right.
+        let text = format!("RMS {}, 1 cycle ({})", self.dc_label(), self.window_label());
+        self.set_status(text, StatusKind::Info);
+    }
+
+    fn toggle_harmonics_view(&mut self) {
+        if self.plot_view == PlotView::Harmonics {
+            self.plot_view = PlotView::Waveform;
+            self.set_status("showing the waveform", StatusKind::Info);
+            return;
+        }
+        let Some(rec) = &self.recording else {
+            self.no_recording();
+            return;
+        };
+        if rec.line_frequency().is_none() {
+            self.set_status(NO_HARMONICS, StatusKind::Error);
+            return;
+        }
+        self.plot_view = PlotView::Harmonics;
+        let text = format!("{}, 1 cycle ({})", self.orders_label(), self.window_label());
+        self.set_status(text, StatusKind::Info);
+    }
+
+    /// Shows or hides harmonic `order` (1 … 9) in the harmonics view.
+    fn toggle_order(&mut self, order: usize) {
+        let Some(max) = self.recording.as_ref().map(Recording::max_order) else {
+            self.no_recording();
+            return;
+        };
+        let Some(shown) = order.checked_sub(1).and_then(|i| self.harmonics.get_mut(i)) else {
+            return;
+        };
+        if !*shown && order > max {
+            self.set_status(
+                format!("order {order} is above half the sample rate (highest {max})"),
+                StatusKind::Error,
+            );
+            return;
+        }
+        *shown = !*shown;
+        let text = self.orders_label();
+        self.set_status(text, StatusKind::Info);
+    }
+
+    /// The shown orders for the footer: `harmonics 1 3 5`.
+    fn orders_label(&self) -> String {
+        let orders: Vec<String> = self.shown_orders().iter().map(ToString::to_string).collect();
+        if orders.is_empty() {
+            "no harmonic orders shown (keys 1 … 9)".to_owned()
+        } else {
+            format!("harmonics {}", orders.join(" "))
+        }
+    }
+
+    /// The orders shown in the harmonics view, below half the sample rate of
+    /// the recording.
+    pub fn shown_orders(&self) -> Vec<usize> {
+        let max = self.recording.as_ref().map_or(9, Recording::max_order);
+        (1..=9).filter(|&h| self.harmonics[h - 1] && h <= max).collect()
+    }
+
+    /// The cycle of the RMS and harmonics windows for the footer.
+    fn window_label(&self) -> String {
+        let Some(rec) = &self.recording else {
+            return String::new();
+        };
+        let cycle = rec.line_frequency().map_or(0.0, |f| 1.0 / f);
+        match rec.track().and_then(|t| rec.data.analog(t.reference)) {
             Some(reference) => format!("fitted to {}", reference.info.id),
             None => format::time(cycle, cycle),
-        };
-        // The DC setting first: a long message is cut off on the right.
-        let text = format!("RMS {}, 1 cycle ({window})", self.dc_label());
-        self.set_status(text, StatusKind::Info);
+        }
     }
 
     fn recording_action(&mut self, action: Action) {

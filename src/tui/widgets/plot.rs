@@ -12,6 +12,7 @@ use ratatui::widgets::canvas::{Canvas, Line as CanvasLine, Points};
 use ratatui::widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
 use super::time_axis::{self, column_of, cursor_label};
+use crate::analysis::harmonics;
 use crate::analysis::rms::{self, Dc};
 use crate::comtrade::{Cell, decimated_segments};
 use crate::format::{si, time};
@@ -31,6 +32,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         (PlotView::Waveform, _) => "Plot",
         (PlotView::Rms, Dc::Keep) => "RMS",
         (PlotView::Rms, Dc::Remove) => "RMS-DC",
+        (PlotView::Harmonics, _) => "Harmonics",
     };
     // Built late: the title shows the scroll position once it is known.
     let block = |title: &str| {
@@ -66,16 +68,26 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         return;
     }
 
-    let analog: Vec<usize> = (0..rec.visible_analog.len())
+    // Analog rows: a channel, and in the harmonics view one row per shown order.
+    let orders = match app.plot_view {
+        PlotView::Harmonics => app.shown_orders().into_iter().map(Some).collect(),
+        _ => vec![None],
+    };
+    let analog: Vec<(usize, Option<usize>)> = (0..rec.visible_analog.len())
         .filter(|&i| rec.visible_analog[i])
+        .flat_map(|i| orders.iter().map(move |&h| (i, h)))
         .collect();
     let binary: Vec<usize> = (0..rec.visible_binary.len())
         .filter(|&i| rec.visible_binary[i])
         .collect();
     if analog.is_empty() && binary.is_empty() {
         f.render_widget(block(""), area);
-        let key = app.keymap.label(Action::ToggleChannel);
-        let msg = format!("No channels shown. Select channels in the sidebar and press {key}.");
+        let msg = if orders.is_empty() && rec.visible_analog.iter().any(|&v| v) {
+            "No harmonic orders shown. Press 1 … 9 to show an order.".to_owned()
+        } else {
+            let key = app.keymap.label(Action::ToggleChannel);
+            format!("No channels shown. Select channels in the sidebar and press {key}.")
+        };
         centered_text(f, inner, &msg, theme.muted());
         return;
     }
@@ -85,7 +97,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     let keep = app
         .plot_follow
         .get()
-        .then(|| shown_position(rec, app.selected))
+        .then(|| shown_position(rec, &analog, app.selected))
         .flatten();
     let layout = layout(rows, analog.len(), binary.len(), app.plot_scroll.get(), keep);
     app.plot_scroll.set(layout.offset);
@@ -108,9 +120,9 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
             height,
         };
         let item = layout.offset + k;
-        if let Some(&i) = analog.get(item) {
-            // Shade by channel position, so shades don't swap while scrolling.
-            analog_plot(f, row, app, rec, i, cursor_idx, theme.plot_background(item));
+        if let Some(&(i, order)) = analog.get(item) {
+            // Shade by row position, so shades don't swap while scrolling.
+            analog_plot(f, row, app, rec, (i, order), cursor_idx, theme.plot_background(item));
         } else {
             binary_strip(f, row, app, rec, binary[item - analog.len()], cursor_idx);
         }
@@ -145,15 +157,20 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     time_axis::render(f, axis, app, rec);
 }
 
-/// Position of channel `selected` (analog first, then binary) among the
-/// shown channels, if it is shown.
-fn shown_position(rec: &Recording, selected: usize) -> Option<usize> {
-    let visible: Vec<bool> = rec.visible_analog.iter().chain(&rec.visible_binary).copied().collect();
-    visible
-        .get(selected)
+/// Row of channel `selected` (analog first, then binary) among the shown
+/// rows (`analog` rows, then the shown binary channels), if it is shown: its
+/// first row in the harmonics view.
+fn shown_position(rec: &Recording, analog: &[(usize, Option<usize>)], selected: usize) -> Option<usize> {
+    let na = rec.visible_analog.len();
+    if selected < na {
+        return analog.iter().position(|&(i, _)| i == selected);
+    }
+    let b = selected - na;
+    rec.visible_binary
+        .get(b)
         .copied()
         .unwrap_or(false)
-        .then(|| visible[..selected].iter().filter(|&&v| v).count())
+        .then(|| analog.len() + rec.visible_binary[..b].iter().filter(|&&v| v).count())
 }
 
 /// Rows of the shown channels in the scrolled part of the plot area.
@@ -269,13 +286,14 @@ fn centered_text(f: &mut Frame, area: Rect, text: &str, style: Style) {
     );
 }
 
-/// Draws analog channel `i` into `area` (gutter and plot) on `background`.
+/// Draws analog channel `i` into `area` (gutter and plot) on `background`;
+/// with `order`, that harmonic order over time.
 fn analog_plot(
     f: &mut Frame,
     area: Rect,
     app: &App,
     rec: &Recording,
-    i: usize,
+    (i, order): (usize, Option<usize>),
     cursor_idx: Option<usize>,
     background: Color,
 ) {
@@ -298,12 +316,32 @@ fn analog_plot(
     let time = rec.data.time();
     let is_rms = app.plot_view == PlotView::Rms;
     let rms_of = |range| rms::sliding(ch, time, range, |k| rec.rms_seconds(k), app.rms_dc, app.side);
-    let segments = if is_rms {
-        let series = rms_of(range.clone());
-        decimated_segments(time, range.clone(), (t0, t1), columns, |k| series[k - range.start])
-    } else {
-        ch.plot_segments(time, range, (t0, t1), columns, app.side)
+    // Order 1 as RMS, higher orders in % of the fundamental at that moment.
+    let harmonic_at = |points: &[usize], h: usize| -> Vec<Option<f64>> {
+        let ords: &[usize] = if h == 1 { &[1] } else { &[1, h] };
+        harmonics::sliding(ch, time, points, |k| rec.rms_seconds(k), ords, app.side)
+            .into_iter()
+            .map(|v| match (h, v[0], v.get(1).copied().flatten()) {
+                (1, x, _) => x,
+                (_, Some(f), Some(x)) if f > 0.0 => Some(x / f * 100.0),
+                _ => None,
+            })
+            .collect()
     };
+    let segments = match order {
+        Some(h) => {
+            // A DFT per point: only the points drawn, one per dot column.
+            let points = plot_points(range, columns);
+            let values = harmonic_at(&points, h);
+            point_segments(time, &points, &values)
+        }
+        None if is_rms => {
+            let series = rms_of(range.clone());
+            decimated_segments(time, range.clone(), (t0, t1), columns, |k| series[k - range.start])
+        }
+        None => ch.plot_segments(time, range, (t0, t1), columns, app.side),
+    };
+    let from_zero = is_rms || order.is_some();
     let (lo, hi) = segments
         .iter()
         .flatten()
@@ -313,25 +351,25 @@ fn analog_plot(
         });
     // From 0 in the RMS view, so a steady value doesn't look like a large swing.
     let (lo, hi) = match (lo.is_finite(), hi - lo) {
-        _ if is_rms => (0.0, if hi > 1e-12 { hi * 1.05 } else { 1.0 }),
+        _ if from_zero => (0.0, if hi > 1e-12 { hi * 1.05 } else { 1.0 }),
         (false, _) => (-1.0, 1.0),
         (true, d) if d < 1e-12 => (lo - 1.0, hi + 1.0),
         (true, d) => (lo - d * 0.05, hi + d * 0.05),
     };
 
     // Gutter: name, value at cursor, value range.
-    let value = cursor_idx.and_then(|k| {
-        if is_rms {
-            rms_of(k..k + 1).first().copied().flatten()
-        } else {
-            ch.value_on(k, app.side)
-        }
+    let value = cursor_idx.and_then(|k| match order {
+        Some(h) => harmonic_at(&[k], h).first().copied().flatten(),
+        None if is_rms => rms_of(k..k + 1).first().copied().flatten(),
+        None => ch.value_on(k, app.side),
     });
+    let name = match order {
+        Some(1) => format!("{} h1 [{}]", ch.info.id, ch.info.unit),
+        Some(h) => format!("{} h{h} [%]", ch.info.id),
+        None => format!("{} [{}]", ch.info.id, ch.info.unit),
+    };
     let mut lines = vec![
-        Line::styled(
-            format!("{} [{}]", ch.info.id, ch.info.unit),
-            Style::new().fg(color).add_modifier(Modifier::BOLD),
-        ),
+        Line::styled(name, Style::new().fg(color).add_modifier(Modifier::BOLD)),
         Line::from(format!("▸ {}", value.map_or_else(|| "-".into(), si))),
     ];
     if area.height >= 4 {
@@ -375,6 +413,36 @@ fn analog_plot(
             }
         });
     f.render_widget(plot, canvas);
+}
+
+/// Samples of `range` to compute and draw: all of them when they fit in one
+/// per braille dot column (`columns`, two per character), else one per dot
+/// column, evenly spread.
+fn plot_points(range: std::ops::Range<usize>, columns: usize) -> Vec<usize> {
+    let n = range.len();
+    let wanted = columns.max(2);
+    if n <= wanted {
+        return range.collect();
+    }
+    (0..wanted).map(|k| range.start + k * (n - 1) / (wanted - 1)).collect()
+}
+
+/// Line segments of `values` at the samples `points`; a missing value ends a
+/// segment.
+fn point_segments(time: &[f64], points: &[usize], values: &[Option<f64>]) -> Vec<Vec<(f64, f64)>> {
+    let mut segments = Vec::new();
+    let mut current = Vec::new();
+    for (&k, v) in points.iter().zip(values) {
+        match v {
+            Some(v) => current.push((time[k], *v)),
+            None if !current.is_empty() => segments.push(std::mem::take(&mut current)),
+            None => {}
+        }
+    }
+    if !current.is_empty() {
+        segments.push(current);
+    }
+    segments
 }
 
 fn binary_strip(f: &mut Frame, area: Rect, app: &App, rec: &Recording, i: usize, cursor_idx: Option<usize>) {

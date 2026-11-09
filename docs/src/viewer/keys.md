@@ -22,6 +22,8 @@
 | `p`                 | Primary / secondary values                    |
 | `r`                 | Waveform / sliding RMS                        |
 | `d`                 | RMS with / without DC                         |
+| `f`                 | Waveform / harmonics over time                |
+| `1` … `9`           | Harmonics view: show / hide order 1 … 9       |
 | `m`                 | Relative / absolute time                      |
 | `s`                 | Show / hide sidebar                           |
 | `T`                 | Dark / light theme (not saved)                |

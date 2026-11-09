@@ -5,6 +5,8 @@ use std::cell::OnceCell;
 use std::sync::Arc;
 
 use crate::analysis::frequency::Track;
+use crate::analysis::harmonics;
+use crate::analysis::phasor::Window;
 use crate::comtrade::{Comtrade, RecordingPath};
 
 /// A loaded recording and its view state.
@@ -87,6 +89,20 @@ impl Recording {
             (None, Some(frequency)) => 1.0 / frequency,
             (None, None) => 0.0,
         }
+    }
+
+    /// Highest harmonic order below half the sample rate (at the end of the
+    /// recording, for the line frequency); 1 without a line frequency.
+    pub fn max_order(&self) -> usize {
+        let (Some(frequency), Some(end)) = (self.line_frequency(), self.data.len().checked_sub(1)) else {
+            return 1;
+        };
+        let window = Window {
+            end,
+            samples: 1,
+            frequency,
+        };
+        harmonics::max_order(self.data.time(), &window)
     }
 
     pub(super) fn n_channels(&self) -> usize {

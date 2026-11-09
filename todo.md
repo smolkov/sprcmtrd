@@ -43,6 +43,7 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 * [x] `compare --trend`: the differences and the differential current cycle by cycle over `--from` / `--to`, as `impedance --trend`. See `tasks/compare-trend-plot.md`.
 * [x] `compare --plot`: A above B per channel pair, same scale and time axis. See `tasks/compare-trend-plot.md`.
 * [ ] `compare --plot`: a third plot of B − A per pair (B resampled onto A's samples).
+* [ ] `harmonics` command: fit the window to the measured frequency at `--at` (as the TUI harmonics view does): off nominal a fixed 50 Hz window shows false harmonics (`55Hz.cfg --at 1500`: a 39 % "2nd").
 * [ ] TUI: show phasors and harmonics of the cursor position in an overlay (phasor diagram drawn with braille characters), sharing the library code with the commands.
 
 ## Commands that write files (non-goal for v1, needs spec decision)
@@ -52,6 +53,8 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 * [ ] `rename <DIR>`: rename recordings to a pattern such as `{station}_{start:%Y%m%d_%H%M%S}`, with `--dry-run`.
 
 ## TUI ideas
+
+* [x] Harmonics view (`f`): orders 1 … 9 over time, switched with `1` … `9`, windows fitted to the measured frequency. See `tasks/tui-harmonics-view.md`.
 
 * [ ] Write log to a file in TUI mode (already in spec, not implemented).
 * [ ] Two measurement cursors: show Δt and the value difference of each channel between them.

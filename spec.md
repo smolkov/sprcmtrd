@@ -1071,6 +1071,22 @@ runs the event loop and always restores the terminal, also on panic
   all analog channels and stay when another file is opened. Binary strips, cursor,
   zoom, pan and the time axis don't change. Without a line frequency in the
   configuration the view stays on the waveform and the footer says why.
+- Harmonics view (`f`, binding `harmonics_view`): one row per shown analog
+  channel and harmonic order, title `Harmonics`. Orders 1 … 9 are switched with
+  `1` … `9` (bindings `harmonic_1` … `harmonic_9`, only in this view; the help
+  shows them on one line); at first only order 1. Order 1 is the RMS in the
+  channel's unit (`IA h1 [A]`), orders 2 … 9 in % of the fundamental at the same
+  point (`IA h3 [%]`). Each point is a DFT at h / T over the window of one cycle
+  T ending at that sample, T as in the RMS view (fitted to the measured
+  frequency); when T isn't a whole number of samples, the oldest sample counts
+  by the part of its slot inside the window (`analysis::harmonics::sliding`).
+  Only the drawn points are computed: one per braille dot column, every sample
+  when fewer. Orders at or above half the sample rate (`harmonics::max_order`
+  at the line frequency) are not shown and can't be switched on (footer note).
+  No orders shown: a hint in the plot area. The y axis starts at 0. `r` and `f`
+  each toggle between their view and the waveform; the order choice applies to
+  all channels and stays when another file is opened. Without a line frequency
+  the view can't be opened.
 - Always show cursor time in milliseconds on the plot time axis
 - Analog plots alternate background shades so neighbouring channels are easy to
   tell apart: 1st, 3rd, ... lighter, 2nd, 4th, ... darker (whole row, gutter
@@ -1099,6 +1115,8 @@ runs the event loop and always restores the terminal, also on panic
 | `p`                 | Toggle primary / secondary values        |
 | `r`                 | Toggle waveform / sliding RMS            |
 | `d`                 | RMS with / without DC                    |
+| `f`                 | Toggle waveform / harmonics over time    |
+| `1` … `9`           | Harmonics view: show / hide order 1 … 9  |
 | `T`                 | Toggle dark / light theme                |
 | `Ctrl+,`, `c`       | Open configuration overlay               |
 | `Esc`               | Close overlay                            |

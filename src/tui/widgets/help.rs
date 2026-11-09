@@ -6,32 +6,42 @@ use ratatui::text::{Line, Span};
 
 use super::{centered, overlay_block, scrolled_text};
 use crate::tui::app::App;
-use crate::tui::keys::BINDINGS;
+use crate::tui::keys::{Action, BINDINGS};
 
 pub fn render(f: &mut Frame, area: Rect, app: &App, scroll: u16) {
     let inner = overlay_block(f, centered(area, 70, 80), app, "Help");
     let theme = &app.theme;
 
-    let keys: Vec<String> = BINDINGS
+    let keys_of = |action: Action| {
+        app.keymap
+            .keys(action)
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    // The nine harmonic orders share one line.
+    let rows: Vec<(String, &str)> = BINDINGS
         .iter()
-        .map(|b| {
-            app.keymap
-                .keys(b.action)
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(", ")
+        .filter_map(|b| match b.action {
+            Action::Harmonic(1) => {
+                let all: Vec<String> = (1..=9).map(|n| keys_of(Action::Harmonic(n))).collect();
+                let default = all.iter().enumerate().all(|(i, k)| *k == (i + 1).to_string());
+                let keys = if default { "1 … 9".to_owned() } else { all.join(" ") };
+                Some((keys, "Harmonics view: show / hide order 1 … 9"))
+            }
+            Action::Harmonic(_) => None,
+            action => Some((keys_of(action), b.help)),
         })
         .collect();
-    let width = keys.iter().map(|k| k.chars().count()).max().unwrap_or(0);
+    let width = rows.iter().map(|(k, _)| k.chars().count()).max().unwrap_or(0);
 
-    let mut lines: Vec<Line<'static>> = BINDINGS
-        .iter()
-        .zip(keys)
-        .map(|(b, k)| {
+    let mut lines: Vec<Line<'static>> = rows
+        .into_iter()
+        .map(|(k, help)| {
             Line::from(vec![
                 Span::styled(format!("  {k:<width$}  "), theme.accent()),
-                Span::raw(b.help),
+                Span::raw(help.to_owned()),
             ])
         })
         .collect();
