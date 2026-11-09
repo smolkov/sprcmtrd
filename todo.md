@@ -29,6 +29,9 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 
 * [x] `trend <FILE>`: cycle-by-cycle values over time instead of at one moment: RMS, fundamental magnitude and angle, symmetrical components and frequency per channel or group, as a table or CSV (`--step` in cycles or ms, `--channels`, `--from`/`--to`). Shows how the fault develops and clears; the base for several commands below.
 * [x] `trend`: sequence columns `I+ I- I0 I-/+` (CSV `I_pos_A`, …) instead of `I1 I2 I0 I2/1`, which clashed with phase ids like iL1, iL2 (#1). See `tasks/trend-sequence-names.md`.
+* [x] `trend`: the frequency from the positive sequence of the voltages (else currents), with tracking, instead of the first shown channel; `--frequency-from`. See `tasks/trend-frequency.md`.
+* [ ] `frequency --method phasor --cycles 10` at 55 Hz shows 49.99 Hz: over 200 ms a 5 Hz offset turns the phasor more than half a turn, the turn wraps. Estimate first from a one-cycle window, then track.
+* [ ] `frequency`: measure from the positive sequence of the voltage group by default too (`analysis::frequency::at`), with `--channel` for one channel.
 * [x] `harmonics <FILE> --at <ms>`: harmonic spectrum (2nd … 50th, magnitude in % of the fundamental and angle) and THD per channel, over `--cycles` cycles. Typical uses: transformer inrush (high 2nd harmonic), CT saturation, power quality.
 * [x] `impedance <FILE> --at <ms>`: apparent impedance of the six fault loops (A-N, B-N, C-N with residual compensation `--k0`, A-B, B-C, C-A) from the voltage and current phasors, in Ω primary or secondary, as R + jX and |Z| ∠ φ. With `--trend`, the trajectory over time for comparing with distance relay zones.
 * [x] `power <FILE>`: active, reactive and apparent power and power factor per three-phase group (from phasors; per phase and total), at `--at` or cycle by cycle. Shows load before the fault and power flow direction.

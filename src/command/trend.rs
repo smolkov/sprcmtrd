@@ -4,6 +4,7 @@ use anyhow::{anyhow, bail};
 use serde::Serialize;
 
 use super::{select_channels, time_window};
+use crate::analysis::frequency::{self, Candidate, Source};
 use crate::analysis::phasor::{Polar, Window, WindowError};
 use crate::analysis::sequence::Group;
 use crate::analysis::trend::{self, Step};
@@ -72,16 +73,7 @@ impl TrendArgs {
         };
         let (t0, t1) = time_window(&c, self.from, self.to)?;
         let range = c.index_range(t0, t1);
-        let result = trend::trend(
-            &channels,
-            c.time(),
-            range,
-            samples,
-            step_samples,
-            frequency,
-            reference,
-            side,
-        );
+        let result = trend::trend(&channels, c.time(), range, samples, step_samples, frequency, side);
         if result.steps.is_empty() {
             bail!(
                 "no window of {samples} samples fits in the time range; the recording runs from {} to {}",
@@ -90,7 +82,35 @@ impl TrendArgs {
             );
         }
 
+        // The frequency, from all analog channels of the recording.
+        let all: Vec<&AnalogChannel> = c.analog_channels().collect();
+        let candidates: Vec<Candidate> = match &self.frequency_from {
+            Some(token) => {
+                let (found, _) = select_channels(&c, std::slice::from_ref(token))?;
+                let Some(&i) = found.first() else {
+                    bail!("--frequency-from takes an analog channel; {token} is binary");
+                };
+                vec![Candidate {
+                    source: Source::Channel(i),
+                    peak: frequency::peak(all[i], side),
+                }]
+            }
+            None => frequency::sources(&all, side),
+        };
+        let frequencies: Vec<Option<(f64, usize)>> = result
+            .steps
+            .iter()
+            .map(|st| frequency::at(&all, c.time(), st.end, samples, frequency, &candidates, side))
+            .collect();
+        let source_names: Vec<String> = candidates.iter().map(|k| source_name(&all, k.source)).collect();
+        let mut used: Vec<usize> = frequencies.iter().flatten().map(|&(_, n)| n).collect();
+        used.sort_unstable();
+        used.dedup();
+
         let table = Table {
+            frequencies: &frequencies,
+            source_names: &source_names,
+            show_source: used.len() > 1,
             channels: &channels,
             groups: &result.groups,
             labels: result
@@ -133,7 +153,18 @@ impl TrendArgs {
                                 result.steps.len()
                             ),
                         ),
-                        ("Reference", format!("A{} {}", ch.info.index, ch.info.id)),
+                        ("Reference", format!("A{} {} (angles)", ch.info.index, ch.info.id)),
+                        (
+                            "Frequency",
+                            if used.is_empty() {
+                                "no voltage or current with a signal".to_owned()
+                            } else {
+                                used.iter()
+                                    .map(|&n| source_text(&all, &source_names[n], candidates[n].source))
+                                    .collect::<Vec<_>>()
+                                    .join(", else ")
+                            },
+                        ),
                         (
                             "Values",
                             format!(
@@ -158,15 +189,7 @@ impl TrendArgs {
 /// ids (`I` for IA, IB, IC), else `G1 `, `G2 `, … (with a space, so the
 /// zero sequence of group 1 doesn't read `G10`).
 fn label(channels: &[&AnalogChannel], g: &Group, n: usize) -> String {
-    let ids = g.phases.map(|i| channels[i].info.id.as_str());
-    let common: String = ids[0]
-        .chars()
-        .zip(ids[1].chars())
-        .zip(ids[2].chars())
-        .take_while(|((a, b), c)| a == b && b == c)
-        .map(|((a, _), _)| a)
-        .collect();
-    let common = common.trim_end_matches([' ', '_', '-']).to_owned();
+    let common = common_start(g.phases.map(|i| channels[i].info.id.as_str()));
     if common.is_empty() {
         format!("G{} ", n + 1)
     } else {
@@ -174,8 +197,43 @@ fn label(channels: &[&AnalogChannel], g: &Group, n: usize) -> String {
     }
 }
 
+/// The common start of three ids, without a trailing separator.
+fn common_start(ids: [&str; 3]) -> String {
+    let common: String = ids[0]
+        .chars()
+        .zip(ids[1].chars())
+        .zip(ids[2].chars())
+        .take_while(|((a, b), c)| a == b && b == c)
+        .map(|((a, _), _)| a)
+        .collect();
+    common.trim_end_matches([' ', '_', '-']).to_owned()
+}
+
+/// Short name of a frequency source: `uL+` for the positive sequence of
+/// uL1E, uL2E, uL3E (`+` alone without a common start), or the channel id.
+fn source_name(channels: &[&AnalogChannel], source: Source) -> String {
+    match source {
+        Source::Group(p) => common_start(p.map(|i| channels[i].info.id.as_str())) + "+",
+        Source::Channel(i) => channels[i].info.id.clone(),
+    }
+}
+
+/// A frequency source for the header: `uL+ (uL1E uL2E uL3E)`, `A6 uL1E`.
+fn source_text(channels: &[&AnalogChannel], name: &str, source: Source) -> String {
+    match source {
+        Source::Group(p) => format!("{name} ({})", p.map(|i| channels[i].info.id.as_str()).join(" ")),
+        Source::Channel(i) => format!("A{} {}", channels[i].info.index, channels[i].info.id),
+    }
+}
+
 /// What the rows show.
 struct Table<'a> {
+    /// Per step the frequency and the position of its source.
+    frequencies: &'a [Option<(f64, usize)>],
+    /// Short names of the frequency sources (`uL+`, `uL1E`).
+    source_names: &'a [String],
+    /// The text table has a column of the source (it changes).
+    show_source: bool,
     channels: &'a [&'a AnalogChannel],
     groups: &'a [Group],
     labels: Vec<String>,
@@ -189,16 +247,21 @@ enum Cell {
     Angle(f64),
     Percent(f64),
     Frequency(f64),
+    Text(String),
     Missing,
 }
 
 impl Table<'_> {
-    /// Column names as `(text header, CSV header)`.
-    fn headers(&self) -> Vec<(String, String)> {
+    /// Column names as `(text header, CSV header)`, with the frequency
+    /// source column when `source`.
+    fn headers(&self, source: bool) -> Vec<(String, String)> {
         let mut h = vec![
             ("time".to_owned(), "time_ms".to_owned()),
             ("f [Hz]".to_owned(), "frequency_hz".to_owned()),
         ];
+        if source {
+            h.push(("f from".to_owned(), "frequency_source".to_owned()));
+        }
         for ch in self.channels {
             let (id, unit) = (&ch.info.id, &ch.info.unit);
             h.push((format!("{id} [{unit}]"), csv_name(&format!("{id}_{unit}"))));
@@ -224,10 +287,16 @@ impl Table<'_> {
         h
     }
 
-    /// The cells of `step`, angles relative to the reference channel.
-    fn cells(&self, step: &Step, reference: usize) -> Vec<Cell> {
+    /// The cells of step `k`, angles relative to the reference channel, with
+    /// the frequency source when `source`.
+    fn cells(&self, steps: &[Step], k: usize, reference: usize, source: bool) -> Vec<Cell> {
+        let step = &steps[k];
         let angle0 = step.phasors[reference].map_or(0.0, |p| p.arg());
-        let mut cells = vec![step.frequency.map_or(Cell::Missing, Cell::Frequency)];
+        let f = self.frequencies[k];
+        let mut cells = vec![f.map_or(Cell::Missing, |(f, _)| Cell::Frequency(f))];
+        if source {
+            cells.push(f.map_or(Cell::Missing, |(_, n)| Cell::Text(self.source_names[n].clone())));
+        }
         for (p, rms) in step.phasors.iter().zip(&step.rms) {
             let polar = p.map(|p| Polar::new(p, angle0));
             cells.push(polar.map_or(Cell::Missing, |p| Cell::Value(p.magnitude)));
@@ -259,20 +328,26 @@ impl Table<'_> {
     }
 
     fn text(&self, steps: &[Step], reference: usize) -> String {
-        let headers = self.headers();
+        let headers = self.headers(self.show_source);
         let names: Vec<&str> = headers.iter().map(|(t, _)| t.as_str()).collect();
         let span = steps.last().map_or(0.0, |s| s.time) - steps.first().map_or(0.0, |s| s.time);
         let rows: Vec<Vec<String>> = steps
             .iter()
-            .map(|step| {
+            .enumerate()
+            .map(|(k, step)| {
                 let mut row = vec![time(step.time, span.max(1e-3))];
-                row.extend(self.cells(step, reference).iter().map(|c| match c {
-                    Cell::Value(v) => si(*v),
-                    Cell::Angle(a) => format!("{a:.1}°"),
-                    Cell::Percent(p) => format!("{p:.1} %"),
-                    Cell::Frequency(f) => format!("{f:.3}"),
-                    Cell::Missing => "-".into(),
-                }));
+                row.extend(
+                    self.cells(steps, k, reference, self.show_source)
+                        .into_iter()
+                        .map(|c| match c {
+                            Cell::Value(v) => si(v),
+                            Cell::Angle(a) => format!("{a:.1}°"),
+                            Cell::Percent(p) => format!("{p:.1} %"),
+                            Cell::Frequency(f) => format!("{f:.3}"),
+                            Cell::Text(t) => t,
+                            Cell::Missing => "-".into(),
+                        }),
+                );
                 row
             })
             .collect();
@@ -280,12 +355,13 @@ impl Table<'_> {
     }
 
     fn csv(&self, steps: &[Step], reference: usize) -> String {
-        let headers = self.headers();
+        let headers = self.headers(true);
         let mut out = headers.iter().map(|(_, c)| c.as_str()).collect::<Vec<_>>().join(",") + "\n";
-        for step in steps {
+        for (k, step) in steps.iter().enumerate() {
             let mut row = vec![round12(step.time * 1e3).to_string()];
-            row.extend(self.cells(step, reference).iter().map(|c| match c {
-                Cell::Value(v) | Cell::Angle(v) | Cell::Percent(v) | Cell::Frequency(v) => round12(*v).to_string(),
+            row.extend(self.cells(steps, k, reference, true).into_iter().map(|c| match c {
+                Cell::Value(v) | Cell::Angle(v) | Cell::Percent(v) | Cell::Frequency(v) => round12(v).to_string(),
+                Cell::Text(t) => csv_name(&t),
                 Cell::Missing => String::new(),
             }));
             out += &(row.join(",") + "\n");
@@ -345,11 +421,13 @@ impl Table<'_> {
                 .collect(),
             steps: steps
                 .iter()
-                .map(|s| {
+                .zip(self.frequencies)
+                .map(|(s, f)| {
                     let angle0 = s.phasors[reference].map_or(0.0, |p| p.arg());
                     JsonStep {
                         time_s: round12(s.time),
-                        frequency: s.frequency.map(round12),
+                        frequency: f.map(|(f, _)| round12(f)),
+                        frequency_source: f.map(|(_, n)| self.source_names[n].clone()),
                         phasors: s
                             .phasors
                             .iter()
@@ -412,6 +490,7 @@ struct JsonGroup {
 struct JsonStep {
     time_s: f64,
     frequency: Option<f64>,
+    frequency_source: Option<String>,
     phasors: Vec<Option<Polar>>,
     rms: Vec<Option<f64>>,
     sequences: Vec<Option<JsonSequence>>,
@@ -447,13 +526,16 @@ mod tests {
         let infos: Vec<&AnalogInfo> = channels.iter().map(|ch| &ch.info).collect();
         let groups = sequence::groups(&infos);
         let table = Table {
+            frequencies: &[],
+            source_names: &[],
+            show_source: false,
             channels: &channels,
             groups: &groups,
             labels: groups.iter().enumerate().map(|(n, g)| label(&channels, g, n)).collect(),
             angles: false,
             rms: false,
         };
-        table.headers().split_off(5)
+        table.headers(false).split_off(5)
     }
 
     fn pairs(v: &[(&str, &str)]) -> Vec<(String, String)> {

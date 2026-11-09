@@ -15,7 +15,8 @@ use serde::Serialize;
 use super::Complex;
 use super::impedance::{Quantity, unit_factor};
 use super::phasor::{self, Window};
-use crate::comtrade::{AnalogChannel, Side};
+use super::sequence;
+use crate::comtrade::{AnalogChannel, AnalogInfo, Side};
 
 /// A signal below this part of the channel's largest value has no
 /// frequency: no zero crossings are counted and its phasor is not used.
@@ -218,17 +219,8 @@ pub fn series(
     // Off the nominal frequency, the DFT of one phase has an image that
     // makes the angle ripple. Measured again with windows of whole cycles of
     // the frequency found, the image cancels (frequency tracking).
-    let turn = |end: usize| {
-        let mut m = turn_at(ch, time, end, samples, frequency, level, side)?;
-        for _ in 0..TRACKING {
-            if !(frequency / 2.0..frequency * 2.0).contains(&m.frequency) {
-                break;
-            }
-            let tracked = (samples as f64 * frequency / m.frequency).round() as usize;
-            m = turn_at(ch, time, end, tracked, m.frequency, level, side)?;
-        }
-        Some(m)
-    };
+    let phasor = |w: &Window| phasor::phasor(ch, time, w, side).ok();
+    let turn = |end: usize| tracked(&phasor, time, end, samples, frequency, level);
     // The measurement at the sample `end` and the one of the cycles before it.
     let measure = |end: usize| match method {
         Method::Crossings => from_crossings(&crossings, time[end], periods, frequency),
@@ -265,17 +257,137 @@ pub fn series(
 /// Times the phasor method measures again at the frequency it found.
 const TRACKING: usize = 2;
 
-/// Frequency from the turn of the phasor of `ch` (DFT at `frequency`)
-/// between the window of `samples` samples ending at `end` and the one
-/// before it. A phasor below `level` (peak) is not used.
-fn turn_at(
-    ch: &AnalogChannel,
+/// What a frequency is measured from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Source {
+    /// The positive sequence of a three-phase group (positions of phases A,
+    /// B, C in the channels): the image of the single phases cancels.
+    Group([usize; 3]),
+    /// One channel (position in the channels).
+    Channel(usize),
+}
+
+/// A [`Source`] and the largest sample value of its channels; a phasor below
+/// [`MIN_LEVEL`] of it is no signal.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Candidate {
+    /// The source.
+    pub source: Source,
+    /// Largest |sample| of its channels on the side measured.
+    pub peak: f64,
+}
+
+/// The sources to measure the frequency from, best first: the positive
+/// sequence of the voltage groups, of the current groups, then the single
+/// voltages and the single currents; each kind by its largest value
+/// (converted to V or A). Voltages first, as they are the less disturbed
+/// signals. Channels without any value are left out.
+pub fn sources(channels: &[&AnalogChannel], side: Side) -> Vec<Candidate> {
+    let peaks: Vec<f64> = channels.iter().map(|ch| peak(ch, side)).collect();
+    let quantity = |i: usize| unit_factor(&channels[i].info.unit);
+    let infos: Vec<&AnalogInfo> = channels.iter().map(|ch| &ch.info).collect();
+    let groups = sequence::groups(&infos);
+    let mut out = Vec::new();
+    for q in [Quantity::Voltage, Quantity::Current] {
+        let mut found: Vec<(Candidate, f64)> = groups
+            .iter()
+            .filter_map(|g| {
+                let (gq, factor) = quantity(g.phases[0])?;
+                let peak = g.phases.map(|i| peaks[i]).into_iter().fold(0.0, f64::max);
+                (gq == q && peak > 0.0).then_some((
+                    Candidate {
+                        source: Source::Group(g.phases),
+                        peak,
+                    },
+                    peak * factor,
+                ))
+            })
+            .collect();
+        found.sort_by(|a, b| b.1.total_cmp(&a.1));
+        out.extend(found.into_iter().map(|(c, _)| c));
+    }
+    for q in [Quantity::Voltage, Quantity::Current] {
+        let mut found: Vec<(Candidate, f64)> = (0..channels.len())
+            .filter_map(|i| {
+                let (cq, factor) = quantity(i)?;
+                (cq == q && peaks[i] > 0.0).then_some((
+                    Candidate {
+                        source: Source::Channel(i),
+                        peak: peaks[i],
+                    },
+                    peaks[i] * factor,
+                ))
+            })
+            .collect();
+        found.sort_by(|a, b| b.1.total_cmp(&a.1));
+        out.extend(found.into_iter().map(|(c, _)| c));
+    }
+    out
+}
+
+/// Largest |sample| of `ch` on `side`, 0 without values.
+pub fn peak(ch: &AnalogChannel, side: Side) -> f64 {
+    ch.values().flatten().map(|v| v.abs()).fold(0.0, f64::max) * ch.info.side_factor(side)
+}
+
+/// The frequency at the sample `end`, from the first of `candidates` that
+/// has a signal in both windows (at least [`MIN_LEVEL`] of its peak): the
+/// turn of its phasor between the window of `samples` samples ending at
+/// `end` and the one before, measured again at the frequency found
+/// (tracking). Returns the frequency and the position of the candidate used.
+pub fn at(
+    channels: &[&AnalogChannel],
+    time: &[f64],
+    end: usize,
+    samples: usize,
+    frequency: f64,
+    candidates: &[Candidate],
+    side: Side,
+) -> Option<(f64, usize)> {
+    candidates.iter().enumerate().find_map(|(n, c)| {
+        let phasor = |w: &Window| -> Option<Complex> {
+            let p = |i: usize| phasor::phasor(channels[i], time, w, side).ok();
+            match c.source {
+                Source::Channel(i) => p(i),
+                Source::Group([a, b, cc]) => Some(sequence::symmetrical(p(a)?, p(b)?, p(cc)?).positive),
+            }
+        };
+        let level = MIN_LEVEL * c.peak;
+        tracked(&phasor, time, end, samples, frequency, level).map(|m| (m.frequency, n))
+    })
+}
+
+/// [`turn_with`] at the nominal `frequency`, then measured again with
+/// windows of whole cycles of the frequency found.
+fn tracked(
+    phasor: &dyn Fn(&Window) -> Option<Complex>,
     time: &[f64],
     end: usize,
     samples: usize,
     frequency: f64,
     level: f64,
-    side: Side,
+) -> Option<Measured> {
+    let mut m = turn_with(phasor, time, end, samples, frequency, level)?;
+    for _ in 0..TRACKING {
+        if !(frequency / 2.0..frequency * 2.0).contains(&m.frequency) {
+            break;
+        }
+        let tracked = (samples as f64 * frequency / m.frequency).round() as usize;
+        m = turn_with(phasor, time, end, tracked, m.frequency, level)?;
+    }
+    Some(m)
+}
+
+/// Frequency from the turn of `phasor` (DFT at `frequency`) between the
+/// window of `samples` samples ending at `end` and the one before it. A
+/// phasor below `level` (peak) is not used.
+fn turn_with(
+    phasor: &dyn Fn(&Window) -> Option<Complex>,
+    time: &[f64],
+    end: usize,
+    samples: usize,
+    frequency: f64,
+    level: f64,
 ) -> Option<Measured> {
     if samples < 4 {
         return None;
@@ -286,7 +398,7 @@ fn turn_at(
             samples,
             frequency,
         };
-        let p = phasor::phasor(ch, time, &window, side).ok()?;
+        let p = phasor(&window)?;
         (p.abs() > 0.0 && p.abs() >= level).then_some((time[end], p))
     };
     // The turn covers both windows, from the start of the earlier one.
@@ -564,5 +676,120 @@ mod tests {
         // Far above the nominal frequency.
         let t = track(&track_recording(&[("V", &sine(100.0, 400.0))])).unwrap();
         assert_eq!(t.period_at(0.2), 0.02);
+    }
+
+    /// Recording at 4 kHz, 400 ms, line frequency 50 Hz, with
+    /// `(id, phase, unit, signal(t))` channels.
+    /// A channel: id, phase, unit and the signal over time.
+    type Signal<'a> = (&'a str, &'a str, &'a str, &'a dyn Fn(f64) -> f64);
+
+    fn phases_recording(signals: &[Signal]) -> Comtrade {
+        let mut cfg = format!("S,D,1999\n{0},{0}A,0D\n", signals.len());
+        for (i, (id, phase, unit, _)) in signals.iter().enumerate() {
+            cfg += &format!("{},{id},{phase},LINE,{unit},0.001,0,0,-1e9,1e9,1,1,P\n", i + 1);
+        }
+        cfg += "50\n1\n4000,1600\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+        let mut dat = String::new();
+        for k in 0..1600 {
+            let t = k as f64 / 4000.0;
+            dat += &format!("{},{}", k + 1, k * 250);
+            for (.., signal) in signals {
+                dat += &format!(",{}", (signal(t) * 1000.0).round());
+            }
+            dat += "\n";
+        }
+        Comtrade::from_readers(cfg.as_bytes(), dat.as_bytes()).unwrap()
+    }
+
+    /// Phase `k` (0, 1, 2) of a three-phase set at `f` Hz.
+    fn phase(peak: f64, f: f64, k: usize) -> impl Fn(f64) -> f64 {
+        move |t| peak * (2.0 * PI * f * t - k as f64 * 2.0 * PI / 3.0).cos()
+    }
+
+    fn frequencies(c: &Comtrade) -> Vec<Option<(f64, usize)>> {
+        let ch: Vec<_> = c.analog_channels().collect();
+        let candidates = sources(&ch, Side::Primary);
+        (159..c.len())
+            .step_by(80)
+            .map(|end| at(&ch, c.time(), end, 80, 50.0, &candidates, Side::Primary))
+            .collect()
+    }
+
+    #[test]
+    fn sources_voltages_first_groups_before_channels() {
+        let c = phases_recording(&[
+            ("IA", "A", "A", &phase(80.0, 50.0, 0)),
+            ("IB", "B", "A", &phase(80.0, 50.0, 1)),
+            ("IC", "C", "A", &phase(80.0, 50.0, 2)),
+            ("VX", "", "kV", &phase(1.0, 50.0, 0)),
+            ("VA", "A", "V", &phase(90.0, 50.0, 0)),
+            ("VB", "B", "V", &phase(90.0, 50.0, 1)),
+            ("VC", "C", "V", &phase(90.0, 50.0, 2)),
+        ]);
+        let ch: Vec<_> = c.analog_channels().collect();
+        let order: Vec<Source> = sources(&ch, Side::Primary).iter().map(|c| c.source).collect();
+        assert_eq!(
+            order,
+            [
+                Source::Group([4, 5, 6]),
+                Source::Group([0, 1, 2]),
+                // 1 kV is stronger than 90 V.
+                Source::Channel(3),
+                Source::Channel(4),
+                Source::Channel(5),
+                Source::Channel(6),
+                Source::Channel(0),
+                Source::Channel(1),
+                Source::Channel(2),
+            ]
+        );
+    }
+
+    #[test]
+    fn positive_sequence_has_no_image_off_nominal() {
+        // 55 Hz measured with 50 Hz windows, 4 % unbalance (below 99.999,
+        // which is a missing value).
+        let c = phases_recording(&[
+            ("VA", "A", "V", &phase(90.0, 55.0, 0)),
+            ("VB", "B", "V", &phase(86.4, 55.0, 1)),
+            ("VC", "C", "V", &phase(90.0, 55.0, 2)),
+        ]);
+        let found = frequencies(&c);
+        assert_eq!(found.len(), 19);
+        for f in &found {
+            let (f, n) = f.unwrap();
+            assert_eq!(n, 0, "{found:?}");
+            assert!(close(f, 55.0, 0.005), "{f}");
+        }
+        // One phase alone: tracking keeps it close, too.
+        let c = phases_recording(&[("VA", "A", "V", &phase(90.0, 55.0, 0))]);
+        for f in frequencies(&c) {
+            assert!(close(f.unwrap().0, 55.0, 0.01), "{f:?}");
+        }
+    }
+
+    #[test]
+    fn falls_back_to_the_currents_without_voltage() {
+        // The voltages come on at 200 ms; before, the currents are measured.
+        let on = |k: usize| move |t: f64| if t >= 0.2 { phase(90.0, 50.0, k)(t) } else { 0.0 };
+        let c = phases_recording(&[
+            ("VA", "A", "V", &on(0)),
+            ("VB", "B", "V", &on(1)),
+            ("VC", "C", "V", &on(2)),
+            ("IA", "A", "A", &phase(5.0, 50.0, 0)),
+            ("IB", "B", "A", &phase(5.0, 50.0, 1)),
+            ("IC", "C", "A", &phase(5.0, 50.0, 2)),
+        ]);
+        let found = frequencies(&c);
+        let used: Vec<usize> = found.iter().map(|f| f.unwrap().1).collect();
+        // Windows end at 39.75 ms, 59.75 ms, …: both windows from 200 ms on
+        // from the 11th (ending at 239.75 ms).
+        assert_eq!(used, [[1; 10].as_slice(), &[0; 9]].concat());
+        for f in found {
+            assert!(close(f.unwrap().0, 50.0, 0.01), "{f:?}");
+        }
+        // Without any signal, nothing.
+        let quiet = phases_recording(&[("VA", "A", "V", &|_| 0.0), ("IA", "A", "A", &|_| 0.0)]);
+        assert!(frequencies(&quiet).iter().all(Option::is_none));
     }
 }

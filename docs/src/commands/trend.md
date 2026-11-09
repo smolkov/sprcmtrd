@@ -1,6 +1,6 @@
 # `trend`: Values over time
 
-Values over time, cycle by cycle: fundamental magnitude per channel, symmetrical components per three-phase group and the system frequency. Each row is a window of --cycles cycles ending at that time, like the phasors command at one moment. Group columns: + positive, - negative, 0 zero sequence, -/+ unbalance in %.
+Values over time, cycle by cycle: fundamental magnitude per channel, symmetrical components per three-phase group and the system frequency. Each row is a window of --cycles cycles ending at that time, like the phasors command at one moment. Group columns: + positive, - negative, 0 zero sequence, -/+ unbalance in %. The frequency comes from the voltages (positive sequence) if they have a signal, else the currents.
 
 ```
 sprcmtrd trend [OPTIONS] <FILE>
@@ -16,19 +16,27 @@ phase B rising to 3.4 kA, with equal negative and zero sequence current.
 ```
 File       tests/data/fault_2013.cfg
 Window     1 cycle (40 samples) at 50 Hz, every 1 cycle (5 rows)
-Reference  A1 IA
+Reference  A1 IA (angles)
+Frequency  V+ (VA VB VC)
 Values     primary, RMS of the fundamental
 
 time       f [Hz]  IA [A]  IB [A]  IC [A]  I+ [A]  I- [A]  I0 [A]  I-/+
--20.00 ms  -       318.2   318.2   318.2   318.2   0.000   0.000   0.0 %
-0.00 ms    50.000  318.2   347.4   318.2   327.8   11.08   11.08   3.4 %
-20.00 ms   50.000  318.2   3.411k  318.2   1.349k  1.031k  1.031k  76.5 %
+-20.00 ms  50.000  318.2   318.2   318.2   318.2   0.000   0.000   0.0 %
+0.00 ms    49.958  318.2   347.4   318.2   327.8   11.08   11.08   3.4 %
+20.00 ms   50.041  318.2   3.411k  318.2   1.349k  1.031k  1.031k  76.5 %
 40.00 ms   50.000  318.2   3.458k  318.2   1.365k  1.047k  1.047k  76.7 %
 60.00 ms   50.000  318.2   3.488k  318.2   1.375k  1.057k  1.057k  76.9 %
 ```
 
 - One row per `--step` (default 1 cycle; `10ms` for a time), each the window
   of `--cycles` cycles ending there, like `phasors` at one moment.
+- The frequency comes from the whole recording, not only the shown channels:
+  the positive sequence of the strongest voltage group, where it has a signal,
+  else of the strongest current group, else the strongest single voltage or
+  current. The `Frequency` line names the sources used; when it changes
+  within the table, a column `f from` shows it per row. `--frequency-from`
+  measures one channel instead. Short excursions around the fault inception
+  and the breaker opening are real: the phase jumps there.
 - Columns: frequency, the fundamental (RMS) of each channel (`--angles` adds
   angles, `--rms` the true RMS with harmonics and DC), and for each A/B/C group
   the positive `+`, negative `-` and zero `0` sequence and the unbalance `-/+`
@@ -47,7 +55,8 @@ time       f [Hz]  IA [A]  IB [A]  IC [A]  I+ [A]  I- [A]  I0 [A]  I-/+
 | `--to <TO>` | End of the time range in ms relative to the trigger |
 | `--step <STEP>` | Distance between rows: cycles (`1`, `0.5`) or a time (`10ms`, `1s`) [default: 1] |
 | `--cycles <CYCLES>` | Window length in cycles of the fundamental frequency [default: 1] |
-| `--reference <REFERENCE>` | Channel the angles and the frequency refer to (one of the shown channels). Default: the first channel |
+| `--reference <REFERENCE>` | Channel the angles refer to (one of the shown channels). Default: the first channel |
+| `--frequency-from <FREQUENCY_FROM>` | Channel to measure the frequency from (index or id, any analog channel). Default: the positive sequence of the strongest voltage group with a signal, else of the strongest current group, else the strongest single voltage or current |
 | `--frequency <FREQUENCY>` | Fundamental frequency in Hz. Default: the line frequency of the recording |
 | `--angles` | Also show the angle of each channel |
 | `--rms` | Also show the true RMS of each channel (with harmonics and DC) |

@@ -943,6 +943,7 @@ fn trend_sequence_names_differ_from_the_phases() {
         [
             "time_ms",
             "frequency_hz",
+            "frequency_source",
             "iL1_A",
             "iL2_A",
             "iL3_A",
@@ -952,6 +953,93 @@ fn trend_sequence_names_differ_from_the_phases() {
             "iL_unbalance_pct"
         ]
     );
+}
+
+/// A 4 kHz recording at `f` Hz (line frequency 50 Hz), 400 ms from the
+/// trigger: currents IA, IB, IC (100 A peak) first, then voltages VA, VB, VC
+/// (60 kV peak, 0 before `voltage_on` s).
+fn write_off_nominal(dir: &std::path::Path, f: f64, voltage_on: f64) -> std::path::PathBuf {
+    let mut cfg = String::from("S,D,1999\n6,6A,0D\n");
+    for (i, (id, unit)) in ["IA", "IB", "IC", "VA", "VB", "VC"]
+        .iter()
+        .zip(["A", "A", "A", "kV", "kV", "kV"])
+        .enumerate()
+    {
+        let phase = &id[1..];
+        cfg += &format!("{},{id},{phase},LINE,{unit},0.001,0,0,-1e9,1e9,1,1,P\n", i + 1);
+    }
+    cfg += "50\n1\n4000,1600\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+    let mut dat = String::new();
+    for k in 0..1600 {
+        let t = k as f64 / 4000.0;
+        dat += &format!("{},{}", k + 1, k * 250);
+        for i in 0..6 {
+            let peak = match i {
+                0..3 => 80.0,
+                _ if t >= voltage_on => 60.0,
+                _ => 0.0,
+            };
+            let v = peak * (std::f64::consts::TAU * (f * t - (i % 3) as f64 / 3.0)).cos();
+            dat += &format!(",{}", (v * 1000.0).round());
+        }
+        dat += "\n";
+    }
+    let path = dir.join("off.cfg");
+    std::fs::write(&path, cfg).unwrap();
+    std::fs::write(dir.join("off.dat"), dat).unwrap();
+    path
+}
+
+#[test]
+fn trend_frequency_from_the_voltages() {
+    let dir = tempfile::tempdir().unwrap();
+    // 55 Hz with 50 Hz windows: the positive sequence of the voltages has
+    // no ripple, even though the currents come first.
+    let path = write_off_nominal(dir.path(), 55.0, 0.0);
+    let out = cmd().arg("trend").arg(&path).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let text = String::from_utf8(out.stdout).unwrap();
+    assert!(
+        text.contains("Reference  A1 IA (angles)\nFrequency  V+ (VA VB VC)\n"),
+        "{text}"
+    );
+    assert!(!text.contains("f from"), "{text}");
+    let rows: Vec<&str> = text.lines().skip_while(|l| !l.starts_with("time")).skip(1).collect();
+    // The first window has no window before it.
+    assert_eq!(rows.len(), 20, "{text}");
+    assert!(rows[0].starts_with("19.8 ms   -"), "{text}");
+    assert!(
+        rows[1..].iter().all(|r| r.split_whitespace().nth(2) == Some("55.000")),
+        "{text}"
+    );
+
+    // One channel: tracking keeps it near 55 Hz too.
+    let out = cmd()
+        .arg("trend")
+        .arg(&path)
+        .args(["--frequency-from", "IA", "--format", "csv"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let text = String::from_utf8(out.stdout).unwrap();
+    for line in text.lines().skip(2) {
+        let cells: Vec<&str> = line.split(',').collect();
+        assert_eq!(cells[2], "IA", "{line}");
+        assert!((cells[1].parse::<f64>().unwrap() - 55.0).abs() < 0.02, "{line}");
+    }
+
+    // Voltages from 200 ms: the currents until then, shown in a column.
+    let path = write_off_nominal(dir.path(), 50.0, 0.2);
+    cmd()
+        .arg("trend")
+        .arg(&path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Frequency  V+ (VA VB VC), else I+ (IA IB IC)\n",
+        ))
+        .stdout(predicate::str::is_match(r"\n39\.8 ms +50\.000 +I\+ ").unwrap())
+        .stdout(predicate::str::is_match(r"\n299\.8 ms +50\.000 +V\+ ").unwrap());
 }
 
 #[test]
@@ -993,9 +1081,10 @@ fn trend_through_the_fault() {
     assert!(out.status.success());
     let text = String::from_utf8(out.stdout).unwrap();
     let lines: Vec<&str> = text.lines().collect();
-    assert_eq!(lines[0], "time_ms,frequency_hz,IB_A,IB_deg,IB_rms_A");
+    assert_eq!(lines[0], "time_ms,frequency_hz,frequency_source,IB_A,IB_deg,IB_rms_A");
     assert_eq!(lines.len(), 10, "{text}");
-    assert!(lines[1].starts_with("-20,,318.19"), "{text}");
+    // The frequency comes from the voltages, although only IB is shown.
+    assert!(lines[1].starts_with("-20,50,V+,318.19"), "{text}");
 
     let out = cmd()
         .args(["trend", "tests/data/fault_2013.cfg", "--to", "0", "--format", "json"])

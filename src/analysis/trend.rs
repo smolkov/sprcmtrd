@@ -1,6 +1,6 @@
-//! Values over time, step by step: phasors, true RMS, symmetrical
-//! components and the system frequency for windows that end at regular
-//! intervals.
+//! Values over time, step by step: phasors, true RMS and symmetrical
+//! components for windows that end at regular intervals. The system
+//! frequency of each step comes from [`super::frequency::at`].
 //!
 //! Each step uses the same kind of window as [`super::phasor`]: whole cycles
 //! ending at a sample, as a protection relay sees the signals at that moment.
@@ -8,7 +8,6 @@
 use std::ops::Range;
 
 use super::Complex;
-use super::frequency::from_turn;
 use super::phasor::{self, Window};
 use super::sequence::{self, Group, Sequence};
 use crate::comtrade::{AnalogChannel, AnalogInfo, Side};
@@ -20,9 +19,6 @@ pub struct Step {
     pub end: usize,
     /// Time of that sample in s relative to the trigger.
     pub time: f64,
-    /// System frequency in Hz from the reference channel, `None` for the
-    /// first step or without a usable reference phasor.
-    pub frequency: Option<f64>,
     /// Fundamental phasor (peak value) per channel; `None` where a sample in
     /// the window has no value.
     pub phasors: Vec<Option<Complex>>,
@@ -44,8 +40,7 @@ pub struct Trend {
 
 /// Trend of `channels` over the windows of `samples` samples that end at
 /// every `step`-th sample within `range` (the first one where a whole window
-/// fits), for the fundamental `frequency`. `reference` is the position in
-/// `channels` the frequency is estimated from. `time` holds the sample times.
+/// fits), for the fundamental `frequency`. `time` holds the sample times.
 #[allow(clippy::too_many_arguments)]
 pub fn trend(
     channels: &[&AnalogChannel],
@@ -54,7 +49,6 @@ pub fn trend(
     samples: usize,
     step: usize,
     frequency: f64,
-    reference: usize,
     side: Side,
 ) -> Trend {
     let infos: Vec<&AnalogInfo> = channels.iter().map(|c| &c.info).collect();
@@ -62,7 +56,6 @@ pub fn trend(
     let end = range.end.min(time.len());
     let first = range.start.max(samples.saturating_sub(1));
     let mut steps = Vec::new();
-    let mut previous: Option<(f64, Complex)> = None;
     if samples == 0 || step == 0 {
         return Trend { groups, steps };
     }
@@ -89,16 +82,9 @@ pub fn trend(
             .collect();
 
         let t = time[last];
-        let current = phasors.get(reference).copied().flatten().filter(|p| p.abs() > 0.0);
-        let estimated = match (previous, current) {
-            (Some(p0), Some(p)) => from_turn(frequency, p0, (t, p)),
-            _ => None,
-        };
-        previous = current.map(|p| (t, p));
         steps.push(Step {
             end: last,
             time: t,
-            frequency: estimated,
             phasors,
             rms,
             sequences,
@@ -152,7 +138,7 @@ mod tests {
     fn steps_follow_the_signal() {
         let c = recording(50.0);
         let ch: Vec<_> = c.analog_channels().collect();
-        let t = trend(&ch, c.time(), 0..200, 20, 20, 50.0, 0, Side::Primary);
+        let t = trend(&ch, c.time(), 0..200, 20, 20, 50.0, Side::Primary);
         // Windows end at 19, 39, …, 199.
         assert_eq!(
             t.steps.iter().map(|s| s.end).collect::<Vec<_>>(),
@@ -160,7 +146,6 @@ mod tests {
         );
         assert_eq!(t.groups.len(), 1);
         let first = &t.steps[0];
-        assert_eq!(first.frequency, None);
         assert!(close(first.phasors[0].unwrap().abs(), 100.0, 0.1));
         assert!(close(first.rms[0].unwrap(), 100.0 / 2f64.sqrt(), 0.1));
         // Balanced before 100 ms, unbalanced after.
@@ -168,18 +153,6 @@ mod tests {
         let last = t.steps.last().unwrap();
         assert!(close(last.phasors[1].unwrap().abs(), 300.0, 0.3));
         assert!(last.sequences[0].unwrap().unbalance().unwrap() > 20.0);
-        assert!(close(last.frequency.unwrap(), 50.0, 0.01));
-    }
-
-    #[test]
-    fn frequency_from_the_phasor_turn() {
-        // 50.5 Hz analysed as 50 Hz: the phasor turns by 2π·0.5·Δt per step.
-        let c = recording(50.5);
-        let ch: Vec<_> = c.analog_channels().collect();
-        let t = trend(&ch, c.time(), 0..100, 20, 10, 50.0, 0, Side::Primary);
-        for s in &t.steps[1..] {
-            assert!(close(s.frequency.unwrap(), 50.5, 0.05), "{:?}", s.frequency);
-        }
     }
 
     #[test]
@@ -187,12 +160,12 @@ mod tests {
         let c = recording(50.0);
         let ch: Vec<_> = c.analog_channels().collect();
         assert!(
-            trend(&ch, c.time(), 0..10, 20, 20, 50.0, 0, Side::Primary)
+            trend(&ch, c.time(), 0..10, 20, 20, 50.0, Side::Primary)
                 .steps
                 .is_empty()
         );
         assert!(
-            trend(&ch, c.time(), 0..200, 20, 0, 50.0, 0, Side::Primary)
+            trend(&ch, c.time(), 0..200, 20, 0, 50.0, Side::Primary)
                 .steps
                 .is_empty()
         );
