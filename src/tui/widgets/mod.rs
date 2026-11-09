@@ -386,6 +386,163 @@ mod tests {
         assert!(format!("{err:#}").contains("acent"));
     }
 
+    /// The buffer cell where `needle` starts (single-width text only).
+    fn cell_of(buf: &Buffer, needle: &str) -> (u16, u16) {
+        for y in 0..buf.area.height {
+            let row: Vec<&str> = (0..buf.area.width).map(|x| buf[(x, y)].symbol()).collect();
+            let text = row.concat();
+            if let Some(i) = text.find(needle) {
+                return (text[..i].chars().count() as u16, y);
+            }
+        }
+        panic!("{needle} not drawn:\n{}", text(buf));
+    }
+
+    #[test]
+    fn view_tabs_shorten_to_fit() {
+        let mut app = app();
+        let full = render(&app, 110, 30);
+        assert!(
+            full.contains("┌ [w Plot] │ r RMS │ f Harmonics │ z Impedance ┃ g Group ─"),
+            "{full}"
+        );
+        press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
+        let at = |w: u16| {
+            let screen = render(&app, w, 24);
+            screen.lines().find(|l| l.contains("┌ Channels")).unwrap().to_owned()
+        };
+        // Keys first, then the inactive names, then the orders not shown,
+        // then the other tabs; the current view's name always stays.
+        assert!(at(160).contains("┌ w Plot │ r RMS │ [f Harmonics] │ z Impedance ┃ g Group · [1] 2 3"));
+        assert!(at(150).contains("┌ Plot │ RMS │ [Harmonics] │ Impedance ┃ Group · [1] 2 3"));
+        assert!(at(120).contains("┌ w r [Harmonics] z ┃ g · [1] 2 3 4 5 6 7 8 9 · channels"));
+        assert!(at(100).contains("┌ w r [Harmonics] z ┃ g · 1 · channels"));
+        let tiny = at(90);
+        assert!(tiny.contains("┌ Harmonics 1 · channels 1–3 of 7 ─"), "{tiny}");
+        assert!(!tiny.contains("[Harmonics]"), "{tiny}");
+    }
+
+    #[test]
+    fn view_tabs_mark_views_that_cant_open() {
+        use ratatui::style::Modifier;
+
+        // No line frequency: RMS, harmonics and impedance crossed out.
+        let app = app_with_sine(0.0, 0.0);
+        let mut t = Terminal::new(TestBackend::new(110, 30)).unwrap();
+        t.draw(|f| draw(f, &app)).unwrap();
+        let buf = t.backend().buffer();
+        for name in ["RMS", "Harmonics", "Impedance"] {
+            let (x, y) = cell_of(buf, &format!(" {name} "));
+            assert!(buf[(x + 1, y)].modifier.contains(Modifier::CROSSED_OUT), "{name}");
+        }
+        let (x, y) = cell_of(buf, "[w Plot]");
+        assert!(!buf[(x + 3, y)].modifier.contains(Modifier::CROSSED_OUT));
+        assert!(buf[(x + 3, y)].modifier.contains(Modifier::BOLD));
+
+        // fault_1999 has a line frequency but no voltage group: only the
+        // impedance view is crossed out.
+        let app = super::tests::app();
+        let mut t = Terminal::new(TestBackend::new(110, 30)).unwrap();
+        t.draw(|f| draw(f, &app)).unwrap();
+        let buf = t.backend().buffer();
+        let (x, y) = cell_of(buf, " RMS ");
+        assert!(!buf[(x + 1, y)].modifier.contains(Modifier::CROSSED_OUT));
+        let (x, y) = cell_of(buf, " Impedance ");
+        assert!(buf[(x + 1, y)].modifier.contains(Modifier::CROSSED_OUT));
+    }
+
+    #[test]
+    fn waveform_and_next_view_keys() {
+        use crate::tui::app::PlotView;
+
+        // w from every view.
+        let mut app = app_with_loops();
+        for key in ['r', 'f', 'z'] {
+            press(&mut app, KeyCode::Char(key), KeyModifiers::NONE);
+            assert_ne!(app.plot_view, PlotView::Waveform, "{key}");
+            press(&mut app, KeyCode::Char('w'), KeyModifiers::NONE);
+            assert_eq!(app.plot_view, PlotView::Waveform, "{key}");
+        }
+
+        // v goes through all views and wraps to the waveform.
+        let mut seen = Vec::new();
+        for _ in 0..4 {
+            press(&mut app, KeyCode::Char('v'), KeyModifiers::NONE);
+            seen.push(app.plot_view);
+        }
+        assert_eq!(
+            seen,
+            [
+                PlotView::Rms,
+                PlotView::Harmonics,
+                PlotView::Impedance,
+                PlotView::Waveform
+            ]
+        );
+
+        // fault_1999 has no voltage group: v skips the impedance view.
+        let mut app = super::tests::app();
+        let mut seen = Vec::new();
+        for _ in 0..3 {
+            press(&mut app, KeyCode::Char('v'), KeyModifiers::NONE);
+            seen.push(app.plot_view);
+        }
+        assert_eq!(seen, [PlotView::Rms, PlotView::Harmonics, PlotView::Waveform]);
+
+        // Without a line frequency only the waveform is left.
+        let mut app = app_with_sine(0.0, 0.0);
+        press(&mut app, KeyCode::Char('v'), KeyModifiers::NONE);
+        assert_eq!(app.plot_view, PlotView::Waveform);
+    }
+
+    #[test]
+    fn view_tabs_show_rebound_keys() {
+        use crate::tui::keys::{Action, KeySpec};
+
+        let mut app = app();
+        app.keymap.set(Action::RmsView, vec![KeySpec::parse("x").unwrap()]);
+        app.keymap
+            .set(Action::GroupView, vec![KeySpec::parse("ctrl+g").unwrap()]);
+        let screen = render(&app, 120, 30);
+        assert!(screen.contains("│ x RMS │"), "{screen}");
+        assert!(screen.contains("┃ Ctrl+g Group"), "{screen}");
+    }
+
+    #[test]
+    fn group_toggle_in_the_title() {
+        use ratatui::style::Modifier;
+
+        let mut app = app_with_loops();
+        let off = render(&app, 150, 32);
+        assert!(off.contains("┃ g Group"), "{off}");
+        press(&mut app, KeyCode::Char('g'), KeyModifiers::NONE);
+        let on = render(&app, 150, 32);
+        assert!(on.contains("┃ [g Group] "), "{on}");
+        assert!(!on.contains("grouped ·"), "{on}");
+
+        // Crossed out in the impedance view, where grouping doesn't apply.
+        press(&mut app, KeyCode::Char('z'), KeyModifiers::NONE);
+        let mut t = Terminal::new(TestBackend::new(170, 40)).unwrap();
+        t.draw(|f| draw(f, &app)).unwrap();
+        let buf = t.backend().buffer();
+        let (x, y) = cell_of(buf, "[g Group]");
+        assert!(buf[(x + 1, y)].modifier.contains(Modifier::CROSSED_OUT));
+        // g still switches it there.
+        press(&mut app, KeyCode::Char('g'), KeyModifiers::NONE);
+        assert!(!app.grouped);
+    }
+
+    #[test]
+    fn view_tabs_without_a_recording() {
+        let mut app = app();
+        app.recording = None;
+        let screen = render(&app, 110, 30);
+        assert!(
+            screen.contains("[w Plot] │ r RMS │ f Harmonics │ z Impedance ┃ g Group ─"),
+            "{screen}"
+        );
+    }
+
     #[test]
     fn analog_plots_alternate_background_shades() {
         use ratatui::style::Color;
@@ -662,11 +819,14 @@ mod tests {
     fn rms_view_keys_change_the_plot() {
         let mut app = app_with_sine(10.0, 50.0);
         let waveform = render(&app, 110, 30);
-        assert!(waveform.contains(" Plot "), "{waveform}");
+        assert!(
+            waveform.contains("[w Plot] │ r RMS │ f Harmonics │ z Impedance ┃ g Group"),
+            "{waveform}"
+        );
 
         press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
         let with_dc = render(&app, 110, 30);
-        assert!(with_dc.contains(" RMS "), "{with_dc}");
+        assert!(with_dc.contains("RMS]"), "{with_dc}");
         // sqrt(100² / 2 + 10²).
         assert!(with_dc.contains("▸ 71.41"), "{with_dc}");
         assert!(with_dc.contains("RMS with DC, 1 cycle (fitted to IA)"), "{with_dc}");
@@ -674,7 +834,7 @@ mod tests {
 
         press(&mut app, KeyCode::Char('d'), KeyModifiers::NONE);
         let without_dc = render(&app, 110, 30);
-        assert!(without_dc.contains(" RMS-DC "), "{without_dc}");
+        assert!(without_dc.contains("RMS-DC]"), "{without_dc}");
         assert!(without_dc.contains("▸ 70.71"), "{without_dc}");
         assert!(without_dc.contains("RMS without DC"), "{without_dc}");
 
@@ -686,7 +846,9 @@ mod tests {
         assert_eq!(strip(&waveform), strip(&with_dc));
         assert_eq!(axis_row(&waveform), axis_row(&with_dc));
 
-        // Off again: exactly the waveform, apart from the footer message.
+        // Off again: exactly the waveform, apart from the footer message
+        // (with DC again, the RMS tab shows the DC setting).
+        press(&mut app, KeyCode::Char('d'), KeyModifiers::NONE);
         press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
         app.status = None;
         let again = render(&app, 110, 30);
@@ -781,7 +943,7 @@ mod tests {
         press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
         assert_eq!(app.plot_view, PlotView::Harmonics);
         let screen = render(&app, 110, 30);
-        assert!(screen.contains(" Harmonics "), "{screen}");
+        assert!(screen.contains("Harmonics]"), "{screen}");
         assert!(screen.contains("IA h1 [A]"), "{screen}");
         // 100 / √2.
         assert!(screen.contains("▸ 70.7"), "{screen}");
@@ -831,7 +993,13 @@ mod tests {
         press(&mut app, KeyCode::Char('3'), KeyModifiers::NONE);
         let screen = render(&app, 110, 40);
         assert_eq!(marked(&screen), ["▶ IB h1 [A]", "▶ IB h3 [%]"], "{screen}");
-        assert!(screen.contains(" Harmonics [1] 2 [3] 4 5 6 7 8 9 "), "{screen}");
+        // All orders in the title only when they fit beside the tabs.
+        assert!(screen.contains("[Harmonics] z ┃ g · 1 3 · "), "{screen}");
+        let wide = render(&app, 160, 40);
+        assert!(
+            wide.contains("[f Harmonics] │ z Impedance ┃ g Group · [1] 2 [3] 4 5 6 7 8 9 "),
+            "{wide}"
+        );
     }
 
     #[test]
@@ -892,7 +1060,7 @@ mod tests {
         rec.set_cursor(0.04);
         let screen = render(&app, 140, 40);
         assert!(
-            screen.contains(" Impedance · -20.0 ms … 80.0 ms · primary Ω "),
+            screen.contains("[Impedance] ┃ Group · -20.0 ms … 80.0 ms · primary Ω "),
             "{screen}"
         );
         assert!(
@@ -988,7 +1156,10 @@ mod tests {
         press(&mut app, KeyCode::Char('g'), KeyModifiers::NONE);
         assert!(app.grouped);
         let screen = render(&app, 110, 32);
-        assert!(screen.contains(" Plot · grouped "), "{screen}");
+        assert!(
+            screen.contains("[Plot] │ RMS │ Harmonics │ Impedance ┃ [Group] "),
+            "{screen}"
+        );
         assert!(screen.contains("grouped: 2 groups"), "{screen}");
         // IA is selected, so its group's row is marked.
         assert!(screen.contains("▶ I ABCN [A]"), "{screen}");
@@ -1046,7 +1217,7 @@ mod tests {
         assert!(render(&app, 110, 40).contains("▸ 3.742k"));
         press(&mut app, KeyCode::Char('g'), KeyModifiers::NONE);
         let screen = render(&app, 110, 32);
-        assert!(screen.contains(" RMS · grouped "), "{screen}");
+        assert!(screen.contains("[RMS] │ Harmonics │ Impedance ┃ [Group] "), "{screen}");
         assert!(screen.contains("▶ I ABCN [A]"), "{screen}");
         assert!(screen.contains("B ▸ 3.742k"), "{screen}");
         press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);

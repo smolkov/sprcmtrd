@@ -44,6 +44,39 @@ pub enum PlotView {
     Impedance,
 }
 
+impl PlotView {
+    /// All views in the order of the tabs and of `next_view`.
+    pub const ALL: [Self; 4] = [Self::Waveform, Self::Rms, Self::Harmonics, Self::Impedance];
+
+    /// Whether `rec` can be shown in this view, else why not (the footer
+    /// message). The waveform always can.
+    pub fn available(self, rec: &Recording) -> Result<(), &'static str> {
+        let no_frequency = match self {
+            Self::Waveform => return Ok(()),
+            Self::Rms => NO_LINE_FREQUENCY,
+            Self::Harmonics => NO_HARMONICS,
+            Self::Impedance => NO_IMPEDANCE_FREQUENCY,
+        };
+        if rec.line_frequency().is_none() {
+            return Err(no_frequency);
+        }
+        if self == Self::Impedance && rec.loops().is_none() {
+            return Err(NO_LOOPS);
+        }
+        Ok(())
+    }
+
+    /// The key action that opens this view.
+    pub fn action(self) -> Action {
+        match self {
+            Self::Waveform => Action::WaveformView,
+            Self::Rms => Action::RmsView,
+            Self::Harmonics => Action::HarmonicsView,
+            Self::Impedance => Action::ImpedanceView,
+        }
+    }
+}
+
 /// Kind of a footer status message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StatusKind {
@@ -309,18 +342,10 @@ impl App {
         self.selected = 0;
         self.plot_scroll.set(0);
         self.plot_follow.set(true);
-        if self.plot_view != PlotView::Waveform && !self.rms_available() {
-            let text = match self.plot_view {
-                PlotView::Harmonics => NO_HARMONICS,
-                PlotView::Impedance => NO_IMPEDANCE_FREQUENCY,
-                _ => NO_LINE_FREQUENCY,
-            };
+        let check = self.recording.as_ref().map_or(Ok(()), |r| self.plot_view.available(r));
+        if let Err(text) = check {
             self.plot_view = PlotView::Waveform;
             self.set_status(text, StatusKind::Error);
-        } else if self.plot_view == PlotView::Impedance && self.recording.as_ref().is_some_and(|r| r.loops().is_none())
-        {
-            self.plot_view = PlotView::Waveform;
-            self.set_status(NO_LOOPS, StatusKind::Error);
         }
     }
 
@@ -482,6 +507,8 @@ impl App {
             Action::RmsView => self.toggle_rms_view(),
             Action::HarmonicsView => self.toggle_harmonics_view(),
             Action::ImpedanceView => self.toggle_impedance_view(),
+            Action::WaveformView => self.show_waveform(),
+            Action::NextView => self.next_view(),
             Action::GroupView => {
                 self.grouped = !self.grouped;
                 let n = self.recording.as_ref().map_or(0, |r| r.groups().len());
@@ -516,71 +543,73 @@ impl App {
         }
     }
 
-    fn rms_available(&self) -> bool {
-        self.recording.as_ref().is_some_and(|r| r.line_frequency().is_some())
-    }
-
     fn toggle_rms_view(&mut self) {
-        if self.plot_view == PlotView::Rms {
-            self.plot_view = PlotView::Waveform;
-            self.set_status("showing the waveform", StatusKind::Info);
-            return;
-        }
-        let Some(rec) = &self.recording else {
-            self.no_recording();
-            return;
-        };
-        if rec.line_frequency().is_none() {
-            self.set_status(NO_LINE_FREQUENCY, StatusKind::Error);
-            return;
-        }
-        self.plot_view = PlotView::Rms;
-        // The DC setting first: a long message is cut off on the right.
-        let text = format!("RMS {}, 1 cycle ({})", self.dc_label(), self.window_label());
-        self.set_status(text, StatusKind::Info);
+        self.toggle_view(PlotView::Rms);
     }
 
     fn toggle_harmonics_view(&mut self) {
-        if self.plot_view == PlotView::Harmonics {
-            self.plot_view = PlotView::Waveform;
-            self.set_status("showing the waveform", StatusKind::Info);
-            return;
-        }
-        let Some(rec) = &self.recording else {
-            self.no_recording();
-            return;
-        };
-        if rec.line_frequency().is_none() {
-            self.set_status(NO_HARMONICS, StatusKind::Error);
-            return;
-        }
-        self.plot_view = PlotView::Harmonics;
-        let text = format!("{}, 1 cycle ({})", self.orders_label(), self.window_label());
-        self.set_status(text, StatusKind::Info);
+        self.toggle_view(PlotView::Harmonics);
     }
 
     fn toggle_impedance_view(&mut self) {
-        if self.plot_view == PlotView::Impedance {
-            self.plot_view = PlotView::Waveform;
-            self.set_status("showing the waveform", StatusKind::Info);
+        self.toggle_view(PlotView::Impedance);
+    }
+
+    /// Opens `view`, or goes back to the waveform when it is open already.
+    fn toggle_view(&mut self, view: PlotView) {
+        if self.plot_view == view {
+            self.show_waveform();
+        } else {
+            self.open_view(view);
+        }
+    }
+
+    /// Shows the waveform from any view.
+    fn show_waveform(&mut self) {
+        if self.recording.is_none() {
+            self.no_recording();
             return;
         }
+        self.plot_view = PlotView::Waveform;
+        self.set_status("showing the waveform", StatusKind::Info);
+    }
+
+    /// Opens `view`, or says in the footer why it can't be opened.
+    fn open_view(&mut self, view: PlotView) {
         let Some(rec) = &self.recording else {
             self.no_recording();
             return;
         };
-        if rec.line_frequency().is_none() {
-            self.set_status(NO_IMPEDANCE_FREQUENCY, StatusKind::Error);
+        if let Err(text) = view.available(rec) {
+            self.set_status(text, StatusKind::Error);
             return;
         }
-        let Some(loops) = rec.loops() else {
-            self.set_status(NO_LOOPS, StatusKind::Error);
+        let text = match view {
+            PlotView::Waveform => "showing the waveform".to_owned(),
+            // The DC setting first: a long message is cut off on the right.
+            PlotView::Rms => format!("RMS {}, 1 cycle ({})", self.dc_label(), self.window_label()),
+            PlotView::Harmonics => format!("{}, 1 cycle ({})", self.orders_label(), self.window_label()),
+            PlotView::Impedance => {
+                let (v, i) = rec.loops().expect("available").ids();
+                format!("impedance from {} and {}, k0 = 0", v.join(" "), i.join(" "))
+            }
+        };
+        self.plot_view = view;
+        self.set_status(text, StatusKind::Info);
+    }
+
+    /// Opens the next view that can be shown, wrapping to the waveform.
+    fn next_view(&mut self) {
+        let Some(rec) = &self.recording else {
+            self.no_recording();
             return;
         };
-        let (v, i) = loops.ids();
-        let text = format!("impedance from {} and {}, k0 = 0", v.join(" "), i.join(" "));
-        self.plot_view = PlotView::Impedance;
-        self.set_status(text, StatusKind::Info);
+        let at = PlotView::ALL.iter().position(|&v| v == self.plot_view).unwrap_or(0);
+        let next = (1..=PlotView::ALL.len())
+            .map(|k| PlotView::ALL[(at + k) % PlotView::ALL.len()])
+            .find(|v| v.available(rec).is_ok())
+            .unwrap_or(PlotView::Waveform);
+        self.open_view(next);
     }
 
     /// Shows or hides harmonic `order` (1 … 9) in the harmonics view.

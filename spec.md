@@ -1065,6 +1065,25 @@ runs the event loop and always restores the terminal, also on panic
   sidebar, also with the jump keys and `Home` / `End`, scrolls its plot into
   view). Rows too few for the next channel go to
   the analog plots on the page.
+- View tabs: the left title of the plot block is a tab bar,
+  ` w Plot │ r RMS │ f Harmonics │ z Impedance ┃ g Group `, then the current
+  view's details after ` · ` (harmonic orders, scroll position, impedance
+  window). Keys come from the keymap (bindings `waveform_view` `w`, `rms_view`,
+  `harmonics_view`, `impedance_view`, `group_view`), muted. The current view is
+  accent and reversed when the plot is focused, bold otherwise, in brackets with
+  `--no-color` (`[RMS]`; `RMS-DC` without DC). Views the recording can't show
+  (`PlotView::available`: no line frequency, no voltage and current groups) are
+  muted and crossed out; their key still gives the footer message. The group
+  toggle is muted when off, `[g Group]` in the accent when on, crossed out in
+  the impedance view (`g` still switches it). Narrow title, dropped in this
+  order until it fits beside the right title: the keys; the inactive names
+  (only their keys, `w r [Harmonics] z ┃ g`); the harmonic orders not shown;
+  the inactive tabs; the group toggle. The current view's name always stays,
+  without brackets when alone. Without a recording the tabs are all muted,
+  without details.
+- `w` (`waveform_view`) shows the waveform from any view; `v` (`next_view`)
+  opens the next view that can be shown (order of the tabs), wrapping to the
+  waveform. `r` / `f` / `z` still toggle between their view and the waveform.
 - While scrolling, the time axis (bottom row) and the block title (cursor time,
   window) stay fixed; a scrollbar on the right border and
   `channels 4–9 of 18` in the title show the position.
@@ -1101,7 +1120,7 @@ runs the event loop and always restores the terminal, also on panic
   there is no common start), one line per trace with its value at the cursor
   (`B ▸ -3.226k`), and the range. A group row is at least 3 + members rows high
   (5 at least). Works in the waveform, RMS and harmonics views (`I ABCN h3
-  [%]`); the block title gets ` · grouped`. Footer: `grouped: 2 groups`, `one
+  [%]`); the group toggle in the title shows `[g Group]`. Footer: `grouped: 2 groups`, `one
   plot per channel`.
 - The channel selected in the sidebar is marked in the plot area: its gutter
   name starts with `▶` and has the selection style (all its rows in the
@@ -1135,8 +1154,8 @@ runs the event loop and always restores the terminal, also on panic
   at the line frequency) are not shown and can't be switched on (footer note).
   No orders shown: a hint in the plot area. The block title lists the orders
   up to 9 below half the sample rate, the shown ones in brackets
-  (` Harmonics [1] 2 [3] 4 5 6 7 8 9 `); when that doesn't fit beside the
-  cursor / window title, only the shown ones (` Harmonics 1 3 `). The y axis
+  (`┃ g Group · [1] 2 [3] 4 5 6 7 8 9`); when that doesn't fit beside the
+  cursor / window title, only the shown ones (`· 1 3`, see the view tabs). The y axis
   starts at 0. `r` and `f`
   each toggle between their view and the waveform; the order choice applies to
   all channels and stays when another file is opened. Without a line frequency
@@ -1167,6 +1186,8 @@ runs the event loop and always restores the terminal, also on panic
 | `0`                 | Reset zoom (show whole recording)        |
 | `t`                 | Jump cursor to trigger                   |
 | `p`                 | Toggle primary / secondary values        |
+| `w`                 | Waveform (from any view)                 |
+| `v`                 | Next view that can be shown              |
 | `r`                 | Toggle waveform / sliding RMS            |
 | `d`                 | RMS with / without DC                    |
 | `f`                 | Toggle waveform / harmonics over time    |

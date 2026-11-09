@@ -69,6 +69,7 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
   * Keep analog plots readable: a fixed minimum height per analog plot (now 3 rows, maybe configurable), instead of squeezing all channels into the window.
 * [x] Faster movement in the channel list (issue #7): `Ctrl+↑`/`Ctrl+↓` or `K`/`J` move 10 channels, `Home`/`End` go to the first and last. The help and info overlays and the file picker get the same movement. See `tasks/7-channel-list-jump-keys.md`.
 * [x] RMS view in the plot area (issue #3): `r` shows the sliding RMS, `d` removes the DC part. See `tasks/3-rms-view.md`.
+* [x] The plot views as tabs in the plot title (`w Plot │ r RMS │ f Harmonics │ z Impedance ┃ g Group`), `w` back to the waveform, `v` next view. See `tasks/tui-view-tabs.md`.
 * [x] Color themes from TOML files: atom-one-dark, nord, nord-night, solarized-dark, tokyonight and user themes in `~/.config/sprcmtrd/themes/`, text styles and border lines per theme, `sprcmtrd themes`. See `tasks/tui-themes.md`.
 * [ ] More light themes (`solarized-light`, `tokyonight-day`).
 * [ ] `power` with phase-to-phase voltages only (no neutral): two-wattmeter (Aron) method.

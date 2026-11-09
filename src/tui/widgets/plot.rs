@@ -28,22 +28,11 @@ const MIN_ANALOG_HEIGHT: u16 = 5;
 pub fn render(f: &mut Frame, area: Rect, app: &App) {
     let theme = &app.theme;
     let focused = app.focus == Focus::Plot && app.recording.is_some();
-    let name = match (app.plot_view, app.rms_dc) {
-        (PlotView::Waveform, _) => "Plot",
-        (PlotView::Rms, Dc::Keep) => "RMS",
-        (PlotView::Rms, Dc::Remove) => "RMS-DC",
-        (PlotView::Harmonics, _) => "Harmonics",
-        (PlotView::Impedance, _) => "Impedance",
-    };
-    let name = if app.grouped && app.plot_view != PlotView::Impedance {
-        format!("{name} · grouped")
-    } else {
-        name.to_owned()
-    };
     let Some(rec) = &app.recording else {
+        let room = area.width.saturating_sub(2) as usize;
         let block = theme
             .block()
-            .title(format!(" {name} "))
+            .title(view_title(app, None, room, ("", ""), ""))
             .title_style(theme.title(false))
             .border_style(theme.border(false));
         let inner = block.inner(area);
@@ -55,13 +44,12 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     let (t0, t1) = rec.view;
     let span = t1 - t0;
     let right = format!(" cursor {} · window {} ", cursor_label(app, rec), time(span, span));
+    let room = (area.width as usize).saturating_sub(right.chars().count() + 2);
     // Built late: the title shows the scroll position once it is known. The
     // harmonics view lists the orders, the shown ones in brackets, or only
     // the shown ones when that doesn't fit beside the right title.
-    let block = |position: &str| {
-        let fits = |left: &str| left.chars().count() + right.chars().count() + 2 <= area.width as usize;
-        let mut left = format!(" {name}{position} ");
-        if app.plot_view == PlotView::Harmonics {
+    let block = |details: &str| {
+        let (long, short) = if app.plot_view == PlotView::Harmonics {
             let shown = app.shown_orders();
             let all: Vec<String> = (1..=rec.max_order().min(9))
                 .map(|h| {
@@ -72,17 +60,14 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
                     }
                 })
                 .collect();
-            let long = format!(" {name} {}{position} ", all.join(" "));
             let short: Vec<String> = shown.iter().map(ToString::to_string).collect();
-            left = if fits(&long) {
-                long
-            } else {
-                format!(" {name} {}{position} ", short.join(" "))
-            };
-        }
+            (format!(" · {}", all.join(" ")), format!(" · {}", short.join(" ")))
+        } else {
+            (String::new(), String::new())
+        };
         theme
             .block()
-            .title(left)
+            .title(view_title(app, Some(rec), room, (&long, &short), details))
             .title_style(theme.title(focused))
             .border_style(theme.border(focused))
             .title(Line::from(right.clone()).alignment(Alignment::Right))
@@ -209,6 +194,162 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         height: 1,
     };
     time_axis::render(f, axis, app, rec);
+}
+
+/// How much of the view tabs a title shows; tried in order until the title
+/// fits beside the right title.
+#[derive(Clone, Copy)]
+struct TabLevel {
+    /// Each tab's key before its name (`w Plot`).
+    keys: bool,
+    /// Inactive tabs only as their key (`w r [Harmonics] z`).
+    short: bool,
+    /// All harmonic orders, the shown ones in brackets; else only the shown.
+    all_orders: bool,
+    /// The inactive tabs at all; else only the current view's name.
+    inactive: bool,
+    /// The group toggle.
+    group: bool,
+}
+
+const fn level(keys: bool, short: bool, all_orders: bool, inactive: bool, group: bool) -> TabLevel {
+    TabLevel {
+        keys,
+        short,
+        all_orders,
+        inactive,
+        group,
+    }
+}
+
+/// The keys go first, then the inactive names, the harmonic orders that
+/// aren't shown, the inactive tabs and the group toggle; the current view's
+/// name always stays.
+const TAB_LEVELS: [TabLevel; 6] = [
+    level(true, false, true, true, true),
+    level(false, false, true, true, true),
+    level(false, true, true, true, true),
+    level(false, true, false, true, true),
+    level(false, true, false, false, true),
+    level(false, true, false, false, false),
+];
+
+/// Name of a view on its tab.
+fn view_name(view: PlotView, dc: Dc) -> &'static str {
+    match (view, dc) {
+        (PlotView::Waveform, _) => "Plot",
+        (PlotView::Rms, Dc::Keep) => "RMS",
+        (PlotView::Rms, Dc::Remove) => "RMS-DC",
+        (PlotView::Harmonics, _) => "Harmonics",
+        (PlotView::Impedance, _) => "Impedance",
+    }
+}
+
+/// Left title of the plot block: the views as tabs, the group toggle, then
+/// the current view's details (harmonic `orders` as all / shown, and
+/// `details` such as the scroll position), shortened to fit in `room`
+/// columns. Without a recording only the tabs, all muted.
+fn view_title(app: &App, rec: Option<&Recording>, room: usize, orders: (&str, &str), details: &str) -> Line<'static> {
+    let width = |spans: &[Span]| spans.iter().map(|s| s.content.chars().count()).sum::<usize>();
+    let mut spans = Vec::new();
+    for level in TAB_LEVELS {
+        spans = view_tabs(app, rec, level);
+        let orders = if level.all_orders { orders.0 } else { orders.1 };
+        // The view's name alone: the orders follow it as in ` Harmonics 1 3`.
+        let orders = match orders.strip_prefix(" · ") {
+            Some(list) if !level.inactive && !level.group => format!(" {list}"),
+            _ => orders.to_owned(),
+        };
+        if rec.is_some() {
+            spans.push(Span::raw(format!("{orders}{details}")));
+        }
+        spans.push(Span::raw(" "));
+        if width(&spans) <= room {
+            break;
+        }
+    }
+    Line::from(spans)
+}
+
+/// The tab spans and the group toggle at `level`.
+fn view_tabs(app: &App, rec: Option<&Recording>, level: TabLevel) -> Vec<Span<'static>> {
+    let theme = &app.theme;
+    let focused = app.focus == Focus::Plot && rec.is_some();
+    let muted = theme.muted();
+    let off = muted.add_modifier(Modifier::CROSSED_OUT);
+    let current_style = match (rec.is_some(), focused) {
+        (false, _) => muted,
+        (true, true) => theme.accent().add_modifier(Modifier::REVERSED),
+        (true, false) => Style::new().add_modifier(Modifier::BOLD),
+    };
+    // Brackets only without colors: there the current tab has no highlight.
+    let (open, close) = if theme.plain { ("[", "]") } else { (" ", " ") };
+
+    let mut spans = vec![Span::raw(" ")];
+    for (i, view) in PlotView::ALL.into_iter().enumerate() {
+        if !level.inactive && view != app.plot_view {
+            continue;
+        }
+        if i > 0 && level.inactive {
+            spans.push(Span::styled(if level.short { " " } else { " │ " }, muted));
+        }
+        let key = app.keymap.label(view.action());
+        let name = view_name(view, app.rms_dc);
+        let available = rec.is_none_or(|r| view.available(r).is_ok());
+        if view == app.plot_view {
+            let text = if level.keys {
+                format!("{key} {name}")
+            } else {
+                name.to_owned()
+            };
+            // Alone it needs no marks; the title keeps its old width then.
+            let text = if level.inactive {
+                format!("{open}{text}{close}")
+            } else {
+                text
+            };
+            spans.push(Span::styled(text, current_style));
+            continue;
+        }
+        let style = if !available || rec.is_none() {
+            if available { muted } else { off }
+        } else {
+            Style::new()
+        };
+        if level.short {
+            spans.push(Span::styled(key, if available { muted } else { off }));
+            continue;
+        }
+        if level.keys {
+            spans.push(Span::styled(format!("{key} "), if available { muted } else { off }));
+        }
+        spans.push(Span::styled(name, style));
+    }
+
+    if !level.group {
+        return spans;
+    }
+    // Grouping doesn't apply to the impedance view: crossed out there.
+    spans.push(Span::styled(" ┃ ", muted));
+    let key = app.keymap.label(Action::GroupView);
+    let text = match (level.keys, level.short) {
+        (true, _) => format!("{key} Group"),
+        (false, false) => "Group".to_owned(),
+        (false, true) => key,
+    };
+    let text = if app.grouped { format!("[{text}]") } else { text };
+    let style = if rec.is_none() || !app.grouped {
+        muted
+    } else {
+        theme.accent()
+    };
+    let style = if app.plot_view == PlotView::Impedance {
+        style.add_modifier(Modifier::CROSSED_OUT)
+    } else {
+        style
+    };
+    spans.push(Span::styled(text, style));
+    spans
 }
 
 /// Row of channel `selected` (analog first, then binary) among the shown

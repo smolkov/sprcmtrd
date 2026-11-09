@@ -27,6 +27,14 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
   its value at the cursor and the visible value range. The channel selected in
   the sidebar is marked with `▶` in its plots. Binary states that differ from the
   channel's normal state are highlighted.
+- **View tabs:** the plot's title lists the views as tabs with their keys,
+  `w Plot │ r RMS │ f Harmonics │ z Impedance`, then the group toggle
+  (`┃ g Group`, `[g Group]` when on) and the current view's details. The
+  current view is highlighted (in brackets with `--no-color`); views the
+  recording can't show are crossed out. `w` shows the waveform from any view,
+  `v` goes to the next view that can be shown. When the title is narrow the
+  keys go first, then the names of the other tabs (only their keys), then the
+  harmonic orders that aren't shown, then the other tabs.
 - **Grouping:** `g` draws the phases of a circuit and its neutral in one plot,
   for example IA, IB, IC and IN as `I ABCN [A]`, with one value line per trace in
   the gutter (`B ▸ -3.226k`). The traces share the y range; besides their phase
@@ -88,6 +96,8 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
 | `0`                 | Reset zoom (whole recording)                  |
 | `t`                 | Jump cursor to trigger                        |
 | `p`                 | Primary / secondary values                    |
+| `w`                 | Waveform (from any view)                      |
+| `v`                 | Next view: waveform, RMS, harmonics, impedance |
 | `r`                 | Waveform / sliding RMS                        |
 | `d`                 | RMS with / without DC                         |
 | `f`                 | Waveform / harmonics over time                |

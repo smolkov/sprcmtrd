@@ -20,6 +20,8 @@
 | `0`                 | Reset zoom (whole recording)                  |
 | `t`                 | Jump cursor to trigger                        |
 | `p`                 | Primary / secondary values                    |
+| `w`                 | Waveform (from any view)                      |
+| `v`                 | Next view: waveform, RMS, harmonics, impedance |
 | `r`                 | Waveform / sliding RMS                        |
 | `d`                 | RMS with / without DC                         |
 | `f`                 | Waveform / harmonics over time                |

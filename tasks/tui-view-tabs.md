@@ -1,7 +1,17 @@
 # TUI: show the plot views as tabs
 
 - **Issue:** none, from the user ("it is not visible which different views the plot has")
-- **Status:** planned, waiting for approval
+- **Status:** done, unreleased. Built as planned, except:
+  - Two more fallback levels after the planned ones: first the inactive
+    tabs go (only the current view and the group key), then the group
+    toggle. At 80 columns with the sidebar the planned levels don't fit
+    beside the right title, which would cut off the details. On the last
+    level the title reads as before (` Harmonics 1 3 · channels …`, no
+    brackets).
+  - The harmonic orders follow the tabs after ` · ` (`┃ g · [1] 2 [3]`).
+  - At 110 columns with the sidebar and a scroll position, the title shows
+    the short form (`w r [Harmonics] z ┃ g · …`). The sketch at 110 columns
+    assumed the whole width for the plot.
 
 ## Problem
 

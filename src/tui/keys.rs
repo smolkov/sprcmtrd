@@ -48,6 +48,8 @@ pub enum Action {
     Harmonic(u8),
     ImpedanceView,
     GroupView,
+    WaveformView,
+    NextView,
 }
 
 /// Default key binding of an action.
@@ -233,6 +235,20 @@ pub const BINDINGS: &[Binding] = &[
         name: "side",
         keys: &["p"],
         help: "Toggle primary / secondary values",
+        hint: None,
+    },
+    Binding {
+        action: Action::WaveformView,
+        name: "waveform_view",
+        keys: &["w"],
+        help: "Show the waveform (from any view)",
+        hint: None,
+    },
+    Binding {
+        action: Action::NextView,
+        name: "next_view",
+        keys: &["v"],
+        help: "Next view: waveform, RMS, harmonics, impedance",
         hint: None,
     },
     Binding {
