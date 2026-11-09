@@ -1,6 +1,8 @@
 //! `convert` command: writes a recording as another revision, data format or
 //! file layout (`.cfg` + `.dat` or combined `.cff`).
 
+use super::usage;
+use crate::comtrade::Error;
 use crate::term::outln;
 use std::path::{Path, PathBuf};
 
@@ -131,10 +133,14 @@ pub fn save(
         None => rec.config.revision,
     };
     if combined && revision != Revision::Rev2013 {
-        bail!("the combined .cff format needs revision 2013, not {revision}");
+        return Err(usage(format!(
+            "the combined .cff format needs revision 2013, not {revision}"
+        )));
     }
-    if let Err(e) = write::check_target(revision, format) {
-        bail!("{}", e.to_string().trim_start_matches("unsupported: "));
+    // The options asked for a target that can't hold the data format.
+    match write::check_target(revision, format) {
+        Err(Error::Unsupported(message)) => return Err(usage(message)),
+        r => r?,
     }
 
     let encoded = write::encode(rec, revision, format)?;

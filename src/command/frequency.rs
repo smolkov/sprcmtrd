@@ -4,7 +4,7 @@ use crate::term::{out, outln};
 use anyhow::{anyhow, bail};
 use serde::Serialize;
 
-use super::{select_channels, time_window};
+use super::{select_channels, time_window, usage};
 use crate::analysis::frequency::{self, AtTime, Method, Point, Summary};
 use crate::analysis::impedance::{Quantity, unit_factor};
 use crate::analysis::phasor::{Window, WindowError};
@@ -28,7 +28,9 @@ impl FrequencyArgs {
             FrequencyMethod::Phasor => Method::Phasor,
         };
         if method == Method::Crossings && self.cycles.fract() != 0.0 {
-            bail!("--method crossings measures whole periods; give --cycles as a whole number");
+            return Err(usage(
+                "--method crossings measures whole periods; give --cycles as a whole number",
+            ));
         }
 
         // Measurement length from the sample spacing at the end of the recording.

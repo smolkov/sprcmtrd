@@ -355,6 +355,46 @@ fn a_closed_pipe_ends_quietly() {
 }
 
 #[test]
+fn option_combinations_are_usage_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("x.cfg");
+    let out = out.to_str().unwrap();
+    let (a, b) = ("tests/data/fault_2013.cfg", "tests/data/test_ascii.cff");
+    for (args, message) in [
+        (
+            vec!["compare", a, b, "--plot", "--format", "json"],
+            "leave out --format",
+        ),
+        (vec!["compare", a, b, "--format", "csv"], "--format csv needs --trend"),
+        (vec!["phasors", a, "--cycles", "0"], "must be above 0"),
+        (vec!["compare", a, b, "--cycles=-1"], "must be above 0"),
+        (
+            vec!["frequency", a, "--method", "crossings", "--cycles", "1.5"],
+            "whole number",
+        ),
+        (
+            vec!["impedance", a, "--voltage", "VA,VB,VC"],
+            "give both --voltage and --current",
+        ),
+        (
+            vec!["convert", a, "-o", out, "--rev", "1999", "--format", "float32"],
+            "needs revision 2013",
+        ),
+    ] {
+        let assert = cmd().args(&args).assert().code(2);
+        let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
+        assert!(stderr.contains(message), "{args:?}: {stderr}");
+        assert!(!stderr.contains("unsupported:"), "{args:?}: {stderr}");
+    }
+    // Errors that depend on the recording stay 1.
+    cmd()
+        .args(["phasors", a, "--channels", "NOPE"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("unknown channel 'NOPE'"));
+}
+
+#[test]
 fn window_and_channel_options_read_the_same_everywhere() {
     let help = |command: &str| {
         let out = cmd().args([command, "--help"]).output().unwrap();
@@ -509,10 +549,10 @@ fn convert_refuses_bad_targets_and_overwrites() {
             .assert()
     };
     convert(&["--rev", "1999", "--format", "float32"], &out)
-        .code(1)
+        .code(2)
         .stderr(predicate::str::contains("FLOAT32 data needs revision 2013"));
     convert(&["--rev", "1999"], &dir.path().join("x.cff"))
-        .code(1)
+        .code(2)
         .stderr(predicate::str::contains("needs revision 2013"));
     convert(&[], &dir.path().join("x.txt"))
         .code(1)
@@ -1396,7 +1436,7 @@ fn impedance_of_the_fault_loops() {
     cmd()
         .args(["impedance", "tests/data/fault_2013.cfg", "--voltage", "VA,VB,VC"])
         .assert()
-        .code(1)
+        .code(2)
         .stderr(predicate::str::contains("give both --voltage and --current"));
     cmd()
         .args(["impedance", "tests/data/fault_2013.cfg", "--loops", "XY"])
@@ -1649,7 +1689,7 @@ fn locate_json_and_errors() {
         .args(["locate", "tests/data/reclose_1999_ascii.cfg", "--secondary"])
         .args(line)
         .assert()
-        .code(1)
+        .code(2)
         .stderr(predicate::str::contains("the line data is primary"));
     cmd()
         .args(["locate", "tests/data/reclose_1999_ascii.cfg", "--loop", "XY"])
@@ -1743,7 +1783,7 @@ fn power_of_the_load_and_the_fault() {
     cmd()
         .args(["power", "tests/data/fault_2013.cfg", "--current", "IA,IB,IC"])
         .assert()
-        .code(1)
+        .code(2)
         .stderr(predicate::str::contains("give both --voltage and --current"));
     cmd()
         .args(["power", "tests/data/fault_1999.cfg"])
@@ -2342,10 +2382,10 @@ fn compare_errors() {
         .code(1);
     run(&["--trend", "--plot"], &b).code(2);
     run(&["--format", "csv"], &b)
-        .code(1)
+        .code(2)
         .stderr(predicate::str::contains("--format csv needs --trend"));
     run(&["--plot", "--format", "json"], &b)
-        .code(1)
+        .code(2)
         .stderr(predicate::str::contains("--plot draws text only"));
     run(&["--trend", "--from", "500", "--to", "600"], &b)
         .code(1)

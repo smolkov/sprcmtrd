@@ -749,7 +749,7 @@ file, a template for your own; see [Color themes](#color-themes).
 |------|---------------------------------------------------------|
 | 0    | Success                                                 |
 | 1    | Other error (bad filter, unknown channel…)              |
-| 2    | Invalid command line arguments                          |
+| 2    | Invalid command line arguments or options that can't be combined |
 | 3    | File not found or not readable                          |
 | 4    | Invalid or unsupported COMTRADE content, `check` failed |
 

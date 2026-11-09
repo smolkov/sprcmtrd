@@ -139,9 +139,17 @@ Global options:
 |------|------------------------------------------|
 | 0    | Success                                  |
 | 1    | Generic error                            |
-| 2    | Invalid command line arguments (clap)    |
+| 2    | Invalid command line arguments (clap), or options that can't be combined (`command::UsageError`) |
 | 3    | File not found / not readable            |
 | 4    | Invalid or unsupported COMTRADE content  |
+
+Usage errors found after parsing exit 2 too: `--plot` with `--format`,
+`--format csv` without `--trend` (`compare`), `--cycles` not above 0 (all
+commands with `--cycles`), `--method crossings` with a fractional
+`--cycles`, only one of `--voltage` / `--current`, `locate --secondary`,
+and a `convert` target that can't hold the data (`.cff` or 32-bit formats
+below revision 2013). Errors that depend on the recording (no line
+frequency, an unknown channel, an empty window) exit 1.
 
 ### `info` command
 
@@ -455,8 +463,8 @@ and fault recorder of one bay, or a test before and after a change.
   `--trend`, `--from <ms>` / `--to <ms>` (A's time), `--step <N|time>`
   (default 1 cycle). Waveforms: `--plot`, `--from` / `--to`, `--width <cols>`,
   `--height <rows>` (default 8), `--difference`. `--trend` with `--plot` or
-  `--difference` without `--plot`: a usage error (exit 2); `--format csv` without `--trend` or a non-text format with
-  `--plot`: an error (exit 1).
+  `--difference` without `--plot`, `--format csv` without `--trend` or a
+  non-text format with `--plot`: a usage error (exit 2).
 - Alignment gives the offset d with t_A = t_B + d (B's trigger at d in A's
   time): `time` from the absolute trigger times (synchronized clocks),
   `trigger` d = 0, `fault` the fault inception of A on that of B (inception as

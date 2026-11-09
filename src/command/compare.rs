@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use super::chart::{self, LABEL_WIDTH};
 use super::trend::csv_name;
-use super::{factor, group, select_channels, step_grid, time_window, window_at};
+use super::{factor, group, select_channels, step_grid, time_window, usage, window_at};
 use crate::analysis::compare::{self, Align, Aligned, Differential, Pair, window_b};
 use crate::analysis::fault::PHASES;
 use crate::analysis::impedance::{Quantity, find_current, unit_factor};
@@ -228,9 +228,6 @@ impl<'a> Setup<'a> {
         if frequency <= 0.0 {
             bail!("the recording has no line frequency; give it with --frequency");
         }
-        if args.cycles <= 0.0 {
-            bail!("--cycles must be above 0");
-        }
 
         // Channel pairs, limited to --channels of A.
         let pairs = if with_pairs {
@@ -406,10 +403,10 @@ impl CompareArgs {
     /// Runs the `compare` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         if self.plot && self.format != TableFormat::Text {
-            bail!("--plot draws text only; leave out --format");
+            return Err(usage("--plot draws text only; leave out --format"));
         }
         if !self.trend && self.format == TableFormat::Csv {
-            bail!("--format csv needs --trend; use --format json for one moment");
+            return Err(usage("--format csv needs --trend; use --format json for one moment"));
         }
         let a = Comtrade::open(&self.a)?;
         let b = Comtrade::open(&self.b)?;

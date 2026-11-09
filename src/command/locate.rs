@@ -5,7 +5,7 @@ use crate::term::{out, outln};
 use anyhow::{Context as _, bail};
 use serde::Serialize;
 
-use super::{VoltageCurrent, describe_window, time_window, window_at};
+use super::{VoltageCurrent, describe_window, time_window, usage, window_at};
 use crate::analysis::Complex;
 use crate::analysis::fault::{self, Fault};
 use crate::analysis::impedance::Loop;
@@ -151,7 +151,9 @@ impl LocateArgs {
     /// Runs the `locate` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         if ctx.global.secondary {
-            bail!("the line data is primary; locate works on primary values only (leave out --secondary)");
+            return Err(usage(
+                "the line data is primary; locate works on primary values only (leave out --secondary)",
+            ));
         }
         let c = Comtrade::open(&self.file)?;
         let frequency = self.frequency.unwrap_or(c.config.line_frequency);

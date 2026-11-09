@@ -35,6 +35,18 @@ use crate::comtrade::{AnalogChannel, AnalogInfo, Comtrade, Side};
 use crate::context::Context;
 use crate::format::{rate, time};
 
+/// Options that can't be combined, found after clap parsed them: exit 2,
+/// like clap's own usage errors. Errors that depend on the recording (no
+/// line frequency, an unknown channel) are not usage errors.
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub struct UsageError(pub String);
+
+/// A [`UsageError`] as an `anyhow::Error`.
+pub fn usage(message: impl Into<String>) -> anyhow::Error {
+    UsageError(message.into()).into()
+}
+
 impl Command {
     /// Runs the command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
@@ -183,7 +195,7 @@ impl<'a> VoltageCurrent<'a> {
                 voltage: group(c, voltage, "--voltage")?,
                 current: group(c, current, "--current")?,
             },
-            _ => bail!("give both --voltage and --current, or neither"),
+            _ => return Err(usage("give both --voltage and --current, or neither")),
         };
         // The factors first, for the errors that name the unit.
         factor(&pair.voltage, Quantity::Voltage)?;

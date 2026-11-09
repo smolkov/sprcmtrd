@@ -7,6 +7,8 @@ use sprcmtrd::config::AppConfig;
 use sprcmtrd::context::Context;
 use sprcmtrd::logging::{self, Target};
 
+/// Exit code for options that can't be combined (clap uses it too).
+const EXIT_USAGE: u8 = 2;
 /// Exit code for a missing or unreadable file.
 const EXIT_FILE: u8 = 3;
 /// Exit code for invalid or unsupported COMTRADE content.
@@ -58,6 +60,9 @@ fn broken_pipe(e: &anyhow::Error) -> bool {
 }
 
 fn exit_code(e: &anyhow::Error) -> u8 {
+    if e.downcast_ref::<sprcmtrd::command::UsageError>().is_some() {
+        return EXIT_USAGE;
+    }
     if e.downcast_ref::<sprcmtrd::command::check::Failed>().is_some() {
         return EXIT_CONTENT;
     }

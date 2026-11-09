@@ -69,9 +69,6 @@ impl PhasorsArgs {
         if frequency <= 0.0 {
             bail!("the recording has no line frequency; give it with --frequency");
         }
-        if self.cycles <= 0.0 {
-            bail!("--cycles must be above 0");
-        }
 
         let window = window_at(&c, self.at, self.cycles, frequency)?;
         let (start, end, samples) = (window.start(), window.end, window.samples);

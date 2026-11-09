@@ -523,6 +523,16 @@ pub struct DcOffsetArgs {
 }
 
 /// Parses the `dc-offset` fit window: a number of cycles of at least 1.
+/// A number of cycles above 0 (`--cycles`).
+fn parse_cycles(s: &str) -> Result<f64, String> {
+    let v: f64 = s.trim().parse().map_err(|_| format!("'{s}' is not a number"))?;
+    if v.is_finite() && v > 0.0 {
+        Ok(v)
+    } else {
+        Err(format!("the number of cycles must be above 0, got {s}"))
+    }
+}
+
 fn parse_fit_cycles(s: &str) -> Result<f64, String> {
     let v: f64 = s.trim().parse().map_err(|_| format!("'{s}' is not a number"))?;
     if v.is_finite() && v >= 1.0 {
@@ -545,7 +555,7 @@ pub struct CompareArgs {
     #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
     pub at: f64,
     /// Window length in cycles of the fundamental frequency.
-    #[arg(long, default_value_t = 1.0)]
+    #[arg(long, default_value_t = 1.0, value_parser = parse_cycles)]
     pub cycles: f64,
     /// Ratio, angle difference and differential current over time instead of
     /// at one moment.
@@ -655,7 +665,7 @@ pub struct PhasorsArgs {
     #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
     pub at: f64,
     /// Window length in cycles of the fundamental frequency.
-    #[arg(long, default_value_t = 1.0)]
+    #[arg(long, default_value_t = 1.0, value_parser = parse_cycles)]
     pub cycles: f64,
     /// Analog channels: comma separated 1-based indices or ids. Default: all.
     #[arg(long, value_delimiter = ',')]
@@ -693,7 +703,7 @@ pub struct LocateArgs {
     #[arg(long, allow_hyphen_values = true)]
     pub at: Option<f64>,
     /// Measurement window length in cycles of the fundamental frequency.
-    #[arg(long, default_value_t = 1.0)]
+    #[arg(long, default_value_t = 1.0, value_parser = parse_cycles)]
     pub cycles: f64,
     /// Start of the fault search in ms relative to the trigger.
     #[arg(long, allow_hyphen_values = true)]
@@ -778,7 +788,7 @@ pub struct ImpedanceArgs {
     #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
     pub at: f64,
     /// Window length in cycles of the fundamental frequency.
-    #[arg(long, default_value_t = 1.0)]
+    #[arg(long, default_value_t = 1.0, value_parser = parse_cycles)]
     pub cycles: f64,
     /// Voltage channels of phases A, B, C (indices or ids). Default: found by unit.
     #[arg(long, value_delimiter = ',', num_args = 1)]
@@ -823,7 +833,7 @@ pub struct PowerArgs {
     #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
     pub at: f64,
     /// Window length in cycles of the fundamental frequency.
-    #[arg(long, default_value_t = 1.0)]
+    #[arg(long, default_value_t = 1.0, value_parser = parse_cycles)]
     pub cycles: f64,
     /// Voltage channels of phases A, B, C to neutral (indices or ids). Default: found by unit.
     #[arg(long, value_delimiter = ',', num_args = 1)]
@@ -883,7 +893,7 @@ pub struct HarmonicsArgs {
     #[arg(long, allow_hyphen_values = true, default_value_t = 0.0)]
     pub at: f64,
     /// Window length in cycles of the fundamental frequency.
-    #[arg(long, default_value_t = 1.0)]
+    #[arg(long, default_value_t = 1.0, value_parser = parse_cycles)]
     pub cycles: f64,
     /// Analog channels: comma separated 1-based indices or ids. Default: all.
     #[arg(long, value_delimiter = ',')]
@@ -921,7 +931,7 @@ pub struct TrendArgs {
     #[arg(long, default_value = "1", value_parser = parse_step)]
     pub step: TrendStep,
     /// Window length in cycles of the fundamental frequency.
-    #[arg(long, default_value_t = 1.0)]
+    #[arg(long, default_value_t = 1.0, value_parser = parse_cycles)]
     pub cycles: f64,
     /// Channel the angles refer to (one of the shown channels). Default: the
     /// first channel.
@@ -971,7 +981,7 @@ pub struct FrequencyArgs {
     pub step: TrendStep,
     /// Measurement length in cycles of the nominal frequency (whole cycles
     /// with --method crossings).
-    #[arg(long, default_value_t = 1.0)]
+    #[arg(long, default_value_t = 1.0, value_parser = parse_cycles)]
     pub cycles: f64,
     /// Nominal frequency in Hz. Default: the line frequency of the recording.
     #[arg(long)]
