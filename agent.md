@@ -21,6 +21,9 @@ COMTRADE (IEEE C37.111) recordings: CLI commands plus a ratatui TUI.
 - Update `readme.md` when commands, options, keys, configuration or the release
   process change.
 - Update `todo.md` when tasks are identified or completed.
+- Plans go into `tasks/` (one file per task, format and status values in
+  `tasks/README.md`). Keep the status line of the task file and the table in
+  `tasks/README.md` up to date in the same commit.
 
 ## Commands
 

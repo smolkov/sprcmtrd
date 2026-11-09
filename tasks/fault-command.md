@@ -1,7 +1,7 @@
 # `fault` command
 
 - **Issue:** none, from `todo.md` (signal analysis ideas)
-- **Status:** built as planned, with three additions: the fault window moves past missing values, an interruption shortly before the end of the recording counts (at least a quarter cycle), and a note when no current flowed before inception (energized line). Without options, all channels matching a role's name are candidates and the earliest change counts (`fault_2013` has `START_A`/`B`/`C`).
+- **Status:** done, released in 0.7.0. With three additions: the fault window moves past missing values, an interruption shortly before the end of the recording counts (at least a quarter cycle), and a note when no current flowed before inception (energized line). Without options, all channels matching a role's name are candidates and the earliest change counts (`fault_2013` has `START_A`/`B`/`C`).
 
 ## Goal
 

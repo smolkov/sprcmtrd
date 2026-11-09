@@ -2,7 +2,7 @@
 
 - **Issue:** none, from `todo.md` (follow-ups of `compare`, see
   `tasks/compare-command.md`)
-- **Status:** built as planned. `--pair` brings the pair columns back like `--channels`. The chart code moved to `command/chart.rs`; `step_grid` (in `command/mod.rs`) is shared with `impedance` / `power --trend`, and `window_b` moved to `analysis::compare`. The library `trend` takes `Aligned` (A, B, offset) and `Pair`s (channels and B's scale).
+- **Status:** done, released in 0.7.0. `--pair` brings the pair columns back like `--channels`. The chart code moved to `command/chart.rs`; `step_grid` (in `command/mod.rs`) is shared with `impedance` / `power --trend`, and `window_b` moved to `analysis::compare`. The library `trend` takes `Aligned` (A, B, offset) and `Pair`s (channels and B's scale).
 
 ## Goal
 

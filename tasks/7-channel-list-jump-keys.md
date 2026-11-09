@@ -2,7 +2,7 @@
 
 - **Issue:** [smo/sprcmtrd#7](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/7), "Shortcut für das schnellere Bewegen in der Channelliste"
 - **Branch:** `7-shortcut-fur-das-schnellere-bewegen-in-der-channelliste`
-- **Status:** done; committed in `70f8674` and pushed to `gitlab`
+- **Status:** done, released in 0.7.0. Committed in `70f8674`.
 
 ## Goal
 

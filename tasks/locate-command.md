@@ -1,7 +1,7 @@
 # `locate` command
 
 - **Issue:** none, from `todo.md` (signal analysis ideas)
-- **Status:** built as planned. The measurement window is chosen in `analysis::locate::window` from the `Fault` fields, so `analysis::fault` needed no change; `parse_k0` and the new `--z1` / `--z0` parser share `parse_polar`. Not checked against a real recording with known line data yet.
+- **Status:** done, released in 0.7.0. The measurement window is chosen in `analysis::locate::window` from the `Fault` fields, so `analysis::fault` needed no change; `parse_k0` and the new `--z1` / `--z0` parser share `parse_polar`. Not checked against a real recording with known line data yet.
 
 ## Goal
 

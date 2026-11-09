@@ -1,7 +1,7 @@
 # `dc-offset` command
 
 - **Issue:** none, from `todo.md` (signal analysis ideas)
-- **Status:** built as planned. The current group helper of `command/fault.rs` is shared with `pub(super)`. `tau_above_limit` was added to the JSON so "> 1 s" is visible there too.
+- **Status:** done, released in 0.7.0. The current group helper of `command/fault.rs` is shared with `pub(super)`. `tau_above_limit` was added to the JSON so "> 1 s" is visible there too.
 
 ## Goal
 

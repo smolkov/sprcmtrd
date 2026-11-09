@@ -1,7 +1,7 @@
 # `trend`: a steadier frequency from the strongest signal
 
-- **Issue:** GitLab, "Frequenzberechnung ungenau bei sprcmtrd trend" (number to fill in)
-- **Status:** built as planned, on branch `trend-frequency`. `Step::frequency` was removed from `analysis::trend` instead of kept: the command computes the frequency per step with `frequency::at` from all channels. Before the voltage comes on in `55Hz.cfg`, the single voltage uNEcalc (a 50 Hz signal of 3.7 kV) is used, as the source order says.
+- **Issue:** [smo/sprcmtrd#2](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/2), "Frequenzberechnung ungenau bei sprcmtrd trend"
+- **Status:** done, released in 0.7.0. `Step::frequency` was removed from `analysis::trend` instead of kept: the command computes the frequency per step with `frequency::at` from all channels. Before the voltage comes on in `55Hz.cfg`, the single voltage uNEcalc (a 50 Hz signal of 3.7 kV) is used, as the source order says.
 
 ## Problem
 

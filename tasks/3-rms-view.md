@@ -2,7 +2,7 @@
 
 - **Issue:** [smo/sprcmtrd#3](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/3), "Zusätzlicher View für die RMS-Werte"
 - **Branch:** `3-zusatzlicher-view-fur-die-rms-werte`
-- **Status:** built with the proposed decisions, including stage 2
+- **Status:** done, released in 0.7.0. Built with the proposed decisions, including stage 2.
 
 ## Goal
 

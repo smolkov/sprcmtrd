@@ -2,7 +2,7 @@
 
 - **Issue:** none, from `todo.md` ("Tauri ui ideas", and "Make `comtrade` its
   own crate in a workspace" under Refactoring / Library)
-- **Status:** plan, waiting for approval
+- **Status:** planned, waiting for approval
 
 ## Goal
 

@@ -2,7 +2,7 @@
 
 - **Issue:** none, from `todo.md` (follow-up of `compare --plot`, see
   `tasks/compare-trend-plot.md`)
-- **Status:** plan, waiting for approval
+- **Status:** planned, waiting for approval
 
 ## Goal
 

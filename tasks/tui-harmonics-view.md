@@ -1,7 +1,7 @@
 # TUI: a harmonics view over time
 
-- **Issue:** GitLab, "Darstellung der Harmonischen" (number to fill in)
-- **Status:** built as planned. `harmonics::sliding` computes its own window of exactly one cycle (the oldest sample weighted by the part inside) instead of reusing the RMS window starts: off nominal that keeps the 3rd harmonic within 0.03 % instead of 2 %. One point per braille dot column. The help overlay shows the nine order keys on one line.
+- **Issue:** [smo/sprcmtrd#4](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/4), "Darstellung der Harmonischen"
+- **Status:** done, released in 0.7.0. `harmonics::sliding` computes its own window of exactly one cycle (the oldest sample weighted by the part inside) instead of reusing the RMS window starts: off nominal that keeps the 3rd harmonic within 0.03 % instead of 2 %. One point per braille dot column. The help overlay shows the nine order keys on one line.
 
 ## Goal
 
@@ -109,7 +109,7 @@ cycle, that's about 80 000 operations per channel and frame.
 
 ## Follow-up: the selected channel and the shown orders
 
-- **Status:** built as planned; binary strips get the `▶` too. At 80 columns
+- **Status:** done, released in 0.7.0. Binary strips get the `▶` too. At 80 columns
   even the short title with the scroll position doesn't fit beside the right
   title, so the position is cut (as for long RMS titles).
 

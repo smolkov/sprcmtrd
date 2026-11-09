@@ -1,7 +1,7 @@
 # `compare` command
 
 - **Issue:** none, from `todo.md` (signal analysis ideas)
-- **Status:** built as planned. With `--pair`, only the given pairs are compared (no extra pairs by id); `--channels` filters either list. The JSON has `window_a` / `window_b` instead of one `window`, and the differential's channel ids. Later `--json` became `--format text|csv|json` with `--trend` and `--plot` (see `tasks/compare-trend-plot.md`).
+- **Status:** done, released in 0.7.0. With `--pair`, only the given pairs are compared (no extra pairs by id); `--channels` filters either list. The JSON has `window_a` / `window_b` instead of one `window`, and the differential's channel ids. Later `--json` became `--format text|csv|json` with `--trend` and `--plot` (see `tasks/compare-trend-plot.md`).
 
 ## Goal
 
