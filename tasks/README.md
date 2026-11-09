@@ -23,6 +23,7 @@ differently from it. Open ideas without a plan are in `todo.md`.
 | [TUI: show the plot views as tabs](tui-view-tabs.md) | - | done, unreleased |
 | [TUI: named color themes from TOML files, text styles](tui-themes.md) | - | done, unreleased |
 | [`compare --plot --difference`: B − A per pair](compare-difference-plot.md) | - | done, unreleased |
+| [Command line refactoring: broken pipe, shared options, helpers, exit codes, JSON](cli-refactoring.md) | - | in progress (steps 1–5 of 6) |
 | [Desktop GUI with Tauri and Leptos, workspace with shared crates](gui-tauri-leptos.md) | - | planned, waiting for approval; open questions: app name, tabs |
 
 Status values:
