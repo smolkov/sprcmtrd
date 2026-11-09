@@ -1,7 +1,7 @@
 # TUI: optional grouping of the analog traces
 
 - **Issue:** [smo/sprcmtrd#5](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/5), "optionale Gruppierung der Analogspuren"
-- **Status:** done, unreleased. The gutter name is the common start of the ids and the phases (`I ABCN [A]`) instead of all ids, which don't fit the gutter. Trace names that would share a cell are moved sideways. `layout` takes a minimum height per analog row.
+- **Status:** done, released in 0.8.0. The gutter name is the common start of the ids and the phases (`I ABCN [A]`) instead of all ids, which don't fit the gutter. Trace names that would share a cell are moved sideways. `layout` takes a minimum height per analog row.
 
 ## Goal
 

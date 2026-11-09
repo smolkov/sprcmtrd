@@ -18,8 +18,8 @@ differently from it. Open ideas without a plan are in `todo.md`.
 | [`trend`: clearer names for the symmetrical components](trend-sequence-names.md) | [#1](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/1) | done, 0.7.0 |
 | [`trend`: a steadier frequency from the strongest signal](trend-frequency.md) | [#2](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/2) | done, 0.7.0 |
 | [TUI: a harmonics view over time](tui-harmonics-view.md) | [#4](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/4) | done, 0.7.0 |
-| [TUI: impedance trajectories](6-tui-impedance-view.md) | [#6](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/6) | done, unreleased |
-| [TUI: optional grouping of the analog traces](5-tui-analog-groups.md) | [#5](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/5) | done, unreleased |
+| [TUI: impedance trajectories](6-tui-impedance-view.md) | [#6](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/6) | done, 0.8.0 |
+| [TUI: optional grouping of the analog traces](5-tui-analog-groups.md) | [#5](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/5) | done, 0.8.0 |
 | [`compare --plot --difference`: B − A per pair](compare-difference-plot.md) | - | planned, waiting for approval |
 | [Desktop GUI with Tauri and Leptos, workspace with shared crates](gui-tauri-leptos.md) | - | planned, waiting for approval; open questions: app name, tabs |
 

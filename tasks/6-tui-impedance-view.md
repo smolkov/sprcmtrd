@@ -1,7 +1,7 @@
 # TUI: impedance trajectories
 
 - **Issue:** [smo/sprcmtrd#6](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/6), "Darstellung der Impedanztrajektorien"
-- **Status:** done, unreleased. `impedance::clean` (float residue) moved from the command to the library, so the TUI shows the same values. The trajectory end is labelled in lower case, the cursor point in reversed bold. The configuration test rebinds zoom to `x` instead of `z`, now taken.
+- **Status:** done, released in 0.8.0. `impedance::clean` (float residue) moved from the command to the library, so the TUI shows the same values. The trajectory end is labelled in lower case, the cursor point in reversed bold. The configuration test rebinds zoom to `x` instead of `z`, now taken.
 
 ## Goal
 
