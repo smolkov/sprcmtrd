@@ -7,7 +7,7 @@ use super::{select_channels, window_at};
 use crate::analysis::phasor::{self, Polar};
 use crate::analysis::sequence;
 use crate::args::PhasorsArgs;
-use crate::comtrade::{Comtrade, Side, round12};
+use crate::comtrade::{Comtrade, round12};
 use crate::context::Context;
 use crate::format::{key_values, rate, si, table, time};
 
@@ -53,11 +53,7 @@ impl PhasorsArgs {
     /// Runs the `phasors` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let c = Comtrade::open(&self.file)?;
-        let side = if ctx.global.secondary {
-            Side::Secondary
-        } else {
-            Side::Primary
-        };
+        let side = ctx.global.side();
         let (analog, binary) = select_channels(&c, &self.channels)?;
         if let Some(&i) = binary.first()
             && !self.channels.is_empty()
@@ -136,15 +132,8 @@ impl PhasorsArgs {
             .collect();
 
         let (t0, t1) = (c.time()[start], c.time()[end]);
-        let name = c
-            .path
-            .as_ref()
-            .map(|p| p.main_file().display().to_string())
-            .unwrap_or_default();
-        let side_name = match side {
-            Side::Primary => "primary",
-            Side::Secondary => "secondary",
-        };
+        let name = c.name();
+        let side_name = side.name();
 
         if self.json {
             let out = Json {

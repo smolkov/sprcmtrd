@@ -9,8 +9,8 @@ use anyhow::{Context as _, bail};
 
 use super::{select_channels, time_window};
 use crate::args::{ExportArgs, ExportFormat};
+use crate::comtrade::Comtrade;
 use crate::comtrade::export::{Export, Format};
-use crate::comtrade::{Comtrade, Side};
 use crate::context::Context;
 use crate::format::bytes;
 
@@ -40,11 +40,7 @@ impl ExportArgs {
                 .collect(),
             samples: c.index_range(t0, t1),
             every: self.every as usize,
-            side: if ctx.global.secondary {
-                Side::Secondary
-            } else {
-                Side::Primary
-            },
+            side: ctx.global.side(),
             absolute: self.absolute,
             ..Export::new(&c)
         };

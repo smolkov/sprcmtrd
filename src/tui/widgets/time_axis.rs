@@ -1,6 +1,5 @@
 //! Time axis below the plots: tick labels, trigger and cursor markers.
 
-use chrono::TimeDelta;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
@@ -26,9 +25,7 @@ pub(super) fn column_of(rec: &Recording, t: f64, width: u16) -> Option<u16> {
 
 fn time_label(app: &App, rec: &Recording, t: f64, span: f64) -> String {
     if app.absolute_time {
-        let trigger = rec.data.config.trigger_time;
-        let abs = trigger + TimeDelta::nanoseconds((t * 1e9).round() as i64);
-        abs.format("%H:%M:%S%.6f").to_string()
+        rec.data.absolute_time(t).format("%H:%M:%S%.6f").to_string()
     } else {
         time(t, span)
     }

@@ -1,7 +1,7 @@
 //! `events` command: timeline of binary channel changes.
 
 use anyhow::bail;
-use chrono::{NaiveDateTime, TimeDelta};
+use chrono::NaiveDateTime;
 use serde::Serialize;
 
 use super::{select_channels, time_window};
@@ -58,16 +58,8 @@ impl EventsArgs {
         let range = c.index_range(t0, t1);
         let list = events::events(&binary, c.time(), range.clone());
         let trigger = c.config.trigger_time;
-        let absolute = |t: f64| {
-            (trigger + TimeDelta::nanoseconds((t * 1e9).round() as i64))
-                .format("%Y-%m-%d %H:%M:%S%.6f")
-                .to_string()
-        };
-        let name = c
-            .path
-            .as_ref()
-            .map(|p| p.main_file().display().to_string())
-            .unwrap_or_default();
+        let absolute = |t: f64| c.absolute_time(t).format("%Y-%m-%d %H:%M:%S%.6f").to_string();
+        let name = c.name();
 
         if json {
             let out = Json {

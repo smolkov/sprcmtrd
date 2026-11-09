@@ -48,6 +48,15 @@ pub struct GlobalOpts {
 }
 
 impl GlobalOpts {
+    /// The side values are shown on: secondary with `--secondary`.
+    pub fn side(&self) -> crate::comtrade::Side {
+        if self.secondary {
+            crate::comtrade::Side::Secondary
+        } else {
+            crate::comtrade::Side::Primary
+        }
+    }
+
     /// Returns `true` when colors are disabled by flag or `NO_COLOR`.
     pub fn colors_disabled(&self) -> bool {
         self.no_color || std::env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty())

@@ -10,7 +10,7 @@ use crate::analysis::Window;
 use crate::analysis::dc_offset::{self, Decay, SIGNIFICANT_PART, TimeConstant};
 use crate::analysis::fault::{self, PHASES};
 use crate::args::DcOffsetArgs;
-use crate::comtrade::{Comtrade, Side, round12};
+use crate::comtrade::{Comtrade, round12};
 use crate::context::Context;
 use crate::format::{key_values, si, table, time as format_time};
 
@@ -81,11 +81,7 @@ impl DcOffsetArgs {
     /// Runs the `dc-offset` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let c = Comtrade::open(&self.file)?;
-        let side = if ctx.global.secondary {
-            Side::Secondary
-        } else {
-            Side::Primary
-        };
+        let side = ctx.global.side();
         let frequency = self.frequency.unwrap_or(c.config.line_frequency);
         if frequency <= 0.0 {
             bail!("the recording has no line frequency; give it with --frequency");
@@ -99,16 +95,8 @@ impl DcOffsetArgs {
             .as_ref()
             .map(|f| dc_offset::analyse(current.channels, time, f, range.end, self.cycles, frequency, side));
 
-        let file = c
-            .path
-            .as_ref()
-            .map(|p| p.main_file().display().to_string())
-            .unwrap_or_default();
-        let side_name = if side == Side::Secondary {
-            "secondary"
-        } else {
-            "primary"
-        };
+        let file = c.name();
+        let side_name = side.name();
         let k = current.factor;
         // Below 1e-6 of the largest AC peak is the residue of integer samples.
         let largest = result

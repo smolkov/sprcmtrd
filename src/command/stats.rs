@@ -5,7 +5,7 @@ use serde::Serialize;
 use super::{select_channels, time_window};
 use crate::analysis::stats::{self, AnalogStats, BinaryStats};
 use crate::args::StatsArgs;
-use crate::comtrade::{Comtrade, Side};
+use crate::comtrade::Comtrade;
 use crate::context::Context;
 use crate::format::{key_values, si, table, time};
 
@@ -34,11 +34,7 @@ impl StatsArgs {
             json,
         } = self;
         let c = Comtrade::open(&file)?;
-        let side = if ctx.global.secondary {
-            Side::Secondary
-        } else {
-            Side::Primary
-        };
+        let side = ctx.global.side();
         let (analog, binary) = select_channels(&c, &channels)?;
         let (t0, t1) = time_window(&c, from_ms, to_ms)?;
         let range = c.index_range(t0, t1);
@@ -57,15 +53,8 @@ impl StatsArgs {
             .iter()
             .map(|&i| stats::binary(c.binary(i).expect("selected index is valid"), c.time(), range.clone()))
             .collect();
-        let name = c
-            .path
-            .as_ref()
-            .map(|p| p.main_file().display().to_string())
-            .unwrap_or_default();
-        let side_name = match side {
-            Side::Primary => "primary",
-            Side::Secondary => "secondary",
-        };
+        let name = c.name();
+        let side_name = side.name();
 
         if json {
             let out = Json {

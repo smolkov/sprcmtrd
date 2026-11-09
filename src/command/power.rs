@@ -9,7 +9,7 @@ use crate::analysis::Complex;
 use crate::analysis::phasor;
 use crate::analysis::power::{self, ThreePhase};
 use crate::args::{PowerArgs, TableFormat};
-use crate::comtrade::{Comtrade, Side, round12};
+use crate::comtrade::{Comtrade, round12};
 use crate::context::Context;
 use crate::format::{key_values, rate, si, table, time};
 
@@ -133,11 +133,7 @@ impl PowerArgs {
     /// Runs the `power` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let c = Comtrade::open(&self.file)?;
-        let side = if ctx.global.secondary {
-            Side::Secondary
-        } else {
-            Side::Primary
-        };
+        let side = ctx.global.side();
         let vc = VoltageCurrent::new(&c, &self.voltage, &self.current)?;
         let frequency = self.frequency.unwrap_or(c.config.line_frequency);
         if frequency <= 0.0 {
@@ -146,16 +142,8 @@ impl PowerArgs {
 
         let (voltage, current) = vc.ids();
         let mut json = Json {
-            file: c
-                .path
-                .as_ref()
-                .map(|p| p.main_file().display().to_string())
-                .unwrap_or_default(),
-            side: if side == Side::Secondary {
-                "secondary"
-            } else {
-                "primary"
-            },
+            file: c.name(),
+            side: side.name(),
             frequency,
             samples: 0,
             voltage,

@@ -445,6 +445,20 @@ impl Comtrade {
         self.time.is_empty()
     }
 
+    /// Path of the recording's main file (`.cfg` or `.cff`) as it was
+    /// opened; empty for a recording read from memory.
+    pub fn name(&self) -> String {
+        self.path
+            .as_ref()
+            .map(|p| p.main_file().display().to_string())
+            .unwrap_or_default()
+    }
+
+    /// Date and time of `t` (s relative to the trigger), to the nearest ns.
+    pub fn absolute_time(&self, t: f64) -> chrono::NaiveDateTime {
+        self.config.trigger_time + chrono::TimeDelta::nanoseconds((t * 1e9).round() as i64)
+    }
+
     /// Time span `(first, last)` in seconds relative to the trigger.
     pub fn time_span(&self) -> (f64, f64) {
         match (self.time.first(), self.time.last()) {
@@ -581,6 +595,22 @@ fn map_file(path: &Path) -> Result<FileData> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn names_and_absolute_times() {
+        let c = Comtrade::open(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/fault_1999.cfg")).unwrap();
+        assert!(c.name().ends_with("fault_1999.cfg"), "{}", c.name());
+        let trigger = c.config.trigger_time;
+        assert_eq!(c.absolute_time(0.0), trigger);
+        // To the nearest ns, also before the trigger.
+        assert_eq!(
+            c.absolute_time(0.0125),
+            trigger + chrono::TimeDelta::microseconds(12_500)
+        );
+        assert_eq!(c.absolute_time(-1.4e-9), trigger - chrono::TimeDelta::nanoseconds(1));
+        assert_eq!(Side::Primary.name(), "primary");
+        assert_eq!(Side::Secondary.name(), "secondary");
+    }
 
     fn cfg_text(rates: &str, nrates: usize) -> String {
         format!(

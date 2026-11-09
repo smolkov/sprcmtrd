@@ -8,7 +8,7 @@ use crate::analysis::frequency::{self, AtTime, Method, Point, Summary};
 use crate::analysis::impedance::{Quantity, unit_factor};
 use crate::analysis::phasor::{Window, WindowError};
 use crate::args::{FrequencyArgs, FrequencyMethod, TableFormat, TrendStep};
-use crate::comtrade::{AnalogChannel, Comtrade, Side, round12};
+use crate::comtrade::{AnalogChannel, Comtrade, round12};
 use crate::context::Context;
 use crate::format::{key_values, rate, table, time};
 
@@ -16,11 +16,7 @@ impl FrequencyArgs {
     /// Runs the `frequency` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let c = Comtrade::open(&self.file)?;
-        let side = if ctx.global.secondary {
-            Side::Secondary
-        } else {
-            Side::Primary
-        };
+        let side = ctx.global.side();
         let ch = channel(&c, self.channel.as_deref())?;
         let nominal = self.frequency.unwrap_or(c.config.line_frequency);
         if nominal <= 0.0 {
@@ -80,7 +76,7 @@ impl FrequencyArgs {
             TableFormat::Csv => print!("{}", csv(&points, nominal)),
             TableFormat::Json => {
                 let json = Json {
-                    file: file_name(&c),
+                    file: c.name(),
                     channel: JsonChannel {
                         index: ch.info.index,
                         id: ch.info.id.clone(),
@@ -121,7 +117,7 @@ impl FrequencyArgs {
                 let span = points.last().map_or(0.0, |p| p.time) - points[0].time;
                 let at = |t: f64| time(t, span.max(1e-3));
                 let mut pairs = vec![
-                    ("File", file_name(&c)),
+                    ("File", c.name()),
                     (
                         "Channel",
                         format!("A{} {} [{}]", ch.info.index, ch.info.id, ch.info.unit),
@@ -181,13 +177,6 @@ fn channel<'a>(c: &'a Comtrade, selection: Option<&str>) -> anyhow::Result<&'a A
     }
     let i = analog.first().copied().expect("one channel was selected");
     Ok(c.analog(i).expect("selected index is valid"))
-}
-
-fn file_name(c: &Comtrade) -> String {
-    c.path
-        .as_ref()
-        .map(|p| p.main_file().display().to_string())
-        .unwrap_or_default()
 }
 
 fn method_name(method: Method) -> &'static str {

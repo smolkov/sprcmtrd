@@ -2,7 +2,6 @@
 //! duration, peak currents, operate times).
 
 use anyhow::{Context as _, bail};
-use chrono::TimeDelta;
 use serde::Serialize;
 
 use super::{factor, group, select_channels, time_window};
@@ -165,11 +164,7 @@ impl FaultArgs {
     /// Runs the `fault` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let c = Comtrade::open(&self.file)?;
-        let side = if ctx.global.secondary {
-            Side::Secondary
-        } else {
-            Side::Primary
-        };
+        let side = ctx.global.side();
         let frequency = self.frequency.unwrap_or(c.config.line_frequency);
         if frequency <= 0.0 {
             bail!("the recording has no line frequency; give it with --frequency");
@@ -210,22 +205,9 @@ impl FaultArgs {
             })
             .unwrap_or_default();
 
-        let file = c
-            .path
-            .as_ref()
-            .map(|p| p.main_file().display().to_string())
-            .unwrap_or_default();
-        let trigger = c.config.trigger_time;
-        let absolute = |t: f64| {
-            (trigger + TimeDelta::nanoseconds((t * 1e9).round() as i64))
-                .format("%Y-%m-%d %H:%M:%S%.6f")
-                .to_string()
-        };
-        let side_name = if side == Side::Secondary {
-            "secondary"
-        } else {
-            "primary"
-        };
+        let file = c.name();
+        let absolute = |t: f64| c.absolute_time(t).format("%Y-%m-%d %H:%M:%S%.6f").to_string();
+        let side_name = side.name();
 
         if self.json {
             let json_time = |i: usize| JsonTime {

@@ -3,7 +3,7 @@
 use super::chart::{self, LABEL_WIDTH};
 use super::{select_channels, time_window};
 use crate::args::ViewArgs;
-use crate::comtrade::{Cell, Comtrade, Side};
+use crate::comtrade::{Cell, Comtrade};
 use crate::context::Context;
 use crate::format::{key_values, summary, time};
 use crate::term;
@@ -12,22 +12,14 @@ impl ViewArgs {
     /// Runs the `view` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let c = Comtrade::open(&self.file)?;
-        let side = if ctx.global.secondary {
-            Side::Secondary
-        } else {
-            Side::Primary
-        };
+        let side = ctx.global.side();
         let (analog, binary) = select_channels(&c, &self.channels)?;
         let (t0, t1) = time_window(&c, self.from, self.to)?;
         let width = self.width.map(usize::from).or_else(term::terminal_width).unwrap_or(100);
         let plot_cols = width.saturating_sub(LABEL_WIDTH).max(16);
         let range = c.index_range(t0, t1);
 
-        let name = c
-            .path
-            .as_ref()
-            .map(|p| p.main_file().display().to_string())
-            .unwrap_or_default();
+        let name = c.name();
         let mut out = key_values(&summary(&name, &c.config));
         out += &key_values(&[
             ("Window", format!("{} .. {}", time(t0, t1 - t0), time(t1, t1 - t0))),

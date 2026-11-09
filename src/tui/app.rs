@@ -264,11 +264,7 @@ impl App {
             focus: Focus::Sidebar,
             sidebar: true,
             selected: 0,
-            side: if ctx.global.secondary {
-                Side::Secondary
-            } else {
-                Side::Primary
-            },
+            side: ctx.global.side(),
             plot_view: PlotView::Waveform,
             rms_dc: Dc::Keep,
             harmonics: [true, false, false, false, false, false, false, false, false],

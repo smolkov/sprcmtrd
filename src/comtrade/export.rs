@@ -7,7 +7,7 @@
 use std::io::{self, Write};
 use std::ops::Range;
 
-use chrono::{NaiveDateTime, TimeDelta};
+use chrono::NaiveDateTime;
 use serde::Serialize;
 
 use super::{AnalogChannel, BinaryChannel, Comtrade, Side, round12 as round};
@@ -122,8 +122,8 @@ impl<'a> Export<'a> {
     fn time(&self, row: usize) -> String {
         let t = self.recording.time()[row];
         if self.absolute {
-            let ns = (t * 1e9).round() as i64;
-            (self.recording.config.trigger_time + TimeDelta::nanoseconds(ns))
+            self.recording
+                .absolute_time(t)
                 .format("%Y-%m-%dT%H:%M:%S%.6f")
                 .to_string()
         } else {
@@ -163,10 +163,7 @@ impl<'a> Export<'a> {
             revision: c.config.revision.to_string(),
             start_time: c.config.start_time,
             trigger_time: c.config.trigger_time,
-            side: match self.side {
-                Side::Primary => "primary",
-                Side::Secondary => "secondary",
-            },
+            side: self.side.name(),
             time_ms: (!self.absolute).then(|| rows.iter().map(|&r| round(c.time()[r] * 1e3)).collect()),
             time: self.absolute.then(|| rows.iter().map(|&r| self.time(r)).collect()),
             sample: rows.iter().map(|r| r + 1).collect(),

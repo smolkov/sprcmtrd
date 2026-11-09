@@ -187,13 +187,6 @@ fn analog(c: &Comtrade, i: usize) -> &AnalogChannel {
     c.analog(i).expect("channel position is valid")
 }
 
-fn file_name(c: &Comtrade) -> String {
-    c.path
-        .as_ref()
-        .map(|p| p.main_file().display().to_string())
-        .unwrap_or_default()
-}
-
 /// One compared pair: phasors (peak) in A's unit, B's in A's time frame.
 struct Row<'a> {
     a: &'a AnalogChannel,
@@ -305,16 +298,9 @@ impl<'a> Setup<'a> {
         })
     }
 
-    fn side_name(&self) -> &'static str {
-        match self.side {
-            Side::Primary => "primary",
-            Side::Secondary => "secondary",
-        }
-    }
-
     fn json_recordings(&self) -> (JsonRecording, JsonRecording) {
         let r = |c: &Comtrade| JsonRecording {
-            file: file_name(c),
+            file: c.name(),
             station: c.config.station_name.clone(),
         };
         (r(self.a), r(self.b))
@@ -342,9 +328,9 @@ impl<'a> Setup<'a> {
         let recording = |c: &Comtrade| {
             let station = c.config.station_name.trim();
             if station.is_empty() {
-                file_name(c)
+                c.name()
             } else {
-                format!("{} ({station})", file_name(c))
+                format!("{} ({station})", c.name())
             }
         };
         vec![
@@ -426,11 +412,7 @@ impl CompareArgs {
         }
         let a = Comtrade::open(&self.a)?;
         let b = Comtrade::open(&self.b)?;
-        let side = if ctx.global.secondary {
-            Side::Secondary
-        } else {
-            Side::Primary
-        };
+        let side = ctx.global.side();
         // The differential trend alone, unless channels are asked for.
         let with_pairs = !(self.trend && self.differential && self.channels.is_empty() && self.pair.is_empty());
         let setup = Setup::new(&self, &a, &b, side, with_pairs)?;
@@ -550,7 +532,7 @@ impl CompareArgs {
             None
         };
 
-        let side_name = s.side_name();
+        let side_name = s.side.name();
         let rms = |x: f64| round12(x / 2f64.sqrt());
         if self.format == TableFormat::Json {
             let json_window = |c: &Comtrade, w: &Window| JsonWindow {
@@ -818,7 +800,7 @@ impl CompareArgs {
                 let out = JsonTrend {
                     a: ja,
                     b: jb,
-                    side: s.side_name(),
+                    side: s.side.name(),
                     frequency,
                     alignment: s.json_alignment(),
                     cycles: self.cycles,
@@ -932,9 +914,9 @@ impl CompareArgs {
                     (
                         "Values",
                         if s.pairs.is_empty() {
-                            s.side_name().to_owned()
+                            s.side.name().to_owned()
                         } else {
-                            format!("{}; B/A of the RMS, B − A of the angles", s.side_name())
+                            format!("{}; B/A of the RMS, B − A of the angles", s.side.name())
                         },
                     ),
                 ]);
@@ -981,7 +963,7 @@ impl CompareArgs {
                 "Window",
                 format!("{} .. {} in A's time", time(t0, t1 - t0), time(t1, t1 - t0)),
             ),
-            ("Values", s.side_name().to_owned()),
+            ("Values", s.side.name().to_owned()),
         ]);
         let mut out = key_values(&head);
         for p in &s.pairs {

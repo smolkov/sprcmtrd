@@ -166,11 +166,7 @@ impl LocateArgs {
         let currents = [vc.channels[3], vc.channels[4], vc.channels[5]];
         let found = fault::analyse(currents, c.time(), range.clone(), frequency, Side::Primary);
 
-        let file = c
-            .path
-            .as_ref()
-            .map(|p| p.main_file().display().to_string())
-            .unwrap_or_default();
+        let file = c.name();
         let (voltage, current) = vc.ids();
         let line = JsonLine {
             z1: z1.into(),

@@ -6,7 +6,7 @@ use serde::Serialize;
 use super::{select_channels, window_at};
 use crate::analysis::harmonics::{self, Spectrum};
 use crate::args::HarmonicsArgs;
-use crate::comtrade::{AnalogChannel, Comtrade, Side, round12};
+use crate::comtrade::{AnalogChannel, Comtrade, round12};
 use crate::context::Context;
 use crate::format::{key_values, rate, si, table, time};
 
@@ -56,11 +56,7 @@ impl HarmonicsArgs {
     /// Runs the `harmonics` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let c = Comtrade::open(&self.file)?;
-        let side = if ctx.global.secondary {
-            Side::Secondary
-        } else {
-            Side::Primary
-        };
+        let side = ctx.global.side();
         let (analog, binary) = select_channels(&c, &self.channels)?;
         if let Some(&i) = binary.first()
             && !self.channels.is_empty()
@@ -88,16 +84,8 @@ impl HarmonicsArgs {
             .map(|ch| harmonics::spectrum(ch, c.time(), &window, max_order, side))
             .collect();
         let (t0, t1) = (c.time()[window.start()], c.time()[window.end]);
-        let name = c
-            .path
-            .as_ref()
-            .map(|p| p.main_file().display().to_string())
-            .unwrap_or_default();
-        let side_name = if side == Side::Secondary {
-            "secondary"
-        } else {
-            "primary"
-        };
+        let name = c.name();
+        let side_name = side.name();
 
         if self.json {
             let out = Json {

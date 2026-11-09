@@ -9,7 +9,7 @@ use crate::analysis::Complex;
 use crate::analysis::impedance::{self, Loop};
 use crate::analysis::phasor;
 use crate::args::{ImpedanceArgs, TableFormat};
-use crate::comtrade::{Comtrade, Side, round12};
+use crate::comtrade::{Comtrade, round12};
 use crate::context::Context;
 use crate::format::{key_values, rate, si, table, time};
 
@@ -104,11 +104,7 @@ impl ImpedanceArgs {
     /// Runs the `impedance` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let c = Comtrade::open(&self.file)?;
-        let side = if ctx.global.secondary {
-            Side::Secondary
-        } else {
-            Side::Primary
-        };
+        let side = ctx.global.side();
         let vc = VoltageCurrent::new(&c, &self.voltage, &self.current)?;
         let loops = if self.loops.is_empty() {
             Loop::ALL.to_vec()
@@ -131,16 +127,8 @@ impl ImpedanceArgs {
         }
 
         let mut json = Json {
-            file: c
-                .path
-                .as_ref()
-                .map(|p| p.main_file().display().to_string())
-                .unwrap_or_default(),
-            side: if side == Side::Secondary {
-                "secondary"
-            } else {
-                "primary"
-            },
+            file: c.name(),
+            side: side.name(),
             frequency,
             samples: 0,
             k0_magnitude: self.k0.magnitude,

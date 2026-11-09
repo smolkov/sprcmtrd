@@ -15,11 +15,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, scroll: u16) {
     };
     let data = &rec.data;
     let c = &data.config;
-    let file = data
-        .path
-        .as_ref()
-        .map(|p| p.main_file().display().to_string())
-        .unwrap_or_default();
+    let file = data.name();
 
     let mut lines: Vec<Line<'static>> = Vec::new();
     let mut text = |title: Option<&str>, body: String| {

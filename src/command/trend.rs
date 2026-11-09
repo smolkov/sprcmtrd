@@ -17,11 +17,7 @@ impl TrendArgs {
     /// Runs the `trend` command.
     pub fn run(self, ctx: &Context) -> anyhow::Result<()> {
         let c = Comtrade::open(&self.file)?;
-        let side = if ctx.global.secondary {
-            Side::Secondary
-        } else {
-            Side::Primary
-        };
+        let side = ctx.global.side();
         let (analog, binary) = select_channels(&c, &self.channels)?;
         if let Some(&i) = binary.first()
             && !self.channels.is_empty()
@@ -129,11 +125,7 @@ impl TrendArgs {
                 println!("{}", serde_json::to_string_pretty(&json)?);
             }
             TableFormat::Text => {
-                let name = c
-                    .path
-                    .as_ref()
-                    .map(|p| p.main_file().display().to_string())
-                    .unwrap_or_default();
+                let name = c.name();
                 let ch = channels[reference];
                 let cycles = |n: f64| format!("{n} {}", if n == 1.0 { "cycle" } else { "cycles" });
                 let step_text = match self.step {
@@ -165,17 +157,7 @@ impl TrendArgs {
                                     .join(", else ")
                             },
                         ),
-                        (
-                            "Values",
-                            format!(
-                                "{}, RMS of the fundamental",
-                                if side == Side::Secondary {
-                                    "secondary"
-                                } else {
-                                    "primary"
-                                }
-                            ),
-                        ),
+                        ("Values", format!("{}, RMS of the fundamental", side.name()),),
                     ])
                 );
                 println!("\n{}", table.text(&result.steps, reference).trim_end());
@@ -385,16 +367,8 @@ impl Table<'_> {
             angle: round12(p.angle),
         };
         Json {
-            file: c
-                .path
-                .as_ref()
-                .map(|p| p.main_file().display().to_string())
-                .unwrap_or_default(),
-            side: if side == Side::Secondary {
-                "secondary"
-            } else {
-                "primary"
-            },
+            file: c.name(),
+            side: side.name(),
             frequency,
             samples,
             step_samples,

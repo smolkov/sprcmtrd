@@ -73,6 +73,16 @@ pub enum Side {
     Secondary,
 }
 
+impl Side {
+    /// `primary` or `secondary`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Primary => "primary",
+            Self::Secondary => "secondary",
+        }
+    }
+}
+
 impl fmt::Display for Side {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
