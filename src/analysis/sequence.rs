@@ -91,6 +91,16 @@ pub fn groups(channels: &[&AnalogInfo]) -> Vec<Group> {
         .collect()
 }
 
+/// The neutral of `group` among `channels`: a channel with phase `N`, `E`
+/// or `G` of the group's circuit and unit (IN next to IA, IB, IC).
+pub fn neutral(channels: &[&AnalogInfo], group: &Group) -> Option<usize> {
+    channels.iter().position(|info| {
+        matches!(info.phase.trim().to_ascii_uppercase().as_str(), "N" | "E" | "G")
+            && info.circuit == group.circuit
+            && info.unit == group.unit
+    })
+}
+
 /// Symmetrical components of every three-phase group among `channels`,
 /// from their `phasors` (same order; `None` where a phasor could not be
 /// computed, which leaves its group out).
@@ -124,6 +134,23 @@ mod tests {
         assert!(close(s.negative.abs(), 1.0, 1e-12) && s.positive.abs() < 1e-12);
         let s = symmetrical(p(10.0), p(10.0), p(10.0));
         assert!(close(s.zero.abs(), 1.0, 1e-12) && s.positive.abs() < 1e-12);
+    }
+
+    #[test]
+    fn neutral_of_a_group() {
+        let infos = [
+            info("A", "L1", "A"),
+            info("B", "L1", "A"),
+            info("C", "L1", "A"),
+            info("N", "L1", "kV"),
+            info("N", "L2", "A"),
+            info("n", "L1", "A"),
+        ];
+        let refs: Vec<&AnalogInfo> = infos.iter().collect();
+        let g = &groups(&refs)[0];
+        // Not the one of another unit or circuit.
+        assert_eq!(neutral(&refs, g), Some(5));
+        assert_eq!(neutral(&refs[..5], g), None);
     }
 
     fn info(phase: &str, circuit: &str, unit: &str) -> AnalogInfo {

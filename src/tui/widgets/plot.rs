@@ -35,6 +35,11 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         (PlotView::Harmonics, _) => "Harmonics",
         (PlotView::Impedance, _) => "Impedance",
     };
+    let name = if app.grouped && app.plot_view != PlotView::Impedance {
+        format!("{name} · grouped")
+    } else {
+        name.to_owned()
+    };
     let Some(rec) = &app.recording else {
         let block = Block::bordered()
             .title(format!(" {name} "))
@@ -114,9 +119,10 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         PlotView::Harmonics => app.shown_orders().into_iter().map(Some).collect(),
         _ => vec![None],
     };
-    let analog: Vec<(usize, Option<usize>)> = (0..rec.visible_analog.len())
-        .filter(|&i| rec.visible_analog[i])
-        .flat_map(|i| orders.iter().map(move |&h| (i, h)))
+    let analog: Vec<(Vec<usize>, Option<usize>)> = rec
+        .analog_rows(app.grouped)
+        .into_iter()
+        .flat_map(|members| orders.iter().map(move |&h| (members.clone(), h)))
         .collect();
     let binary: Vec<usize> = (0..rec.visible_binary.len())
         .filter(|&i| rec.visible_binary[i])
@@ -140,7 +146,8 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         .get()
         .then(|| shown_position(rec, &analog, app.selected))
         .flatten();
-    let layout = layout(rows, analog.len(), binary.len(), app.plot_scroll.get(), keep);
+    let mins: Vec<u16> = analog.iter().map(|(members, _)| min_height(members.len())).collect();
+    let layout = layout(rows, &mins, binary.len(), app.plot_scroll.get(), keep);
     app.plot_scroll.set(layout.offset);
     app.plot_page.set(layout.rows.len());
     let n = analog.len() + binary.len();
@@ -161,11 +168,11 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
             height,
         };
         let item = layout.offset + k;
-        if let Some(&(i, order)) = analog.get(item) {
+        if let Some((members, order)) = analog.get(item) {
             // Shade by row position, so shades don't swap while scrolling.
-            let selected = app.selected == i;
+            let selected = members.contains(&app.selected);
             let style = (cursor_idx, theme.plot_background(item), selected);
-            analog_plot(f, row, app, rec, (i, order), style);
+            analog_plot(f, row, app, rec, (members, *order), style);
         } else {
             let b = binary[item - analog.len()];
             let selected = app.selected == rec.visible_analog.len() + b;
@@ -204,11 +211,11 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
 
 /// Row of channel `selected` (analog first, then binary) among the shown
 /// rows (`analog` rows, then the shown binary channels), if it is shown: its
-/// first row in the harmonics view.
-fn shown_position(rec: &Recording, analog: &[(usize, Option<usize>)], selected: usize) -> Option<usize> {
+/// first row in the harmonics view, its group's row when grouped.
+fn shown_position(rec: &Recording, analog: &[(Vec<usize>, Option<usize>)], selected: usize) -> Option<usize> {
     let na = rec.visible_analog.len();
     if selected < na {
-        return analog.iter().position(|&(i, _)| i == selected);
+        return analog.iter().position(|(members, _)| members.contains(&selected));
     }
     let b = selected - na;
     rec.visible_binary
@@ -229,24 +236,38 @@ struct PlotLayout {
     scrolls: bool,
 }
 
-/// Lays out `n_analog` analog plots and `n_binary` binary strips in `height`
-/// rows. If all fit with their minimum height, analog plots share the rows the
-/// strips leave. Otherwise they get the minimum height and only the channels
-/// from `offset` on are drawn; `offset` is clamped so the last page is full,
-/// and moved so that channel `keep` is drawn.
-fn layout(height: u16, n_analog: usize, n_binary: usize, offset: usize, keep: Option<usize>) -> PlotLayout {
+/// Smallest height of an analog plot row with `members` traces: room for
+/// the name, a value line per trace and the range.
+fn min_height(members: usize) -> u16 {
+    if members > 1 {
+        MIN_ANALOG_HEIGHT.max(3 + members as u16)
+    } else {
+        MIN_ANALOG_HEIGHT
+    }
+}
+
+/// Lays out analog plots of the minimum heights `mins` and `n_binary`
+/// binary strips in `height` rows. If all fit, analog plots share the rows
+/// the strips leave: each gets its minimum and an equal part of the rest.
+/// Otherwise they get their minimum height and only the channels from
+/// `offset` on are drawn; `offset` is clamped so the last page is full, and
+/// moved so that channel `keep` is drawn.
+fn layout(height: u16, mins: &[u16], n_binary: usize, offset: usize, keep: Option<usize>) -> PlotLayout {
+    let n_analog = mins.len();
     let n = n_analog + n_binary;
-    if n_analog * MIN_ANALOG_HEIGHT as usize + n_binary <= height as usize {
-        let analog_rows = height - n_binary as u16;
+    let needed: usize = mins.iter().map(|&m| m as usize).sum();
+    if needed + n_binary <= height as usize {
+        let spare = height - n_binary as u16 - needed as u16;
         let mut rows = Vec::with_capacity(n);
         let mut y = 0;
-        for k in 0..n_analog {
-            let base = analog_rows / n_analog as u16;
-            let h = if k + 1 == n_analog {
-                analog_rows - base * (n_analog as u16 - 1)
+        for (k, &m) in mins.iter().enumerate() {
+            let base = spare / n_analog as u16;
+            let extra = if k + 1 == n_analog {
+                spare - base * (n_analog as u16 - 1)
             } else {
                 base
             };
+            let h = m + extra;
             rows.push((y, h));
             y += h;
         }
@@ -258,8 +279,7 @@ fn layout(height: u16, n_analog: usize, n_binary: usize, offset: usize, keep: Op
         };
     }
 
-    let analog_height = MIN_ANALOG_HEIGHT.min(height);
-    let h = |i: usize| if i < n_analog { analog_height } else { 1 };
+    let h = |i: usize| if i < n_analog { mins[i].min(height) } else { 1 };
     // Largest offset: the channels from there to the end still fill the area.
     let mut max_offset = n;
     let mut used = 0;
@@ -331,37 +351,27 @@ fn centered_text(f: &mut Frame, area: Rect, text: &str, style: Style) {
     );
 }
 
-/// Draws analog channel `i` into `area` (gutter and plot) on `background`;
-/// with `order`, that harmonic order over time. The name of the channel
-/// selected in the sidebar is marked with `▶`.
-fn analog_plot(
-    f: &mut Frame,
-    area: Rect,
+/// The segments to draw and the value at the cursor of one trace.
+type Trace = (Vec<Vec<(f64, f64)>>, Option<f64>);
+
+/// The trace of channel `i` in the current view: samples, sliding RMS, or
+/// harmonic `order` (RMS for 1, % of the fundamental above).
+fn trace(
     app: &App,
     rec: &Recording,
-    (i, order): (usize, Option<usize>),
-    (cursor_idx, background, selected): (Option<usize>, Color, bool),
-) {
-    let theme = &app.theme;
-    // Shade the whole row, so gutter and plot read as one band.
-    f.render_widget(Block::new().style(Style::new().bg(background)), area);
+    i: usize,
+    order: Option<usize>,
+    columns: usize,
+    cursor_idx: Option<usize>,
+) -> Trace {
     let ch = rec.data.analog(i).expect("visible channel exists");
-    let color = theme.channel(&ch.info.phase, i);
     let (t0, t1) = rec.view;
-    let canvas = Rect {
-        x: area.x + GUTTER,
-        width: area.width - GUTTER,
-        ..area
-    };
-
     // One extra sample on each side so lines reach the plot edges.
     let range = rec.data.index_range(t0, t1);
     let range = range.start.saturating_sub(1)..(range.end + 1).min(rec.data.len());
-    let columns = canvas.width as usize * 2;
     let time = rec.data.time();
     let is_rms = app.plot_view == PlotView::Rms;
     let rms_of = |range| rms::sliding(ch, time, range, |k| rec.rms_seconds(k), app.rms_dc, app.side);
-    // Order 1 as RMS, higher orders in % of the fundamental at that moment.
     let harmonic_at = |points: &[usize], h: usize| -> Vec<Option<f64>> {
         let ords: &[usize] = if h == 1 { &[1] } else { &[1, h] };
         harmonics::sliding(ch, time, points, |k| rec.rms_seconds(k), ords, app.side)
@@ -386,10 +396,95 @@ fn analog_plot(
         }
         None => ch.plot_segments(time, range, (t0, t1), columns, app.side),
     };
-    let from_zero = is_rms || order.is_some();
-    let (lo, hi) = segments
+    let value = cursor_idx.and_then(|k| match order {
+        Some(h) => harmonic_at(&[k], h).first().copied().flatten(),
+        None if is_rms => rms_of(k..k + 1).first().copied().flatten(),
+        None => ch.value_on(k, app.side),
+    });
+    (segments, value)
+}
+
+/// The short name of a trace in a group: its phase (`A`, `L1`, `N`), else
+/// its id.
+fn trace_label(info: &crate::comtrade::AnalogInfo) -> String {
+    let phase = info.phase.trim();
+    if phase.is_empty() {
+        info.id.clone()
+    } else {
+        phase.to_owned()
+    }
+}
+
+/// The name of a plot row: the channel id, or for a group the common start
+/// of its ids and the members' phases (`I ABCN` for IA IB IC IN, `iL L1 L2
+/// L3` for iL1 iL2 iL3), else the ids.
+fn group_name(infos: &[&crate::comtrade::AnalogInfo]) -> String {
+    if infos.len() == 1 {
+        return infos[0].id.clone();
+    }
+    let first = &infos[0].id;
+    let common: String = first
+        .char_indices()
+        .map(|(k, _)| &first[..=k])
+        .take_while(|prefix| infos.iter().all(|info| info.id.starts_with(*prefix)))
+        .last()
+        .unwrap_or("")
+        .trim_end_matches([' ', '_', '-'])
+        .to_owned();
+    let labels: Vec<String> = infos.iter().map(|info| trace_label(info)).collect();
+    let phases = if labels.iter().all(|l| l.chars().count() == 1) {
+        labels.concat()
+    } else {
+        labels.join(" ")
+    };
+    if common.is_empty() {
+        infos.iter().map(|info| info.id.as_str()).collect::<Vec<_>>().join(" ")
+    } else {
+        format!("{common} {phases}")
+    }
+}
+
+/// Draws the analog channels `members` into one row of `area` (gutter and
+/// plot) on `background`; with `order`, that harmonic order over time. Several
+/// members share the plot and its y range, each named at its right end and at
+/// the cursor. The row of the channel selected in the sidebar is marked with
+/// `▶`.
+fn analog_plot(
+    f: &mut Frame,
+    area: Rect,
+    app: &App,
+    rec: &Recording,
+    (members, order): (&[usize], Option<usize>),
+    (cursor_idx, background, selected): (Option<usize>, Color, bool),
+) {
+    let theme = &app.theme;
+    // Shade the whole row, so gutter and plot read as one band.
+    f.render_widget(Block::new().style(Style::new().bg(background)), area);
+    let (t0, t1) = rec.view;
+    let canvas = Rect {
+        x: area.x + GUTTER,
+        width: area.width - GUTTER,
+        ..area
+    };
+    let columns = canvas.width as usize * 2;
+    let infos: Vec<&crate::comtrade::AnalogInfo> = members
         .iter()
-        .flatten()
+        .map(|&i| &rec.data.analog(i).expect("visible channel exists").info)
+        .collect();
+    let colors: Vec<Color> = members
+        .iter()
+        .zip(&infos)
+        .map(|(&i, info)| theme.channel(&info.phase, i))
+        .collect();
+    let traces: Vec<Trace> = members
+        .iter()
+        .map(|&i| trace(app, rec, i, order, columns, cursor_idx))
+        .collect();
+
+    let from_zero = app.plot_view == PlotView::Rms || order.is_some();
+    let (lo, hi) = traces
+        .iter()
+        .flat_map(|(segments, _)| segments.iter().flatten())
         .filter(|p| p.0 >= t0 && p.0 <= t1)
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
             (lo.min(p.1), hi.max(p.1))
@@ -402,27 +497,32 @@ fn analog_plot(
         (true, d) => (lo - d * 0.05, hi + d * 0.05),
     };
 
-    // Gutter: name, value at cursor, value range.
-    let value = cursor_idx.and_then(|k| match order {
-        Some(h) => harmonic_at(&[k], h).first().copied().flatten(),
-        None if is_rms => rms_of(k..k + 1).first().copied().flatten(),
-        None => ch.value_on(k, app.side),
-    });
+    // Gutter: name, value at the cursor (one line per trace), value range.
+    let ids = group_name(&infos);
+    let unit = &infos[0].unit;
     let name = match order {
-        Some(1) => format!("{} h1 [{}]", ch.info.id, ch.info.unit),
-        Some(h) => format!("{} h{h} [%]", ch.info.id),
-        None => format!("{} [{}]", ch.info.id, ch.info.unit),
+        Some(1) => format!("{ids} h1 [{unit}]"),
+        Some(h) => format!("{ids} h{h} [%]"),
+        None => format!("{ids} [{unit}]"),
     };
-    let name_style = Style::new().fg(color).add_modifier(Modifier::BOLD);
-    let mut lines = vec![
-        if selected {
-            Line::styled(format!("▶ {name}"), name_style.patch(theme.selection()))
-        } else {
-            Line::styled(name, name_style)
-        },
-        Line::from(format!("▸ {}", value.map_or_else(|| "-".into(), si))),
-    ];
-    if area.height >= 4 {
+    let name_style = Style::new().fg(colors[0]).add_modifier(Modifier::BOLD);
+    let mut lines = vec![if selected {
+        Line::styled(format!("▶ {name}"), name_style.patch(theme.selection()))
+    } else {
+        Line::styled(name, name_style)
+    }];
+    let show = |v: Option<f64>| v.map_or_else(|| "-".into(), si);
+    if members.len() == 1 {
+        lines.push(Line::from(format!("▸ {}", show(traces[0].1))));
+    } else {
+        for ((info, (_, value)), &color) in infos.iter().zip(&traces).zip(&colors) {
+            lines.push(Line::from(vec![
+                Span::styled(trace_label(info), Style::new().fg(color)),
+                Span::raw(format!(" ▸ {}", show(*value))),
+            ]));
+        }
+    }
+    if area.height as usize >= lines.len() + 2 {
         lines.resize(area.height as usize - 2, Line::raw(""));
         lines.push(Line::styled(format!("↑ {}", si(hi)), theme.muted()));
         lines.push(Line::styled(format!("↓ {}", si(lo)), theme.muted()));
@@ -439,6 +539,34 @@ fn analog_plot(
     let cursor = theme.cursor;
     let zero = theme.muted;
     let cursor_t = rec.cursor;
+    let labels: Vec<String> = infos.iter().map(|info| trace_label(info)).collect();
+    // The names at the right end and at the cursor, each moved right past
+    // the names before it in the same text row, so none hides another.
+    let cell = (t1 - t0) / canvas.width.max(1) as f64;
+    let row_of = |v: f64| ((hi - v) / (hi - lo) * canvas.height as f64).floor() as i64;
+    let place = |x: f64, values: Vec<Option<f64>>| -> Vec<Option<(f64, f64)>> {
+        let mut taken: Vec<(i64, f64)> = Vec::new();
+        values
+            .iter()
+            .zip(&labels)
+            .map(|(v, label)| {
+                let v = (*v)?;
+                let row = row_of(v);
+                let shift: f64 = taken.iter().filter(|(r, _)| *r == row).map(|(_, w)| w + 1.0).sum();
+                taken.push((row, label.chars().count() as f64));
+                Some((x + shift * cell, v))
+            })
+            .collect()
+    };
+    let width: f64 = labels.iter().map(|l| l.chars().count() as f64 + 1.0).sum();
+    let ends = place(
+        t1 - (width + 1.0) * cell,
+        traces
+            .iter()
+            .map(|(segments, _)| segments.iter().flatten().rfind(|p| p.0 <= t1).map(|p| p.1))
+            .collect(),
+    );
+    let at_cursor = place(cursor_t + cell, traces.iter().map(|(_, v)| *v).collect());
     let plot = Canvas::default()
         .marker(Marker::Braille)
         .background_color(background)
@@ -453,12 +581,26 @@ fn analog_plot(
                 ctx.draw(&CanvasLine::new(t0, 0.0, t1, 0.0, zero));
             }
             ctx.layer();
-            for seg in &segments {
-                if seg.len() == 1 {
-                    ctx.draw(&Points { coords: seg, color });
+            for ((segments, _), &color) in traces.iter().zip(&colors) {
+                for seg in segments {
+                    if seg.len() == 1 {
+                        ctx.draw(&Points { coords: seg, color });
+                    }
+                    for w in seg.windows(2) {
+                        ctx.draw(&CanvasLine::new(w[0].0, w[0].1, w[1].0, w[1].1, color));
+                    }
                 }
-                for w in seg.windows(2) {
-                    ctx.draw(&CanvasLine::new(w[0].0, w[0].1, w[1].0, w[1].1, color));
+            }
+            if traces.len() > 1 {
+                for (((end, cur), &color), label) in ends.iter().zip(&at_cursor).zip(&colors).zip(&labels) {
+                    let style = Style::new().fg(color);
+                    if let Some((x, v)) = end {
+                        ctx.print(*x, *v, Span::styled(label.clone(), style));
+                    }
+                    if let Some((x, v)) = cur {
+                        let marked = style.add_modifier(Modifier::BOLD | Modifier::REVERSED);
+                        ctx.print(*x, *v, Span::styled(label.clone(), marked));
+                    }
                 }
             }
         });
@@ -557,28 +699,33 @@ mod tests {
 
     const M: u16 = MIN_ANALOG_HEIGHT;
 
+    /// `layout` with `n_analog` single-channel plots.
+    fn lay(height: u16, n_analog: usize, n_binary: usize, offset: usize, keep: Option<usize>) -> PlotLayout {
+        layout(height, &vec![M; n_analog], n_binary, offset, keep)
+    }
+
     fn heights(l: &PlotLayout) -> Vec<u16> {
         l.rows.iter().map(|r| r.1).collect()
     }
 
     #[test]
     fn everything_fits_and_analog_plots_share_the_rows() {
-        let l = layout(20, 3, 2, 7, Some(4));
+        let l = lay(20, 3, 2, 7, Some(4));
         assert!(!l.scrolls);
         assert_eq!(l.offset, 0);
         // 18 rows for 3 analog plots, the last one takes the remainder.
         assert_eq!(heights(&l), [6, 6, 6, 1, 1]);
         assert_eq!(l.rows[3], (18, 1));
 
-        let l = layout(10, 0, 3, 0, None);
+        let l = lay(10, 0, 3, 0, None);
         assert_eq!(l.rows, [(0, 1), (1, 1), (2, 1)]);
-        assert_eq!(heights(&layout(M * 2, 2, 0, 0, None)), [M, M]);
+        assert_eq!(heights(&lay(M * 2, 2, 0, 0, None)), [M, M]);
     }
 
     #[test]
     fn overflow_keeps_minimum_height_and_scrolls() {
         // 4 analog (4 × M) and 4 binary need more than 19 rows.
-        let l = layout(19, 4, 4, 0, None);
+        let l = lay(19, 4, 4, 0, None);
         assert!(l.scrolls);
         assert_eq!(l.offset, 0);
         // The 4 rows left over go to the drawn plots.
@@ -586,35 +733,48 @@ mod tests {
         assert_eq!(l.rows[2], (2 * M + 3, M + 1));
 
         // Offset 1: analog 1..4, then binary strips while rows are left.
-        let l = layout(19, 4, 4, 1, None);
+        let l = lay(19, 4, 4, 1, None);
         assert_eq!(heights(&l), [M, M, M, 1, 1, 1, 1]);
     }
 
     #[test]
     fn offset_is_clamped_to_a_full_last_page() {
-        let l = layout(19, 4, 4, 100, None);
+        let l = lay(19, 4, 4, 100, None);
         assert_eq!(l.offset, 1);
         assert_eq!(l.rows.len(), 7);
         // Only binary strips: last page shows the last `height` strips.
-        let l = layout(5, 0, 12, 100, None);
+        let l = lay(5, 0, 12, 100, None);
         assert_eq!((l.offset, l.rows.len()), (7, 5));
     }
 
     #[test]
     fn keep_scrolls_a_channel_into_view() {
         // Below the page: the kept channel becomes the last drawn one.
-        let l = layout(12, 6, 0, 0, Some(4));
+        let l = lay(12, 6, 0, 0, Some(4));
         assert_eq!(l.offset, 3);
         assert_eq!(l.offset + l.rows.len() - 1, 4);
         // Above the page: it becomes the first.
-        assert_eq!(layout(12, 6, 0, 4, Some(1)).offset, 1);
+        assert_eq!(lay(12, 6, 0, 4, Some(1)).offset, 1);
         // Already drawn: the offset stays.
-        assert_eq!(layout(12, 6, 0, 2, Some(3)).offset, 2);
+        assert_eq!(lay(12, 6, 0, 2, Some(3)).offset, 2);
+    }
+
+    #[test]
+    fn group_rows_get_their_larger_minimum() {
+        // A group of four (7 rows) and a single channel: the rest is shared.
+        assert_eq!(min_height(4), 7);
+        let l = layout(20, &[min_height(4), M], 1, 0, None);
+        assert!(!l.scrolls);
+        assert_eq!(heights(&l), [7 + 3, M + 4, 1]);
+        // Too few rows: the group keeps its 7 and the area scrolls.
+        let l = layout(10, &[min_height(4), M], 0, 0, None);
+        assert!(l.scrolls);
+        assert_eq!(heights(&l), [10]);
     }
 
     #[test]
     fn analog_plots_shrink_to_tiny_areas() {
-        let l = layout(2, 3, 0, 0, None);
+        let l = lay(2, 3, 0, 0, None);
         assert!(l.scrolls);
         assert_eq!(heights(&l), [2]);
     }

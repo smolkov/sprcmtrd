@@ -54,6 +54,8 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 
 ## TUI ideas
 
+* [x] Grouping of the analog traces (`g`, issue #5): the phases of a circuit and its neutral in one plot. See `tasks/5-tui-analog-groups.md`.
+* [ ] Grouping: groups from the configuration file (any channels in one plot), when the automatic three-phase groups are not enough.
 * [x] Impedance view (`z`, issue #6): trajectories of the six loops in two R-X diagrams over the visible time window, values at the cursor. See `tasks/6-tui-impedance-view.md`.
 * [ ] Impedance view: k0 for the ground loops from the configuration file (`[impedance] k0 = "0.8@-5"`), and relay zones (polygons, circles) drawn into the diagrams.
 * [x] Harmonics view (`f`): orders 1 … 9 over time, switched with `1` … `9`, windows fitted to the measured frequency. See `tasks/tui-harmonics-view.md`.

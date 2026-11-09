@@ -47,6 +47,7 @@ pub enum Action {
     /// Show / hide harmonic order 1 … 9 in the harmonics view.
     Harmonic(u8),
     ImpedanceView,
+    GroupView,
 }
 
 /// Default key binding of an action.
@@ -323,6 +324,13 @@ pub const BINDINGS: &[Binding] = &[
         name: "impedance_view",
         keys: &["z"],
         help: "Toggle waveform / impedance trajectories (R-X)",
+        hint: None,
+    },
+    Binding {
+        action: Action::GroupView,
+        name: "group_view",
+        keys: &["g"],
+        help: "Group the phases of a circuit in one plot / one plot per channel",
         hint: None,
     },
     Binding {
