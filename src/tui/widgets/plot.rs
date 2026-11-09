@@ -41,9 +41,10 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         name.to_owned()
     };
     let Some(rec) = &app.recording else {
-        let block = Block::bordered()
+        let block = theme
+            .block()
             .title(format!(" {name} "))
-            .title_style(theme.base())
+            .title_style(theme.title(false))
             .border_style(theme.border(false));
         let inner = block.inner(area);
         f.render_widget(block, area);
@@ -79,9 +80,10 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
                 format!(" {name} {}{position} ", short.join(" "))
             };
         }
-        Block::bordered()
+        theme
+            .block()
             .title(left)
-            .title_style(if focused { theme.accent() } else { theme.base() })
+            .title_style(theme.title(focused))
             .border_style(theme.border(focused))
             .title(Line::from(right.clone()).alignment(Alignment::Right))
     };

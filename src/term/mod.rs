@@ -6,6 +6,7 @@ mod spinner;
 mod style;
 mod table;
 mod theme;
+pub mod themes;
 
 use std::io::IsTerminal;
 

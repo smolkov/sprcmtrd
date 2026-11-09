@@ -1,0 +1,26 @@
+# Tokyo Night, the night variant.
+kind = "dark"
+
+[colors]
+background = "#1a1b26"
+text = "#c0caf5"
+muted = "#565f89"
+border = "#414868"
+accent = "#7aa2f7"
+selection = "#283457"
+plot_shades = ["#1f2335", "#1a1b26"]
+warning = "#e0af68"
+error = "#f7768e"
+trigger = "#bb9af7"
+cursor = "#ff9e64"
+phase = ["#f7768e", "#9ece6a", "#7aa2f7", "#a9b1d6"]
+palette = ["#7dcfff", "#bb9af7", "#e0af68", "#9ece6a", "#2ac3de", "#ff9e64", "#1abc9c", "#c0caf5"]
+
+[style]
+border = "rounded"
+title = ["bold"]
+accent = ["bold"]
+selection = ["bold"]
+warning = ["bold"]
+error = ["bold"]
+muted = ["italic"]

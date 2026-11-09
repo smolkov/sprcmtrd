@@ -1,7 +1,7 @@
 //! Application configuration file (`~/.config/sprcmtrd/config.toml`).
 //!
 //! ```toml
-//! theme = "dark"            # dark | light | auto
+//! theme = "nord"            # dark | light | auto | a theme name
 //!
 //! [keys]                    # action = list of keys, replaces the defaults
 //! quit = ["q", "ctrl+c"]
@@ -40,6 +40,16 @@ impl AppConfig {
         dirs::config_dir().map(|d| d.join("sprcmtrd").join("config.toml"))
     }
 
+    /// The user's themes directory: `themes/` next to the configuration file.
+    pub fn themes_dir() -> Option<PathBuf> {
+        Self::default_path().and_then(|p| Self::themes_dir_of(&p))
+    }
+
+    /// The themes directory next to the configuration file `path`.
+    pub fn themes_dir_of(path: &Path) -> Option<PathBuf> {
+        path.parent().map(|d| d.join("themes"))
+    }
+
     /// Loads the configuration from the default location. A missing file
     /// gives the defaults; an invalid file is an error.
     pub fn load() -> anyhow::Result<Self> {
@@ -61,7 +71,7 @@ impl AppConfig {
         let body = toml::to_string_pretty(self).context("serializing config")?;
         let text = format!(
             "# sprcmtrd configuration, written by the configuration overlay (Ctrl+, / c).\n\
-             # theme: dark | light | auto; [keys]: action = list of keys.\n\n{body}"
+             # theme: dark | light | auto | a theme name (sprcmtrd themes); [keys]: action = list of keys.\n\n{body}"
         );
         if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
             std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
@@ -77,8 +87,13 @@ mod tests {
     #[test]
     fn parses_config() {
         let c: AppConfig = toml::from_str("theme = \"light\"\n[keys]\nquit = [\"x\"]\n").unwrap();
-        assert_eq!(c.theme, Some(ThemeChoice::Light));
+        assert_eq!(c.theme, Some(ThemeChoice::named("light")));
         assert_eq!(c.keys["quit"], ["x"]);
+        let c: AppConfig = toml::from_str("theme = \"tokyonight\"").unwrap();
+        assert_eq!(c.theme, Some(ThemeChoice::named("tokyonight")));
+        let c: AppConfig = toml::from_str("theme = \"auto\"").unwrap();
+        assert_eq!(c.theme, Some(ThemeChoice::Auto));
+        assert!(toml::from_str::<AppConfig>("theme = \"\"").is_err());
         assert!(toml::from_str::<AppConfig>("colour = 1").is_err());
     }
 
@@ -87,13 +102,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("sub/config.toml");
         let mut c = AppConfig {
-            theme: Some(ThemeChoice::Dark),
+            theme: Some(ThemeChoice::named("nord")),
             ..Default::default()
         };
         c.keys.insert("open".into(), vec!["ctrl+,".into(), "o".into()]);
         c.save_to(&path).unwrap();
         let back = AppConfig::load_from(&path).unwrap();
-        assert_eq!(back.theme, Some(ThemeChoice::Dark));
+        assert_eq!(back.theme, Some(ThemeChoice::named("nord")));
         assert_eq!(back.keys["open"], ["ctrl+,", "o"]);
     }
 }

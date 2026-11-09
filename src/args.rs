@@ -4,9 +4,9 @@ use std::path::PathBuf;
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use clap::{Args, Parser, Subcommand, ValueEnum, ValueHint};
-use clap_complete::engine::ArgValueCompleter;
+use clap_complete::engine::{ArgValueCandidates, ArgValueCompleter};
 
-use crate::complete::recordings;
+use crate::complete::{recordings, theme_names};
 
 /// Terminal viewer for COMTRADE (IEEE C37.111) power system recordings.
 ///
@@ -30,8 +30,8 @@ pub struct Cli {
 /// Options shared by all commands.
 #[derive(Debug, Clone, Args)]
 pub struct GlobalOpts {
-    /// TUI theme.
-    #[arg(long, global = true, value_enum)]
+    /// Color theme: dark, light, auto or a theme name (see `sprcmtrd themes`).
+    #[arg(long, global = true, value_name = "NAME", add = ArgValueCandidates::new(theme_names))]
     pub theme: Option<ThemeChoice>,
 
     /// Show analog values on the secondary instead of the primary side.
@@ -54,16 +54,51 @@ impl GlobalOpts {
     }
 }
 
-/// Theme selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "lowercase")]
+/// Theme selection: `auto` or the name of a theme. The names are checked
+/// when the theme is loaded, because user themes are files.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(try_from = "String", into = "String")]
 pub enum ThemeChoice {
-    /// Dark background.
-    Dark,
-    /// Light background.
-    Light,
-    /// Detect from the terminal.
+    /// Dark or light from the terminal (`COLORFGBG`).
     Auto,
+    /// A built-in or user theme.
+    Named(String),
+}
+
+impl ThemeChoice {
+    /// The theme `name`.
+    pub fn named(name: &str) -> Self {
+        Self::Named(name.to_owned())
+    }
+}
+
+impl std::str::FromStr for ThemeChoice {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim() {
+            "" => Err("the theme name is empty".into()),
+            "auto" => Ok(Self::Auto),
+            name => Ok(Self::named(name)),
+        }
+    }
+}
+
+impl TryFrom<String> for ThemeChoice {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        s.parse()
+    }
+}
+
+impl From<ThemeChoice> for String {
+    fn from(c: ThemeChoice) -> Self {
+        match c {
+            ThemeChoice::Auto => "auto".into(),
+            ThemeChoice::Named(name) => name,
+        }
+    }
 }
 
 /// Subcommands.
@@ -297,6 +332,12 @@ pub enum Command {
     ///   sprcmtrd completions bash --output ~/.local/share/bash-completion/completions/sprcmtrd
     #[command(verbatim_doc_comment)]
     Completions(CompletionsArgs),
+
+    /// List the color themes, or print one as a template for your own.
+    ///
+    /// Your themes are `<name>.toml` files in the `themes` directory next to
+    /// the configuration file (`~/.config/sprcmtrd/themes/`).
+    Themes(ThemesArgs),
 }
 
 /// Arguments of `info`.
@@ -1060,6 +1101,14 @@ pub struct CompletionsArgs {
     pub output: Option<PathBuf>,
 }
 
+/// Arguments of `themes`.
+#[derive(Debug, Args)]
+pub struct ThemesArgs {
+    /// Print theme NAME as a complete theme file.
+    #[arg(long, value_name = "NAME", add = ArgValueCandidates::new(theme_names))]
+    pub print: Option<String>,
+}
+
 /// Output format for `export`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum ExportFormat {
@@ -1221,7 +1270,7 @@ mod tests {
     fn parses_path_or_subcommand() {
         let c = Cli::parse_from(["sprcmtrd", "x.cfg", "--theme", "light"]);
         assert!(c.command.is_none());
-        assert_eq!(c.global.theme, Some(ThemeChoice::Light));
+        assert_eq!(c.global.theme, Some(ThemeChoice::named("light")));
         let c = Cli::parse_from(["sprcmtrd", "view", "x.cfg", "--from", "-20", "--channels", "IA,d1"]);
         let Some(Command::View(ViewArgs { from, channels, .. })) = c.command else {
             panic!()

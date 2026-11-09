@@ -1,0 +1,26 @@
+# Nord (nordtheme.com).
+kind = "dark"
+
+[colors]
+background = "#2e3440"
+text = "#d8dee9"
+muted = "#616e88"
+border = "#4c566a"
+accent = "#88c0d0"
+selection = "#434c5e"
+plot_shades = ["#3b4252", "#2e3440"]
+warning = "#ebcb8b"
+error = "#bf616a"
+trigger = "#b48ead"
+cursor = "#d08770"
+phase = ["#bf616a", "#a3be8c", "#81a1c1", "#d8dee9"]
+palette = ["#8fbcbb", "#b48ead", "#ebcb8b", "#a3be8c", "#5e81ac", "#d08770", "#88c0d0", "#eceff4"]
+
+[style]
+border = "rounded"
+title = ["bold"]
+accent = ["bold"]
+selection = ["bold"]
+warning = ["bold"]
+error = ["bold"]
+muted = ["italic"]

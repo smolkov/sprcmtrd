@@ -1,0 +1,26 @@
+# Solarized Dark (ethanschoonover.com/solarized).
+kind = "dark"
+
+[colors]
+background = "#002b36"
+text = "#839496"
+muted = "#586e75"
+border = "#586e75"
+accent = "#268bd2"
+selection = "#073642"
+plot_shades = ["#073642", "#002b36"]
+warning = "#b58900"
+error = "#dc322f"
+trigger = "#d33682"
+cursor = "#cb4b16"
+phase = ["#dc322f", "#859900", "#268bd2", "#93a1a1"]
+palette = ["#2aa198", "#6c71c4", "#b58900", "#859900", "#268bd2", "#cb4b16", "#d33682", "#93a1a1"]
+
+[style]
+border = "rounded"
+title = ["bold"]
+accent = ["bold"]
+selection = ["bold"]
+warning = ["bold"]
+error = ["bold"]
+muted = ["italic"]

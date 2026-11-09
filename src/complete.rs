@@ -3,7 +3,8 @@
 //! The shell calls the binary on every Tab; clap completes subcommands,
 //! options and values, and [`recordings`] completes arguments that take a
 //! recording with the COMTRADE files in the typed directory and its
-//! subdirectories.
+//! subdirectories. [`theme_names`] completes `--theme` with the built-in
+//! and the user's themes.
 
 use std::ffi::OsStr;
 use std::ops::ControlFlow;
@@ -13,6 +14,8 @@ use std::time::{Duration, Instant};
 use clap_complete::engine::CompletionCandidate;
 
 use crate::comtrade::discover::{self, Visit};
+use crate::config::AppConfig;
+use crate::term::themes::Catalog;
 
 /// Most recordings offered at once; a shell can't show more usefully.
 const MAX_RECORDINGS: usize = 500;
@@ -38,6 +41,16 @@ pub fn recordings(current: &OsStr) -> Vec<CompletionCandidate> {
     .into_iter()
     .map(CompletionCandidate::new)
     .collect()
+}
+
+/// Completer for theme names: `auto`, the built-in themes and the files in
+/// the user's themes directory.
+pub fn theme_names() -> Vec<CompletionCandidate> {
+    let names = Catalog::new(AppConfig::themes_dir()).names();
+    std::iter::once("auto".to_owned())
+        .chain(names)
+        .map(CompletionCandidate::new)
+        .collect()
 }
 
 /// Completion candidates for the typed text `current`, as the shell expects

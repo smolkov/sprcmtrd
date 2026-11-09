@@ -38,7 +38,7 @@ status     file                      channel  finding
   warnings yellow (magenta), errors bold red. Color is only an extra: the
   symbols and words carry the meaning, so it reads in black and white and for
   color blind readers. `--no-color` / `NO_COLOR` turn it off, `--theme light`
-  picks colors for light backgrounds.
+  (or any theme for light backgrounds) picks colors for light backgrounds.
 
 ## Arguments and options
 

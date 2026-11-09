@@ -1,0 +1,26 @@
+# Atom One Dark.
+kind = "dark"
+
+[colors]
+background = "#282c34"
+text = "#abb2bf"
+muted = "#5c6370"
+border = "#4b5263"
+accent = "#61afef"
+selection = "#3e4451"
+plot_shades = ["#2c313a", "#282c34"]
+warning = "#e5c07b"
+error = "#e06c75"
+trigger = "#c678dd"
+cursor = "#d19a66"
+phase = ["#e06c75", "#98c379", "#61afef", "#abb2bf"]
+palette = ["#56b6c2", "#c678dd", "#e5c07b", "#98c379", "#61afef", "#be5046", "#d19a66", "#abb2bf"]
+
+[style]
+border = "rounded"
+title = ["bold"]
+accent = ["bold"]
+selection = ["bold"]
+warning = ["bold"]
+error = ["bold"]
+muted = ["italic"]

@@ -6,7 +6,6 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 
 use super::{centered, overlay_block};
-use crate::term::ThemeKind;
 use crate::tui::app::{App, ConfigState, StatusKind};
 use crate::tui::keys::BINDINGS;
 
@@ -29,16 +28,17 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, state: &ConfigState) {
     let keys_width = 20;
     let header = |text: &'static str| ListItem::new(Line::styled(text, theme.accent()));
 
-    let theme_value = match app.theme_kind {
-        ThemeKind::Dark => "◀ dark ▶",
-        ThemeKind::Light => "◀ light ▶",
+    let theme_value = format!("◀ {} ▶", app.theme_name);
+    let theme_hint = match app.themes.dir() {
+        Some(dir) => format!("own themes: {}", dir.join("<name>.toml").display()),
+        None => "built-in themes".to_owned(),
     };
     let mut items = vec![
         header("Appearance"),
         ListItem::new(Line::from(vec![
             Span::raw(format!("  {:<name_width$}  ", "Theme")),
             Span::styled(format!("{theme_value:<keys_width$}"), theme.base()),
-            Span::styled("dark or light background", theme.muted()),
+            Span::styled(theme_hint, theme.muted()),
         ])),
         ListItem::new(""),
         header("Key bindings"),
@@ -72,7 +72,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, state: &ConfigState) {
         Some((text, StatusKind::Error)) => Line::styled(text.clone(), theme.error()),
         None if state.capturing => Line::styled("Press the new key, Esc cancels", theme.warning()),
         None if state.selected == 0 => {
-            Line::styled("Enter / ←→ switch theme · changes are saved immediately", theme.muted())
+            Line::styled("Enter / ←→ next theme · changes are saved immediately", theme.muted())
         }
         None => Line::styled(
             "Enter change key · Backspace reset to default · changes are saved immediately",

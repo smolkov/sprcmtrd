@@ -58,7 +58,8 @@ src/context.rs  Context (global options, config) for commands and TUI
 src/format/     shared text formatting: si, time, rate, bytes, table, key_values, summary
 src/complete.rs dynamic shell completion of recordings (COMPLETE=<shell> sprcmtrd)
 src/term/       terminal output: Spinner, LiveTable, Palette colors (only on a terminal, never color
-                alone), ThemeKind (light / dark), fit, terminal_width
+                alone), ThemeKind (light / dark), themes/ (theme files, Catalog), fit,
+                terminal_width
 src/error.rs    comtrade::Error       src/logging.rs  tracing setup
 tests/cli.rs    CLI integration tests  tests/data/     sample recordings
 ```
@@ -93,8 +94,11 @@ tests/cli.rs    CLI integration tests  tests/data/     sample recordings
 - Keep functions reasonably short; prefer small helpers over long match arms.
 - No `unwrap()` on user input or I/O outside tests; `expect("reason")` only for
   real invariants.
-- Theme colors come from `tui/theme.rs` roles (16 ANSI colors so the terminal
-  scheme applies). The only 256-color exception is `plot_shades`. Everything
+- Theme colors and modifiers come from `tui/theme.rs` roles, filled from the
+  theme files (`term/themes/*.toml`); never hard-code a color or a theme
+  modifier in a widget, and draw blocks with `theme.block()` /
+  `theme.title()`. `dark` and `light` stay on the 16 ANSI colors (only
+  `plot_shades` use 256 colors) so the terminal scheme applies. Everything
   must stay readable with `--no-color` (`Theme::plain`, modifiers only).
 
 ## Testing

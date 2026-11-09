@@ -1,0 +1,26 @@
+# Light background, the 16 ANSI colors: follows the terminal's color scheme.
+kind = "light"
+
+[colors]
+background = "white"
+text = "black"
+muted = "dark-gray"
+border = "dark-gray"
+accent = "blue"
+selection = "gray"
+plot_shades = ["white", "254"]
+warning = "magenta"
+error = "red"
+trigger = "magenta"
+cursor = "red"
+phase = ["red", "green", "blue", "dark-gray"]
+palette = ["blue", "magenta", "cyan", "green", "red", "dark-gray", "light-blue", "black"]
+
+[style]
+border = "plain"
+title = ["bold"]
+accent = ["bold"]
+selection = ["bold"]
+warning = ["bold"]
+error = ["bold"]
+muted = []

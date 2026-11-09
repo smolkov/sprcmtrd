@@ -11,7 +11,6 @@ use std::io::IsTerminal;
 use crossterm::style::{Color, Stylize};
 
 use super::ThemeKind;
-use crate::args::ThemeChoice;
 
 /// What a piece of text stands for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,11 +36,12 @@ pub struct Palette {
 
 impl Palette {
     /// Palette for stdout: colors when it is a terminal and not
-    /// `colors_disabled` (`--no-color`, `NO_COLOR`), light or dark from `theme`.
-    pub fn stdout(theme: ThemeChoice, colors_disabled: bool) -> Self {
+    /// `colors_disabled` (`--no-color`, `NO_COLOR`), light or dark from the
+    /// theme's `kind`.
+    pub fn stdout(kind: ThemeKind, colors_disabled: bool) -> Self {
         Self {
             enabled: std::io::stdout().is_terminal() && !colors_disabled,
-            kind: ThemeKind::resolve(theme),
+            kind,
         }
     }
 

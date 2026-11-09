@@ -96,7 +96,7 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
 | `g`                 | Group phases in one plot / one plot per channel |
 | `m`                 | Relative / absolute time                      |
 | `s`                 | Show / hide sidebar                           |
-| `T`                 | Dark / light theme (not saved)                |
+| `T`                 | Next color theme (not saved)                  |
 | `Esc`               | Close overlay                                 |
 
 `Ctrl+,` works in terminals with the kitty keyboard protocol (kitty, WezTerm,
@@ -124,7 +124,7 @@ Opens at start when no file is given, and with `o`.
 `c` (or `Ctrl+,`) shows the theme and every key binding. Changes take effect
 immediately and are saved to the configuration file:
 
-- Theme row: `Enter` or `←`/`→` switches dark / light.
+- Theme row: `←`/`→` go to the previous / next theme, `Enter` to the next.
 - Binding row: `Enter`, then press the new key (`Esc` cancels). Keys already
   used by another action are refused. `Backspace` restores the default.
 
@@ -132,4 +132,4 @@ immediately and are saved to the configuration file:
 
 - [Keys](keys.md): every key and what it does.
 - [File picker](file-picker.md): finding and opening recordings.
-- [Configuration](configuration.md): theme and key bindings.
+- [Configuration](configuration.md): color themes, key bindings.

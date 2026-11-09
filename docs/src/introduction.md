@@ -26,7 +26,7 @@ It has two faces:
 - Time relative to the trigger (or absolute time of day)
 - Large files: a 100 MB `.dat` opens in well under a second (memory mapped,
   min/max decimation for plotting so peaks are never lost)
-- Dark, light and no-color themes; configurable key bindings
+- Color themes (dark, light, Atom One Dark, Nord, Solarized Dark, Tokyo Night, your own TOML files) and no-color; configurable key bindings
 
 ## About this book
 

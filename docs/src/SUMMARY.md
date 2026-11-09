@@ -29,6 +29,7 @@
   - [cut](commands/cut.md)
   - [convert](commands/convert.md)
   - [completions](commands/completions.md)
+  - [themes](commands/themes.md)
 - [Analysis methods](analysis/index.md)
 - [COMTRADE support](comtrade.md)
 - [Development](development.md)

@@ -4,7 +4,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, List, ListItem, ListState};
+use ratatui::widgets::{List, ListItem, ListState};
 
 use crate::tui::app::{App, Focus};
 use crate::tui::recording::Recording;
@@ -27,9 +27,10 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     };
     let theme = &app.theme;
     let focused = app.focus == Focus::Sidebar;
-    let block = Block::bordered()
+    let block = theme
+        .block()
         .title(" Channels ")
-        .title_style(if focused { theme.accent() } else { theme.base() })
+        .title_style(theme.title(focused))
         .border_style(theme.border(focused));
     let inner_width = area.width.saturating_sub(2) as usize;
 

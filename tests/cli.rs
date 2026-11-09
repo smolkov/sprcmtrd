@@ -305,13 +305,77 @@ fn exit_codes() {
 fn invalid_config_file_is_reported() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("config.toml");
-    std::fs::write(&path, "theme = \"purple\"\n").unwrap();
+    // Any name is a theme name (checked when the TUI loads it), a number isn't.
+    std::fs::write(&path, "theme = 3\n").unwrap();
     cmd()
         .env("SPRCMTRD_CONFIG", &path)
         .args(["list", "tests/data"])
         .assert()
         .code(1)
         .stderr(predicate::str::contains("invalid config"));
+}
+
+#[test]
+fn themes_lists_and_prints() {
+    let dir = tempfile::tempdir().unwrap();
+    let themes = dir.path().join("themes");
+    std::fs::create_dir_all(&themes).unwrap();
+    std::fs::write(
+        themes.join("mine.toml"),
+        "extends = \"nord\"\n[colors]\naccent = \"#ebcb8b\"\n",
+    )
+    .unwrap();
+    std::fs::write(themes.join("broken.toml"), "kind = \"dark\"\ncolours = 1\n").unwrap();
+    let config = dir.path().join("config.toml");
+
+    let out = cmd().env("SPRCMTRD_CONFIG", &config).arg("themes").assert().success();
+    let stdout = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    let names: Vec<&str> = stdout
+        .lines()
+        .skip(1)
+        .filter_map(|l| l.split_whitespace().next())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "dark",
+            "light",
+            "atom-one-dark",
+            "nord",
+            "nord-night",
+            "solarized-dark",
+            "tokyonight",
+            "broken",
+            "mine"
+        ]
+    );
+    assert!(stdout.contains(&themes.join("mine.toml").display().to_string()));
+    assert!(stdout.lines().any(|l| l.starts_with("broken") && l.contains("invalid")));
+    let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
+    assert!(stderr.contains("broken.toml") && stderr.contains("colours"), "{stderr}");
+
+    let out = cmd()
+        .env("SPRCMTRD_CONFIG", &config)
+        .args(["themes", "--print", "mine"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    assert!(stdout.contains("accent = \"#ebcb8b\""), "{stdout}");
+    assert!(stdout.contains("background = \"#2e3440\""));
+    assert!(stdout.contains("border = \"rounded\""));
+
+    cmd()
+        .env("SPRCMTRD_CONFIG", &config)
+        .args(["themes", "--print", "nordd"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("unknown theme 'nordd'"));
+    // Commands don't fail on a theme that doesn't load; only colors depend on it.
+    cmd()
+        .env("SPRCMTRD_CONFIG", &config)
+        .args(["check", "tests/data/fault_1999.cfg", "--theme", "nordd"])
+        .assert()
+        .success();
 }
 
 #[test]

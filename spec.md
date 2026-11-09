@@ -125,7 +125,7 @@ Global options:
 
 | Option              | Meaning                                         |
 |---------------------|-------------------------------------------------|
-| `--theme <dark|light|auto>` | TUI theme (default `auto`)              |
+| `--theme <NAME>`    | Color theme: `auto` (default) or a theme name   |
 | `--secondary`       | Show values in secondary instead of primary     |
 | `--no-color`        | Disable colors (also honors `NO_COLOR` env var) |
 | `-v`, `--verbose`   | More log output (to stderr / log file)          |
@@ -244,7 +244,8 @@ Validates recordings, for scripts and CI.
   don't differ by red / green alone; warnings are yellow (dark) or magenta
   (light, yellow is hard to read on white); errors bold red; notes gray; the
   header bold. The 16 ANSI colors follow the terminal's scheme; light or dark
-  comes from `--theme` / the configuration / `COLORFGBG`, like the TUI. Colors
+  comes from the `kind` of the theme (`--theme` / the configuration /
+  `COLORFGBG`), like the TUI; a theme that doesn't load gives dark. Colors
   only on a terminal, never with `--no-color` or `NO_COLOR`
   (`term::Palette`).
 - JSON: an array of `{file, status, issues: [{severity, channel, message}],
@@ -822,6 +823,16 @@ completion of `clap_complete`, feature `unstable-dynamic`).
   stderr and stdout stays empty.
  
 
+
+### `themes` command
+
+- `sprcmtrd themes` lists every theme (`term::themes::Catalog::entries`):
+  `NAME  KIND  SOURCE` (`built-in` or the user file). A file that doesn't load
+  shows `invalid` as kind and its error on stderr; the exit code stays 0.
+- `sprcmtrd themes --print <name>` writes the theme with every entry
+  (`extends` applied) as TOML, a template for a user theme. An unknown name
+  exits 1.
+- `--theme` and `--print` complete the theme names (`complete::theme_names`).
 ## Architecture
 
 ```
@@ -840,6 +851,7 @@ src/
   term/              terminal output shared by the commands and the TUI
     mod.rs           terminal_width, fit
     theme.rs         light / dark background (ThemeKind)
+    themes/          theme files: built-in *.toml, user themes, Catalog, ThemeSpec
     spinner.rs       progress line on stderr (list, check)
     table.rs         table printed row by row (list)
     style.rs         colors (Palette: check)
@@ -896,7 +908,7 @@ src/
     picker.rs        file picker state and background directory scan
     recording.rs     loaded recording: visible channels, zoom, pan, cursor
     event.rs         event stream (keys, resize, tick, background load results)
-    theme.rs         dark / light theme
+    theme.rs         Theme: colors and styles by role, from a ThemeSpec
     widgets/
       header.rs
       channels.rs    channel list sidebar
@@ -1161,7 +1173,7 @@ runs the event loop and always restores the terminal, also on panic
 | `1` … `9`           | Harmonics view: show / hide order 1 … 9  |
 | `z`                 | Toggle waveform / impedance trajectories |
 | `g`                 | Group phases / one plot per channel      |
-| `T`                 | Toggle dark / light theme                |
+| `T`                 | Next color theme (not saved)             |
 | `Ctrl+,`, `c`       | Open configuration overlay               |
 | `Esc`               | Close overlay                            |
 
@@ -1205,7 +1217,7 @@ Layout (centered, 75 % × 85 %, title shows the configuration file path):
 ```
 ┌ Configuration · ~/.config/sprcmtrd/config.toml ─────────────────────────┐
 │Appearance                                                               │
-│  Theme           ◀ dark ▶            dark or light background           │
+│  Theme           ◀ tokyonight ▶      own themes: ~/.config/sprcmtrd/them│
 │                                                                         │
 │Key bindings                                                             │
 │  quit            q, Ctrl+c           Quit (closes an open overlay first)│
@@ -1217,7 +1229,8 @@ Layout (centered, 75 % × 85 %, title shows the configuration file path):
 ```
 
 - `↑`/`↓` (`k`/`j`) select a row; the list scrolls with the selection.
-- Theme row: `Enter`, `Space`, `←`/`→` switch dark / light.
+- Theme row: `←` previous, `→` / `Enter` / `Space` next theme; a broken theme
+  file is skipped and its error shown in the bottom line.
 - Binding row: `Enter` waits for the new key (`Esc` cancels) and replaces the
   action's keys with it; a key already used by another action is refused with a
   message. `Backspace` / `Delete` restores the default keys.
@@ -1234,13 +1247,37 @@ Layout (centered, 75 % × 85 %, title shows the configuration file path):
 
 ### Theme
 
-- Two themes, dark and light, defined in `theme.rs` as a `Theme` struct with
-  named roles (background, text, muted, border, accent, selection, warning, error,
-  trigger marker, and a palette of ≥ 8 colors for channels).
-- Uses the 16 ANSI colors by default so it follows the user's terminal color scheme.
-- `--theme auto` picks dark unless the terminal reports a light background.
-- `T` switches theme at runtime. `--no-color` / `NO_COLOR` uses no colors, only
-  modifiers (bold, reverse).
+- A theme is a TOML file. The built-in ones are compiled in from
+  `src/term/themes/*.toml`: `dark`, `light` (the 16 ANSI colors, so they follow
+  the terminal's color scheme; `plot_shades` use the 256-color palette),
+  `atom-one-dark`, `nord`, `nord-night` (Nord on `#1b1e25`), `solarized-dark`
+  and `tokyonight` (night variant), the latter with RGB colors, rounded borders
+  and italic muted text. `term::themes` (shared with the `themes` command, the
+  command output colors and completion) reads them; `tui::theme::Theme` holds
+  the roles.
+- User themes: `<name>.toml` in `themes/` next to the configuration file
+  (`~/.config/sprcmtrd/themes/`, or next to `$SPRCMTRD_CONFIG`). A user file
+  with a built-in name replaces that theme. Order (for `T`, the overlay and
+  `themes`): the built-in ones as listed, then the other user themes by name.
+- Format: `kind = "dark" | "light"`, optional `extends = "<theme>"`,
+  `[colors]` with the roles (background, text, muted, border, accent,
+  selection, `plot_shades[2]`, warning, error, trigger, cursor, `phase[4]`
+  for A/B/C/N, `palette[8]` for channels without a phase) and `[style]` with
+  `border = plain | rounded | thick | double` and the modifiers (`bold`,
+  `italic`, `dim`, `underlined`, `reversed`) of title, accent, selection,
+  warning, error, muted. A color is `"#rrggbb"`, an ANSI name (`light-red`), an
+  index 0-255 or `reset`. Missing entries come from `extends` (naming the theme
+  itself means the built-in one), else from the built-in theme of the `kind`.
+  Unknown keys, bad colors and `extends` cycles are errors with the file.
+- `--theme <name>` / `theme = "<name>"`; `auto` (default) picks `dark` unless
+  `COLORFGBG` reports a light background. An unknown name is an error that
+  lists the names. Only the chosen theme is read: a broken one is an error at
+  start; `T` and the overlay skip it with a message.
+- RGB colors are sent as they are when `COLORTERM` is `truecolor` / `24bit`,
+  otherwise mapped to the nearest of the colors 16-255.
+- `T` goes to the next theme (not saved). `--no-color` / `NO_COLOR` uses no
+  colors, only modifiers (bold, reverse), with any theme.
+- The font itself is the terminal's; themes set only modifiers and borders.
 - Channel colors follow standard phase colors where the phase field is known
   (A/B/C/N), otherwise the palette in order.
 
@@ -1259,7 +1296,8 @@ async runtime.
 
 ## Configuration
 
-Use configuration file at `~/.config/sprcmtrd/config.toml` for theme and key bindings.
+Use configuration file at `~/.config/sprcmtrd/config.toml` for theme and key bindings;
+user themes are in `~/.config/sprcmtrd/themes/`.
 
 ## Logging
 

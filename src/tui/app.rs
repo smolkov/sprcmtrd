@@ -20,7 +20,7 @@ use crate::comtrade::{Comtrade, Side};
 use crate::config::AppConfig;
 use crate::context::Context;
 use crate::format;
-use crate::term::ThemeKind;
+use crate::term::themes::{self, Catalog};
 
 /// Which pane has the keyboard focus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,8 +112,12 @@ pub struct App {
     pub keymap: KeyMap,
     /// Current theme colors.
     pub theme: Theme,
-    /// Dark or light.
-    pub theme_kind: ThemeKind,
+    /// Name of the current theme (`auto` already resolved).
+    pub theme_name: String,
+    /// The available themes.
+    pub themes: Catalog,
+    /// The terminal shows RGB colors (`COLORTERM`); else they are mapped.
+    pub truecolor: bool,
     /// Where configuration changes are saved.
     pub config_path: Option<PathBuf>,
     /// Loaded recording.
@@ -206,12 +210,20 @@ impl App {
     /// Creates the app from command line and configuration settings.
     pub fn new(ctx: &Context, tx: UnboundedSender<Message>) -> anyhow::Result<Self> {
         let keymap = KeyMap::new(&ctx.config.keys)?;
-        let choice = ctx.theme();
-        let theme_kind = ThemeKind::resolve(choice);
+        let themes = ctx.themes();
+        let theme_name = ctx.theme_name();
+        let spec = themes.load(&theme_name)?;
+        let truecolor = themes::truecolor();
         Ok(Self {
             keymap,
-            theme: Theme::new(theme_kind, ctx.global.colors_disabled()),
-            theme_kind,
+            theme: if ctx.global.colors_disabled() {
+                Theme::plain()
+            } else {
+                Theme::from_spec(spec, truecolor)
+            },
+            theme_name,
+            themes,
+            truecolor,
             config_path: ctx.config_path.clone(),
             recording: None,
             loading: None,
@@ -454,8 +466,8 @@ impl App {
                 if self.theme.plain {
                     self.set_status("colors are disabled", StatusKind::Info);
                 } else {
-                    self.theme_kind = self.theme_kind.toggled();
-                    self.theme = Theme::new(self.theme_kind, false);
+                    let message = self.next_theme(true);
+                    self.set_status(message.0, message.1);
                 }
             }
             Action::Side => {
@@ -697,6 +709,29 @@ impl App {
         self.overlay = Some(Overlay::Config(state));
     }
 
+    /// Switches to the next (or previous) theme that loads, skipping broken
+    /// user files, and returns the footer message. With colors disabled only
+    /// the name changes, so it can still be saved.
+    fn next_theme(&mut self, forward: bool) -> (String, StatusKind) {
+        let mut skipped = Vec::new();
+        for name in self.themes.cycle(&self.theme_name, forward) {
+            match self.themes.load(&name) {
+                Ok(spec) => {
+                    if !self.theme.plain {
+                        self.theme = Theme::from_spec(spec, self.truecolor);
+                    }
+                    self.theme_name = name;
+                    return match skipped.first() {
+                        None => (format!("theme: {}", self.theme_name), StatusKind::Info),
+                        Some(e) => (format!("theme: {} · skipped {e}", self.theme_name), StatusKind::Error),
+                    };
+                }
+                Err(e) => skipped.push(format!("{e:#}")),
+            }
+        }
+        ("no other theme loads".into(), StatusKind::Error)
+    }
+
     /// Writes theme and key bindings to the configuration file.
     fn save_config(&self) -> Result<(), String> {
         let path = self
@@ -704,10 +739,7 @@ impl App {
             .as_ref()
             .ok_or("no configuration directory, changes are not saved")?;
         let config = AppConfig {
-            theme: Some(match self.theme_kind {
-                ThemeKind::Dark => ThemeChoice::Dark,
-                ThemeKind::Light => ThemeChoice::Light,
-            }),
+            theme: Some(ThemeChoice::Named(self.theme_name.clone())),
             keys: self.keymap.to_config(),
         };
         config.save_to(path).map_err(|e| format!("{e:#}"))
@@ -753,9 +785,18 @@ impl App {
                 KeyCode::Home => state.selected = 0,
                 KeyCode::End => state.selected = ConfigState::ROWS - 1,
                 KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Left | KeyCode::Right if state.selected == 0 => {
-                    self.theme_kind = self.theme_kind.toggled();
-                    self.theme = Theme::new(self.theme_kind, self.theme.plain);
-                    changed = true;
+                    let before = self.theme_name.clone();
+                    let (text, kind) = self.next_theme(key.code != KeyCode::Left);
+                    if kind == StatusKind::Error {
+                        // A skipped broken theme matters more than "saved",
+                        // so the file is saved here and the error shown.
+                        state.message = Some(match self.save_config() {
+                            Ok(()) => (text, kind),
+                            Err(e) => (e, StatusKind::Error),
+                        });
+                    } else {
+                        changed = self.theme_name != before;
+                    }
                 }
                 KeyCode::Enter => {
                     state.capturing = true;

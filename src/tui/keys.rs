@@ -351,7 +351,7 @@ pub const BINDINGS: &[Binding] = &[
         action: Action::Theme,
         name: "theme",
         keys: &["T"],
-        help: "Toggle dark / light theme",
+        help: "Next color theme",
         hint: None,
     },
     Binding {

@@ -27,6 +27,7 @@ sprcmtrd export FILE        # samples as CSV or JSON
 sprcmtrd cut FILE -o OUT    # time window / channels as a new recording
 sprcmtrd convert FILE -o OUT  # other revision, data format or .cff
 sprcmtrd completions SHELL  # tab-completion script for your shell
+sprcmtrd themes             # color themes of the viewer
 ```
 
 | Command | What it does |
@@ -51,6 +52,7 @@ sprcmtrd completions SHELL  # tab-completion script for your shell
 | [`cut`](cut.md) | Time window as a new recording |
 | [`convert`](convert.md) | Other revision, format or layout |
 | [`completions`](completions.md) | Shell completion script |
+| [`themes`](themes.md) | Color themes, a template for your own |
 
 ## Recordings
 
@@ -73,7 +75,7 @@ These apply to every command and to the viewer:
 
 | Option                        | Meaning                                              |
 |-------------------------------|------------------------------------------------------|
-| `--theme dark\|light\|auto`   | TUI theme (default `auto`, from `COLORFGBG`)         |
+| `--theme NAME`                | Color theme: `auto` (default, dark or light from `COLORFGBG`) or a name from `sprcmtrd themes` |
 | `--secondary`                 | Show analog values on the secondary side             |
 | `--no-color`                  | No colors (also set by the `NO_COLOR` variable)      |
 | `-v`, `-vv`, `-vvv`           | More log output                                      |

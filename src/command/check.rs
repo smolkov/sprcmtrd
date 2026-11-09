@@ -83,7 +83,7 @@ impl CheckArgs {
                 .collect();
             println!("{}", serde_json::to_string_pretty(&out)?);
         } else {
-            let palette = Palette::stdout(ctx.theme(), ctx.global.colors_disabled());
+            let palette = Palette::stdout(ctx.theme_kind(), ctx.global.colors_disabled());
             print!("{}", text(&reports, &palette));
             if path.is_dir() && !reports.is_empty() {
                 let n = reports.len();

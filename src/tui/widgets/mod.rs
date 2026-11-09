@@ -91,9 +91,11 @@ fn centered(area: Rect, width_pct: u16, height_pct: u16) -> Rect {
 /// Draws an overlay frame (cleared background, bordered block) and returns its inner area.
 fn overlay_block(f: &mut Frame, area: Rect, app: &App, title: &str) -> Rect {
     f.render_widget(Clear, area);
-    let block = Block::bordered()
+    let block = app
+        .theme
+        .block()
         .title(format!(" {title} "))
-        .title_style(app.theme.accent())
+        .title_style(app.theme.title(true))
         .border_style(app.theme.border(true))
         .style(app.theme.base());
     let inner = block.inner(area);
@@ -132,21 +134,27 @@ mod tests {
 
     /// Test app; `config_path` is where the configuration overlay saves.
     fn app_with_config(config_path: Option<std::path::PathBuf>) -> App {
+        try_app("dark", true, config_path).unwrap()
+    }
+
+    /// Test app with `theme`, colors on unless `no_color`; user themes are in
+    /// `themes/` next to `config_path`.
+    fn try_app(theme: &str, no_color: bool, config_path: Option<std::path::PathBuf>) -> anyhow::Result<App> {
         let ctx = Context {
             global: GlobalOpts {
-                theme: Some(ThemeChoice::Dark),
+                theme: Some(ThemeChoice::named(theme)),
                 secondary: false,
-                no_color: true,
+                no_color,
                 verbose: 0,
             },
             config: Default::default(),
             config_path,
         };
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
-        let mut app = App::new(&ctx, tx).unwrap();
+        let mut app = App::new(&ctx, tx)?;
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/fault_1999.cfg");
         app.set_recording(Comtrade::open(path).unwrap());
-        app
+        Ok(app)
     }
 
     fn render(app: &App, w: u16, h: u16) -> String {
@@ -188,7 +196,7 @@ mod tests {
         assert!(screen.contains("SUBSTATION A"));
         app.on_key(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::SHIFT));
         let help = render(&app, 100, 48);
-        assert!(help.contains("Toggle dark / light theme"), "{help}");
+        assert!(help.contains("Next color theme"), "{help}");
         // The nine harmonic order keys share one line.
         assert!(
             help.lines()
@@ -239,7 +247,6 @@ mod tests {
     #[test]
     fn config_overlay_creates_file_and_saves_changes() {
         use crate::config::AppConfig;
-        use crate::term::ThemeKind;
         use crate::tui::app::Overlay;
         use crate::tui::keys::{Action, BINDINGS};
 
@@ -252,7 +259,7 @@ mod tests {
         press(&mut app, KeyCode::Char(','), KeyModifiers::CONTROL);
         assert!(matches!(app.overlay, Some(Overlay::Config(_))));
         let saved = AppConfig::load_from(&path).unwrap();
-        assert_eq!(saved.theme, Some(ThemeChoice::Dark));
+        assert_eq!(saved.theme, Some(ThemeChoice::named("dark")));
         assert_eq!(saved.keys["quit"], ["q", "ctrl+c"]);
         let screen = render(&app, 100, 30);
         assert!(screen.contains("Configuration"));
@@ -261,8 +268,23 @@ mod tests {
 
         // Theme row: Enter switches and saves.
         press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
-        assert_eq!(app.theme_kind, ThemeKind::Light);
-        assert_eq!(AppConfig::load_from(&path).unwrap().theme, Some(ThemeChoice::Light));
+        assert_eq!(app.theme_name, "light");
+        assert_eq!(
+            AppConfig::load_from(&path).unwrap().theme,
+            Some(ThemeChoice::named("light"))
+        );
+        // ← goes back.
+        press(&mut app, KeyCode::Left, KeyModifiers::NONE);
+        assert_eq!(app.theme_name, "dark");
+        press(&mut app, KeyCode::Left, KeyModifiers::NONE);
+        assert_eq!(app.theme_name, "tokyonight");
+        assert!(render(&app, 100, 30).contains("◀ tokyonight ▶"));
+        assert_eq!(
+            AppConfig::load_from(&path).unwrap().theme,
+            Some(ThemeChoice::named("tokyonight"))
+        );
+        press(&mut app, KeyCode::Right, KeyModifiers::NONE);
+        assert_eq!(app.theme_name, "dark");
 
         // Rebind zoom_in to x (free).
         let row = 1 + BINDINGS.iter().position(|b| b.name == "zoom_in").unwrap();
@@ -299,6 +321,69 @@ mod tests {
         press(&mut app, KeyCode::Char('c'), KeyModifiers::NONE);
         press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
         assert!(render(&app, 100, 30).contains("changes are not saved"));
+    }
+
+    #[test]
+    fn named_themes_color_and_shape_the_blocks() {
+        use ratatui::style::Color;
+
+        let app = try_app("nord", false, None).unwrap();
+        assert!(!app.theme.plain);
+        let mut t = Terminal::new(TestBackend::new(110, 30)).unwrap();
+        t.draw(|f| draw(f, &app)).unwrap();
+        let buf = t.backend().buffer();
+        let screen = text(buf);
+        // Rounded borders; the focused sidebar's border in the accent color.
+        assert!(screen.contains("╭ Channels"), "{screen}");
+        let y = (0..buf.area.height).find(|&y| buf[(0, y)].symbol() == "╭").unwrap();
+        let expected = if app.truecolor {
+            Color::Rgb(0x88, 0xc0, 0xd0)
+        } else {
+            app.theme.accent
+        };
+        assert_eq!(buf[(0, y)].fg, expected);
+        assert!(matches!(buf[(1, y + 1)].bg, Color::Rgb(..) | Color::Indexed(_)));
+
+        // --no-color beats a named theme: no colors, plain borders.
+        let plain = try_app("tokyonight", true, None).unwrap();
+        assert!(plain.theme.plain);
+        assert!(render(&plain, 110, 30).contains("┌ Channels"));
+
+        let err = format!("{:#}", try_app("nordd", false, None).err().unwrap());
+        assert!(err.contains("unknown theme 'nordd'"), "{err}");
+    }
+
+    #[test]
+    fn theme_key_cycles_and_skips_broken_user_themes() {
+        use crate::tui::app::StatusKind;
+
+        let dir = tempfile::tempdir().unwrap();
+        let themes = dir.path().join("themes");
+        std::fs::create_dir_all(&themes).unwrap();
+        // After the built-in ones by name: broken first, then a working one.
+        std::fs::write(
+            themes.join("a-broken.toml"),
+            "kind = \"dark\"\n[colors]\nacent = \"red\"\n",
+        )
+        .unwrap();
+        std::fs::write(themes.join("b-mine.toml"), "extends = \"nord\"\n").unwrap();
+        let mut app = try_app("tokyonight", false, Some(dir.path().join("config.toml"))).unwrap();
+
+        press(&mut app, KeyCode::Char('T'), KeyModifiers::SHIFT);
+        assert_eq!(app.theme_name, "b-mine");
+        let status = app.status.as_ref().unwrap();
+        assert_eq!(status.kind, StatusKind::Error);
+        assert!(status.text.contains("theme: b-mine · skipped") && status.text.contains("a-broken.toml"));
+        press(&mut app, KeyCode::Char('T'), KeyModifiers::SHIFT);
+        assert_eq!(app.theme_name, "dark");
+        assert_eq!(app.status.as_ref().unwrap().text, "theme: dark");
+        assert!(!app.theme.plain);
+
+        // The broken one is an error when chosen at startup.
+        let err = try_app("a-broken", false, Some(dir.path().join("config.toml")))
+            .err()
+            .unwrap();
+        assert!(format!("{err:#}").contains("acent"));
     }
 
     #[test]

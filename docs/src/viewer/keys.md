@@ -28,7 +28,7 @@
 | `g`                 | Group phases in one plot / one plot per channel |
 | `m`                 | Relative / absolute time                      |
 | `s`                 | Show / hide sidebar                           |
-| `T`                 | Dark / light theme (not saved)                |
+| `T`                 | Next color theme (not saved)                  |
 | `Esc`               | Close overlay                                 |
 
 `Ctrl+,` works in terminals with the kitty keyboard protocol (kitty, WezTerm,

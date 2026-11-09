@@ -20,6 +20,7 @@ pub mod locate;
 pub mod phasors;
 pub mod power;
 pub mod stats;
+pub mod themes;
 pub mod trend;
 pub mod view;
 
@@ -58,6 +59,7 @@ impl Command {
             Self::Cut(a) => a.run(ctx),
             Self::Convert(a) => a.run(ctx),
             Self::Completions(a) => a.run(ctx),
+            Self::Themes(a) => a.run(ctx),
         }
     }
 }
