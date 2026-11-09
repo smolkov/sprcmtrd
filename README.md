@@ -410,7 +410,8 @@ C      353.6    353.6    0.000       353.6            0.0 %
 - `--differential` with both currents into the line (`--invert-b` otherwise).
 - `--trend` shows the ratios, angle differences and the differential current
   cycle by cycle over `--from` / `--to`; `--plot` draws A above B per pair on
-  the same scale, B shifted into A's time. `--format csv` (with `--trend`) or
+  the same scale, B shifted into A's time, and `--difference` adds B − A on
+  its own scale. `--format csv` (with `--trend`) or
   `json` for other tools.
 
 ### `power`

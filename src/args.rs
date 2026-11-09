@@ -529,6 +529,10 @@ pub struct CompareArgs {
     /// Waveforms of each pair, A above B on the same scale, in A's time.
     #[arg(long)]
     pub plot: bool,
+    /// With --plot: a third plot per pair, B − A on its own scale (B
+    /// interpolated linearly onto A's samples).
+    #[arg(long, requires = "plot")]
+    pub difference: bool,
     /// Start of the time range in ms relative to A's trigger (with --trend / --plot).
     #[arg(long, allow_hyphen_values = true)]
     pub from: Option<f64>,
@@ -568,7 +572,8 @@ pub struct CompareArgs {
     /// Current channels of phases A, B, C in B (indices or ids). Default: found by unit.
     #[arg(long, value_delimiter = ',', num_args = 1)]
     pub current_b: Vec<String>,
-    /// B's currents are measured out of the line (for --differential).
+    /// B's currents are measured out of the line: turned for --differential
+    /// and in --plot.
     #[arg(long)]
     pub invert_b: bool,
     /// Fundamental frequency in Hz. Default: the line frequency of A.

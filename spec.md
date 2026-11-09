@@ -454,8 +454,8 @@ and fault recorder of one bay, or a test before and after a change.
   <text|csv|json>` (default text); global `--secondary` for both. Over time:
   `--trend`, `--from <ms>` / `--to <ms>` (A's time), `--step <N|time>`
   (default 1 cycle). Waveforms: `--plot`, `--from` / `--to`, `--width <cols>`,
-  `--height <rows>` (default 8). `--trend` with `--plot`: a usage error
-  (exit 2); `--format csv` without `--trend` or a non-text format with
+  `--height <rows>` (default 8), `--difference`. `--trend` with `--plot` or
+  `--difference` without `--plot`: a usage error (exit 2); `--format csv` without `--trend` or a non-text format with
   `--plot`: an error (exit 1).
 - Alignment gives the offset d with t_A = t_B + d (B's trigger at d in A's
   time): `time` from the absolute trigger times (synchronized clocks),
@@ -510,10 +510,22 @@ and fault recorder of one bay, or a test before and after a change.
 - `--plot`: per pair a braille chart of A, then one of B (times shifted by d,
   values scaled to A's unit) over `--from` / `--to` in A's time, both on the
   y range of A and B together; labels `<id> (A) [unit]` and `<id> (B) [unit],
-  shifted by <d>` (plus `, from <B's unit>` when scaled). The chart is the one
-  of `view` (`command::chart`).
+  shifted by <d>` (plus `, from <B's unit>` when scaled, `, inverted` when
+  turned). `--invert-b` turns B's currents (by unit) in the plot too. The
+  chart is the one of `view` (`command::chart`).
+- `--difference` (with `--plot`): a third chart per pair, B − A on its own y
+  range. At each of A's samples in the range, B's value at t − d (B's time)
+  is interpolated linearly between its two neighbouring samples
+  (`analysis::compare::value_at`; the sample itself within 1e-9 s), scaled
+  (and turned) as in B's chart; a gap outside B's span or next to a missing
+  sample. Label `<id> B − A [unit], max |B − A| <v> (<p> % of A's peak)`, the
+  largest |B − A| and A's largest |value| over the range; below 1e-6 of A's
+  peak is 0 (float residue); `, B has no samples here` when nothing
+  overlaps. Linear interpolation is off by up to 1 − cos(π·f / f_s) of the
+  peak between B's samples (1.2 % at 50 Hz and 1 kHz), which shows as a small
+  ripple when B samples more slowly than A.
 - Library: `analysis::compare` (`Align`, `offset`, `fault_offset`, `rotate`,
-  `window_b`, `pairs`, `Pair`, `trend`, `Differential`).
+  `window_b`, `pairs`, `Pair`, `trend`, `Differential`, `value_at`).
 
 ### `power` command
 

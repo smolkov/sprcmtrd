@@ -2103,6 +2103,110 @@ fn compare_trend_of_the_same_recording() {
 }
 
 #[test]
+fn compare_plot_difference() {
+    let dir = tempfile::tempdir().unwrap();
+    let (a, b) = two_ends(dir.path());
+    let plot = |extra: &[&str]| {
+        let out = cmd()
+            .arg("compare")
+            .arg(&a)
+            .arg(&b)
+            .args([
+                "--plot",
+                "--difference",
+                "--channels",
+                "IA,IB",
+                "--from",
+                "-40",
+                "--to",
+                "-1",
+            ])
+            .args(["--width", "60", "--height", "4"])
+            .args(extra)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        String::from_utf8(out.stdout).unwrap()
+    };
+    let percent = |text: &str, id: &str| -> f64 {
+        let line = text
+            .lines()
+            .find(|l| l.starts_with(&format!("{id} B − A [A], max |B − A| ")))
+            .unwrap();
+        line.rsplit_once(" (")
+            .unwrap()
+            .1
+            .split(' ')
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap()
+    };
+    // Before the fault the load passes through, B measured into the line
+    // too: B − A is twice A.
+    let text = plot(&[]);
+    assert!(text.contains("\nIB (B) [A], shifted by +12.00 ms, from kA\n"), "{text}");
+    assert!((percent(&text, "IB") - 200.0).abs() < 5.0, "{text}");
+    // B turned: B − A = −(A + B), the differential current: 0.
+    let text = plot(&["--invert-b"]);
+    assert!(
+        text.contains("\nIB (B) [A], shifted by +12.00 ms, from kA, inverted\n"),
+        "{text}"
+    );
+    // B's samples (2 kHz) fall on A's (1 kHz): no interpolation, exactly 0.
+    assert!(
+        text.contains("\nIA B − A [A], max |B − A| 0.000 (0.0 % of A's peak)\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("\nIB B − A [A], max |B − A| 0.000 (0.0 % of A's peak)\n"),
+        "{text}"
+    );
+
+    // The internal fault from 0 ms: phase A differs, phase B doesn't.
+    let out = cmd()
+        .arg("compare")
+        .arg(&a)
+        .arg(&b)
+        .args([
+            "--plot",
+            "--difference",
+            "--invert-b",
+            "--channels",
+            "IA,IB",
+            "--from",
+            "20",
+            "--to",
+            "60",
+        ])
+        .output()
+        .unwrap();
+    let text = String::from_utf8(out.stdout).unwrap();
+    assert!(percent(&text, "IA") > 50.0, "{text}");
+    assert!(percent(&text, "IB") < 2.0, "{text}");
+
+    // The same recording in two formats: no difference at all.
+    cmd()
+        .args(["compare", "tests/data/fault_2013.cfg", "tests/data/test_ascii.cff"])
+        .args(["--plot", "--difference", "--channels", "IA", "--width", "60"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "IA B − A [A], max |B − A| 0.000 (0.0 % of A's peak)",
+        ));
+    // Only with --plot.
+    cmd()
+        .args([
+            "compare",
+            "tests/data/fault_2013.cfg",
+            "tests/data/test_ascii.cff",
+            "--difference",
+        ])
+        .assert()
+        .code(2);
+}
+
+#[test]
 fn compare_plot() {
     let dir = tempfile::tempdir().unwrap();
     let (a, b) = two_ends(dir.path());

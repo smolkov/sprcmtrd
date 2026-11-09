@@ -15,7 +15,7 @@ use crate::analysis::impedance::{Quantity, find_current, unit_factor};
 use crate::analysis::phasor::{self, Polar, Window};
 use crate::analysis::{Complex, sequence::Group};
 use crate::args::{AlignArg, CompareArgs, TableFormat, TrendStep};
-use crate::comtrade::{AnalogChannel, AnalogInfo, Comtrade, Side, round12};
+use crate::comtrade::{AnalogChannel, AnalogInfo, Comtrade, Side, decimated_segments, round12};
 use crate::context::Context;
 use crate::format::{key_values, rate, si, table, time};
 use crate::term;
@@ -368,6 +368,45 @@ impl<'a> Setup<'a> {
             .collect();
         Some((pairs, ca.factor))
     }
+}
+
+/// Whether `ch` is a current (by its unit), for `--invert-b`.
+fn is_current(ch: &AnalogChannel) -> bool {
+    unit_factor(ch.info.unit.trim()).is_some_and(|(q, _)| q == Quantity::Current)
+}
+
+/// The plot of B − A for pair `p` (`--difference`): B, times `scale`, at
+/// each of A's sample times in `t0..t1` (interpolated), minus A, on its own
+/// y range; the label gives the largest |B − A| and its share of A's peak.
+fn difference_plot(s: &Setup, p: &Pair, scale: f64, (t0, t1): (f64, f64), cols: usize, rows: usize) -> String {
+    let (a, b, d, side) = (s.a, s.b, s.d, s.side);
+    let range = a.index_range(t0, t1);
+    let diff = |i: usize| {
+        let va = p.a.value_on(i, side)?;
+        let vb = compare::value_at(p.b, b.time(), a.time()[i] - d, side)?;
+        Some(vb * scale - va)
+    };
+    let largest = range.clone().filter_map(diff).map(f64::abs).reduce(f64::max);
+    let peak = range
+        .clone()
+        .filter_map(|i| p.a.value_on(i, side))
+        .map(f64::abs)
+        .fold(0.0, f64::max);
+    let unit = p.a.info.unit.trim();
+    let mut label = format!("{} B − A [{unit}]", p.a.info.id.trim());
+    match largest {
+        Some(m) => {
+            // Below 1e-6 of A's peak is float residue.
+            let m = if m < 1e-6 * peak { 0.0 } else { m };
+            label += &format!(", max |B − A| {}", si(m));
+            if peak > 0.0 {
+                label += &format!(" ({:.1} % of A's peak)", 100.0 * m / peak);
+            }
+        }
+        None => label += ", B has no samples here",
+    }
+    let segments = decimated_segments(a.time(), range, (t0, t1), cols * 2, diff);
+    format!("{label}\n{}", chart::plot(&segments, (t0, t1), None, cols, rows))
 }
 
 /// A time with its sign: `+12.00 ms`.
@@ -948,6 +987,8 @@ impl CompareArgs {
         for p in &s.pairs {
             let seg_a =
                 p.a.plot_segments(a.time(), a.index_range(t0, t1), (t0, t1), cols * 2, side);
+            // B's currents turned with --invert-b, in A's unit.
+            let scale = p.scale * if self.invert_b && is_current(p.b) { -1.0 } else { 1.0 };
             let seg_b: Vec<Vec<(f64, f64)>> =
                 p.b.plot_segments(
                     b.time(),
@@ -957,7 +998,7 @@ impl CompareArgs {
                     side,
                 )
                 .into_iter()
-                .map(|seg| seg.into_iter().map(|(t, v)| (t + d, v * p.scale)).collect())
+                .map(|seg| seg.into_iter().map(|(t, v)| (t + d, v * scale)).collect())
                 .collect();
             let y = chart::y_range(seg_a.iter().chain(&seg_b));
             let y = y.0.is_finite().then_some(y);
@@ -968,8 +1009,14 @@ impl CompareArgs {
             if p.scale != 1.0 {
                 label += &format!(", from {}", p.b.info.unit.trim());
             }
+            if scale < 0.0 {
+                label += ", inverted";
+            }
             out += &format!("{label}\n");
             out += &chart::plot(&seg_b, (t0, t1), y, cols, rows);
+            if self.difference {
+                out += &difference_plot(s, p, scale, (t0, t1), cols, rows);
+            }
         }
         print!("{out}");
         Ok(())

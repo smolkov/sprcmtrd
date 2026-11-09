@@ -22,7 +22,7 @@ differently from it. Open ideas without a plan are in `todo.md`.
 | [TUI: optional grouping of the analog traces](5-tui-analog-groups.md) | [#5](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/5) | done, 0.8.0 |
 | [TUI: show the plot views as tabs](tui-view-tabs.md) | - | done, unreleased |
 | [TUI: named color themes from TOML files, text styles](tui-themes.md) | - | done, unreleased |
-| [`compare --plot --difference`: B − A per pair](compare-difference-plot.md) | - | planned, waiting for approval |
+| [`compare --plot --difference`: B − A per pair](compare-difference-plot.md) | - | in progress |
 | [Desktop GUI with Tauri and Leptos, workspace with shared crates](gui-tauri-leptos.md) | - | planned, waiting for approval; open questions: app name, tabs |
 
 Status values:

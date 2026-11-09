@@ -128,7 +128,36 @@ IA (B) [A], shifted by +12.00 ms, from kA
 -40.0 ms                                             80.0 ms
 ```
 
-`--plot` is text only, and `--trend` and `--plot` can't be combined.
+### B − A: `--difference`
+
+```sh
+sprcmtrd compare end_a.cfg end_b.cfg --plot --difference --invert-b --channels IA,IB
+```
+
+A third plot per pair shows B − A on its own scale, so differences too
+small to see on A's and B's scale stand out: a ratio error of a few %, a CT
+starting to saturate, a sample offset. The label gives the largest |B − A|
+over the range and its share of A's peak:
+
+```
+IB B − A [A], max |B − A| 0.000 (0.0 % of A's peak)
+```
+
+B is taken as plotted: shifted, scaled to A's unit and, with `--invert-b`,
+turned (only B's currents, found by unit). For two line ends measured into
+the line, `--invert-b --difference` gives −(A + B), whose size is the
+differential current: about 0 for load through the line, large for an
+internal fault.
+
+A and B rarely sample at the same times, so B is interpolated linearly
+onto A's samples. Between two of B's samples that is off by up to
+1 − cos(π·f / f_s) of the peak (1.2 % at 50 Hz and 1 kHz): enough to see
+where A and B part, but not a measurement. When B samples more slowly than
+A it shows as a small ripple. Outside B's time span, and next to a missing
+sample, the plot has a gap.
+
+`--plot` is text only, and `--trend` and `--plot` can't be combined;
+`--difference` needs `--plot`.
 
 ## Arguments and options
 
@@ -140,6 +169,7 @@ IA (B) [A], shifted by +12.00 ms, from kA
 | `--cycles <CYCLES>` | Window length in cycles of the fundamental frequency. Default 1 |
 | `--trend` | Ratio, angle difference and differential current over time instead of at one moment |
 | `--plot` | Waveforms of each pair, A above B on the same scale, in A's time |
+| `--difference` | With `--plot`: a third plot per pair, B − A on its own scale (B interpolated linearly onto A's samples) |
 | `--from <FROM>` | Start of the time range in ms relative to A's trigger (with `--trend` / `--plot`) |
 | `--to <TO>` | End of the time range in ms relative to A's trigger (with `--trend` / `--plot`) |
 | `--step <STEP>` | Distance between rows with `--trend`: cycles (`1`) or a time (`10ms`). Default 1 |
@@ -153,7 +183,7 @@ IA (B) [A], shifted by +12.00 ms, from kA
 | `--differential` | Differential current of two line ends from the current groups of A and B |
 | `--current-a <CURRENT_A>` | Current channels of phases A, B, C in A (indices or ids). Default: found by unit |
 | `--current-b <CURRENT_B>` | Current channels of phases A, B, C in B (indices or ids). Default: found by unit |
-| `--invert-b` | B's currents are measured out of the line (for `--differential`) |
+| `--invert-b` | B's currents are measured out of the line: turned for `--differential` and in `--plot` |
 | `--frequency <FREQUENCY>` | Fundamental frequency in Hz. Default: the line frequency of A |
 | `--format <FORMAT>` | `text` (default), `csv` (only with `--trend`) or `json` (not with `--plot`) |
 

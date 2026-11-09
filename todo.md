@@ -42,7 +42,7 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 * [x] `compare <A> <B>`: two recordings of the same event (e.g. both line ends), aligned by absolute time, trigger or fault inception; differences of magnitudes and angles per channel. Differential current for two-ended recordings. See `tasks/compare-command.md`.
 * [x] `compare --trend`: the differences and the differential current cycle by cycle over `--from` / `--to`, as `impedance --trend`. See `tasks/compare-trend-plot.md`.
 * [x] `compare --plot`: A above B per channel pair, same scale and time axis. See `tasks/compare-trend-plot.md`.
-* [ ] `compare --plot`: a third plot of B − A per pair (B resampled onto A's samples).
+* [x] `compare --plot --difference`: a third plot of B − A per pair (B interpolated onto A's samples). See `tasks/compare-difference-plot.md`.
 * [ ] `harmonics` command: fit the window to the measured frequency at `--at` (as the TUI harmonics view does): off nominal a fixed 50 Hz window shows false harmonics (`55Hz.cfg --at 1500`: a 39 % "2nd").
 * [ ] TUI: show phasors and harmonics of the cursor position in an overlay (phasor diagram drawn with braille characters), sharing the library code with the commands.
 

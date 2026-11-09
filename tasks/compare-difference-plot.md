@@ -2,7 +2,14 @@
 
 - **Issue:** none, from `todo.md` (follow-up of `compare --plot`, see
   `tasks/compare-trend-plot.md`)
-- **Status:** planned, waiting for approval
+- **Status:** in progress, on branch `compare-difference-plot`. Built as
+  planned, except:
+  - `--invert-b` turns only B's currents (found by unit) in `--plot`, not its
+    voltages: the option says B's currents are measured out of the line.
+    B's label then ends in `, inverted`.
+  - A max |B − A| below 1e-6 of A's peak is shown as 0 (float residue), as
+    in the differential output.
+  - With nothing overlapping, the label says `B has no samples here`.
 
 ## Goal
 

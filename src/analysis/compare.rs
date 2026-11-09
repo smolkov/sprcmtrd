@@ -112,6 +112,35 @@ pub fn window_b(b: &Comtrade, t_b: f64, cycles: f64, frequency: f64) -> Option<W
     Window::ending_at(b, t_b, cycles, frequency).ok()
 }
 
+/// Times closer than this are the same sample.
+const SAME_TIME: f64 = 1e-9;
+
+/// Value of `ch` at time `t` (s, on the channel's own `time` axis),
+/// converted to `side`: the sample itself when `t` is on one, else linear
+/// between the two samples around `t`. `None` outside the time span or when
+/// one of the two samples has no value.
+///
+/// Linear interpolation of a sine sampled at f_s is off by up to
+/// 1 − cos(π·f / f_s) of the peak between two samples (1.2 % at 50 Hz and
+/// 1 kHz): enough to see where two recordings part, not a measurement.
+pub fn value_at(ch: &AnalogChannel, time: &[f64], t: f64, side: Side) -> Option<f64> {
+    let n = time.len();
+    if n == 0 || t < time[0] - SAME_TIME || t > time[n - 1] + SAME_TIME {
+        return None;
+    }
+    // First sample at or after t.
+    let i = time[..n].partition_point(|&x| x < t - SAME_TIME);
+    if i < n && (time[i] - t).abs() <= SAME_TIME {
+        return ch.value_on(i, side);
+    }
+    if i == 0 || i >= n {
+        return None;
+    }
+    let (t0, t1) = (time[i - 1], time[i]);
+    let (v0, v1) = (ch.value_on(i - 1, side)?, ch.value_on(i, side)?);
+    Some(v0 + (v1 - v0) * (t - t0) / (t1 - t0))
+}
+
 /// A channel of A and the channel of B it is compared with; B's values times
 /// `scale` are in A's unit.
 #[derive(Debug, Clone, Copy)]
@@ -266,6 +295,37 @@ impl Differential {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn value_at_interpolates_between_samples() {
+        // 1 kHz, IA = 0, 100, 200, …; a missing value at sample 5.
+        let cfg = "S,D,1999\n1,1A,0D\n1,IA,A,LINE,A,1,0,0,-99999,99999,1,1,P\n\
+                   50\n1\n1000,10\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+        let dat: String = (0..10)
+            .map(|k| {
+                let v = if k == 5 {
+                    "99999".to_owned()
+                } else {
+                    (k * 100).to_string()
+                };
+                format!("{},{},{v}\n", k + 1, k * 1000)
+            })
+            .collect();
+        let c = Comtrade::from_readers(cfg.as_bytes(), dat.as_bytes()).unwrap();
+        let ch = c.analog(0).unwrap();
+        let time = c.time();
+        let at = |t: f64| value_at(ch, time, t, Side::Primary);
+        assert_eq!(at(0.002), Some(200.0));
+        assert_eq!(at(0.002 + 1e-12), Some(200.0));
+        assert!((at(0.0025).unwrap() - 250.0).abs() < 1e-9);
+        assert!((at(0.00125).unwrap() - 125.0).abs() < 1e-9);
+        // Outside the span, and next to the missing value.
+        assert_eq!(at(-0.0005), None);
+        assert_eq!(at(0.0095), None);
+        assert_eq!(at(0.0045), None);
+        assert_eq!(at(0.0055), None);
+        assert_eq!(at(0.009), Some(900.0));
+    }
 
     /// A 50 Hz recording: `rate` samples per s from -0.1 s to +0.2 s around
     /// the trigger at `trigger` (`HH:MM:SS.ffffff` on 01/01/2020). Channel IA
