@@ -1,7 +1,7 @@
 //! Harmonic spectrum and total harmonic distortion (THD) of a channel over a
 //! [`Window`] of whole cycles.
 
-use std::f64::consts::FRAC_1_SQRT_2;
+use std::f64::consts::{FRAC_1_SQRT_2, TAU};
 
 use super::Complex;
 use super::phasor::{self, PhasorError, Window};
@@ -108,6 +108,68 @@ pub fn spectrum(
     })
 }
 
+/// RMS of the `orders` (1 = fundamental) of `ch` at each of the samples
+/// `points`, over the window of `seconds(i)` ending there, from a DFT at
+/// `order / seconds(i)`: with `seconds` one cycle of the measured frequency,
+/// the harmonics stay at whole multiples off nominal. Per point one value
+/// per order; `None` where no whole window fits, it has fewer than 4
+/// samples, or a value is missing. `time` holds the sample times.
+///
+/// Off nominal a cycle isn't a whole number of samples (55 Hz at 4 kHz:
+/// 72.7). The window then covers exactly one cycle: the samples inside count
+/// fully, the oldest one by the part of its slot that is inside.
+pub fn sliding(
+    ch: &AnalogChannel,
+    time: &[f64],
+    points: &[usize],
+    seconds: impl Fn(usize) -> f64,
+    orders: &[usize],
+    side: Side,
+) -> Vec<Vec<Option<f64>>> {
+    let factor = ch.info.side_factor(side);
+    points
+        .iter()
+        .map(|&end| {
+            let none = vec![None; orders.len()];
+            if end == 0 || end >= time.len() {
+                return none;
+            }
+            let length = seconds(end);
+            let dt = time[end] - time[end - 1];
+            if dt <= 0.0 || length <= 0.0 {
+                return none;
+            }
+            // The window holds `n` sample slots: whole ones and the part
+            // `fraction` of the oldest.
+            let n = length / dt;
+            let whole = n.floor();
+            let fraction = n - whole;
+            let count = whole as usize + usize::from(fraction > 1e-9);
+            if n < 4.0 || count > end + 1 {
+                return none;
+            }
+            let start = end + 1 - count;
+            let values: Option<Vec<f64>> = (start..=end).map(|k| ch.value(k).map(|v| v * factor)).collect();
+            let Some(values) = values else {
+                return none;
+            };
+            let weight = |k: usize| if k == 0 && fraction > 1e-9 { fraction } else { 1.0 };
+            let frequency = 1.0 / length;
+            orders
+                .iter()
+                .map(|&h| {
+                    let omega = TAU * frequency * h as f64;
+                    let mut sum = Complex::default();
+                    for (k, (v, &t)) in values.iter().zip(&time[start..=end]).enumerate() {
+                        sum = sum + Complex::from_polar(v * weight(k), -omega * t);
+                    }
+                    Some(sum.scale(2.0 / n).abs() * FRAC_1_SQRT_2)
+                })
+                .collect()
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::f64::consts::TAU;
@@ -160,5 +222,62 @@ mod tests {
         let sa = spectrum(ch, c.time(), &a, 5, Side::Primary).unwrap();
         let sb = spectrum(ch, c.time(), &b, 5, Side::Primary).unwrap();
         assert!(close(sa.angle(3).unwrap(), sb.angle(3).unwrap(), 0.1));
+    }
+
+    /// 4 kHz, 200 ms of one channel at `f` Hz: 100·cos(ωt) + 20·cos(3ωt)
+    /// + 5·cos(5ωt + 40°); sample 300 has no value.
+    fn off_nominal(f: f64) -> Comtrade {
+        let cfg = "S,D,1999\n1,1A,0D\n1,IA,A,LINE,A,0.001,0,0,-1e9,1e9,1,1,P\n50\n1\n4000,800\n\
+01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+        let mut dat = String::new();
+        for n in 0..800 {
+            let t = n as f64 / 4000.0;
+            let w = TAU * f * t;
+            let v = 100.0 * w.cos() + 20.0 * (3.0 * w).cos() + 5.0 * (5.0 * w + 40f64.to_radians()).cos();
+            let v = if n == 300 {
+                String::new()
+            } else {
+                format!("{}", (v * 1000.0).round())
+            };
+            dat += &format!("{},{},{v}\n", n + 1, n * 250);
+        }
+        Comtrade::from_readers(cfg.as_bytes(), dat.as_bytes()).unwrap()
+    }
+
+    #[test]
+    fn sliding_harmonics_follow_the_frequency() {
+        let rms = |peak: f64| peak / 2f64.sqrt();
+        for f in [50.0, 55.0] {
+            let c = off_nominal(f);
+            let ch = c.analog(0).unwrap();
+            let values = sliding(ch, c.time(), &[200, 700], |_| 1.0 / f, &[1, 2, 3, 5], Side::Primary);
+            for row in &values {
+                let v: Vec<f64> = row.iter().map(|x| x.unwrap()).collect();
+                // Off nominal a cycle isn't a whole number of samples: the
+                // 5th (14.5 samples a cycle at 55 Hz) is about 1 % low.
+                let near = |x: f64, want: f64| close(x, want, want * 0.015);
+                assert!(near(v[0], rms(100.0)), "{f} {v:?}");
+                assert!(v[1] < 0.05, "{f} {v:?}");
+                assert!(near(v[2], rms(20.0)), "{f} {v:?}");
+                assert!(near(v[3], rms(5.0)), "{f} {v:?}");
+            }
+        }
+        // 55 Hz with 50 Hz windows: the fundamental leaks into the 2nd.
+        let c = off_nominal(55.0);
+        let v = sliding(c.analog(0).unwrap(), c.time(), &[200], |_| 0.02, &[2], Side::Primary);
+        assert!(v[0][0].unwrap() > 5.0, "{v:?}");
+    }
+
+    #[test]
+    fn sliding_harmonics_need_a_whole_window_with_values() {
+        let c = off_nominal(50.0);
+        let ch = c.analog(0).unwrap();
+        // 80 samples a cycle: the first whole window ends at sample 79; the
+        // windows ending at 300 … 379 hold the missing sample.
+        let v = sliding(ch, c.time(), &[10, 79, 320, 380], |_| 0.02, &[1], Side::Primary);
+        assert_eq!(v[0], [None]);
+        assert!(v[1][0].is_some());
+        assert_eq!(v[2], [None]);
+        assert!(v[3][0].is_some());
     }
 }

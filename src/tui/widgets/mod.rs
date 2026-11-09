@@ -186,7 +186,15 @@ mod tests {
         assert!(screen.contains("Recording info"));
         assert!(screen.contains("SUBSTATION A"));
         app.on_key(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::SHIFT));
-        assert!(render(&app, 100, 40).contains("Toggle dark / light theme"));
+        let help = render(&app, 100, 44);
+        assert!(help.contains("Toggle dark / light theme"), "{help}");
+        // The nine harmonic order keys share one line.
+        assert!(
+            help.lines()
+                .any(|l| l.contains("1 … 9 ") && l.contains("Harmonics view: show / hide order 1 … 9")),
+            "{help}"
+        );
+        assert!(!help.contains("order 2"), "{help}");
         assert!(render(&app, 60, 20).contains("Terminal too small"));
     }
 
@@ -305,7 +313,9 @@ mod tests {
         t.draw(|f| draw(f, &app)).unwrap();
         let buf = t.backend().buffer();
 
-        // Background in the middle of the plot, on the row of each channel label.
+        // Background in the middle of the plot on the row of each channel
+        // label, and in the gutter on the value line below it (the label of
+        // the selected channel has the selection background).
         let bg_of = |label: &str| {
             let y = (0..buf.area.height)
                 .find(|&y| {
@@ -313,7 +323,7 @@ mod tests {
                     row.contains(label)
                 })
                 .unwrap_or_else(|| panic!("{label} not drawn"));
-            (buf[(80, y)].bg, buf[(25, y)].bg)
+            (buf[(80, y)].bg, buf[(25, y + 1)].bg)
         };
         let [light, dark] = Theme::dark().plot_shades;
         assert_ne!(light, dark);
@@ -657,6 +667,123 @@ mod tests {
         app.recording = None;
         press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
         assert!(app.status.as_ref().unwrap().text.contains("no recording loaded"));
+    }
+
+    /// App with one channel IA: 100 A peak at `f` Hz plus a 3rd harmonic of
+    /// 20 A, 4 kHz, 200 ms, trigger after 100 ms, line frequency 50 Hz.
+    fn app_with_harmonic(f: f64) -> App {
+        let mut cfg = String::from("S,D,1999\n1,1A,0D\n1,IA,A,LINE,A,0.001,0,0,-1e9,1e9,1,1,P\n");
+        cfg += "50\n1\n4000,800\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.100000\nASCII\n1\n";
+        let mut dat = String::new();
+        for k in 0..800 {
+            let t = k as f64 / 4000.0;
+            let w = 2.0 * std::f64::consts::PI * f * t;
+            let v = 100.0 * w.sin() + 20.0 * (3.0 * w).sin();
+            dat += &format!("{},{},{}\n", k + 1, (t * 1e6).round(), (v * 1000.0).round());
+        }
+        let mut app = app();
+        app.set_recording(Comtrade::from_readers(cfg.as_bytes(), dat.as_bytes()).unwrap());
+        app
+    }
+
+    #[test]
+    fn harmonics_view_shows_the_chosen_orders() {
+        use crate::tui::app::PlotView;
+
+        // 55 Hz: the window follows the measured frequency.
+        let mut app = app_with_harmonic(55.0);
+        press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
+        assert_eq!(app.plot_view, PlotView::Harmonics);
+        let screen = render(&app, 110, 30);
+        assert!(screen.contains(" Harmonics "), "{screen}");
+        assert!(screen.contains("IA h1 [A]"), "{screen}");
+        // 100 / √2.
+        assert!(screen.contains("▸ 70.7"), "{screen}");
+        assert!(!screen.contains("IA h3"), "{screen}");
+        assert!(screen.contains("harmonics 1, 1 cycle (fitted to IA)"), "{screen}");
+        assert!(screen.contains("↓ 0"), "{screen}");
+
+        press(&mut app, KeyCode::Char('3'), KeyModifiers::NONE);
+        let screen = render(&app, 110, 30);
+        assert!(screen.contains("IA h3 [%]"), "{screen}");
+        // 20 % within the one-cycle window at 55 Hz.
+        assert!(screen.contains("▸ 19.99"), "{screen}");
+        assert!(screen.contains("harmonics 1 3"), "{screen}");
+
+        // Order 1 off: only the 3rd; both off: a hint.
+        press(&mut app, KeyCode::Char('1'), KeyModifiers::NONE);
+        let screen = render(&app, 110, 30);
+        assert!(!screen.contains("IA h1"), "{screen}");
+        press(&mut app, KeyCode::Char('3'), KeyModifiers::NONE);
+        let screen = render(&app, 110, 30);
+        assert!(screen.contains("No harmonic orders shown"), "{screen}");
+
+        // f again: the waveform.
+        press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
+        assert_eq!(app.plot_view, PlotView::Waveform);
+    }
+
+    #[test]
+    fn selected_channel_is_marked_in_the_plots() {
+        let marked = |screen: &str| -> Vec<String> {
+            screen
+                .lines()
+                .filter_map(|l| l.split("││").nth(1))
+                .filter(|r| r.starts_with('▶'))
+                .map(|r| r.split("  ").next().unwrap_or("").trim().to_owned())
+                .collect()
+        };
+        let mut app = app();
+        let screen = render(&app, 110, 40);
+        assert_eq!(marked(&screen), ["▶ IA [A]"], "{screen}");
+        // The next channel in the sidebar.
+        press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        assert_eq!(marked(&render(&app, 110, 40)), ["▶ IB [A]"]);
+
+        // Harmonics view: every row of the selected channel.
+        press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
+        press(&mut app, KeyCode::Char('3'), KeyModifiers::NONE);
+        let screen = render(&app, 110, 40);
+        assert_eq!(marked(&screen), ["▶ IB h1 [A]", "▶ IB h3 [%]"], "{screen}");
+        assert!(screen.contains(" Harmonics [1] 2 [3] 4 5 6 7 8 9 "), "{screen}");
+    }
+
+    #[test]
+    fn harmonics_title_is_short_when_narrow() {
+        let mut app = app();
+        press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
+        press(&mut app, KeyCode::Char('3'), KeyModifiers::NONE);
+        let screen = render(&app, 80, 24);
+        assert!(screen.contains(" Harmonics 1 3 · "), "{screen}");
+        assert!(!screen.contains("[3]"), "{screen}");
+    }
+
+    #[test]
+    fn harmonic_keys_act_only_in_the_harmonics_view() {
+        let mut app = app_with_harmonic(50.0);
+        press(&mut app, KeyCode::Char('3'), KeyModifiers::NONE);
+        assert!(!app.harmonics[2]);
+        assert!(app.status.as_ref().is_none_or(|s| !s.text.contains("harmonics")));
+        // r from the harmonics view goes to the RMS view.
+        press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
+        press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
+        assert_eq!(app.plot_view, crate::tui::app::PlotView::Rms);
+    }
+
+    #[test]
+    fn harmonics_view_needs_a_line_frequency_and_the_sample_rate() {
+        use crate::tui::app::PlotView;
+
+        let mut app = app_with_sine(0.0, 0.0);
+        press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
+        assert_eq!(app.plot_view, PlotView::Waveform);
+        assert!(render(&app, 110, 30).contains("no harmonics view"));
+
+        // 2 kHz at 50 Hz: orders up to 19, so all of 1 … 9.
+        let mut app = app_with_sine(0.0, 50.0);
+        press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
+        press(&mut app, KeyCode::Char('9'), KeyModifiers::NONE);
+        assert!(app.harmonics[8]);
     }
 
     #[test]

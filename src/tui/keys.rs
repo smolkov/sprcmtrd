@@ -43,6 +43,9 @@ pub enum Action {
     Last,
     RmsView,
     RmsDc,
+    HarmonicsView,
+    /// Show / hide harmonic order 1 … 9 in the harmonics view.
+    Harmonic(u8),
 }
 
 /// Default key binding of an action.
@@ -242,6 +245,76 @@ pub const BINDINGS: &[Binding] = &[
         name: "rms_dc",
         keys: &["d"],
         help: "RMS with / without DC",
+        hint: None,
+    },
+    Binding {
+        action: Action::HarmonicsView,
+        name: "harmonics_view",
+        keys: &["f"],
+        help: "Toggle waveform / harmonics over time",
+        hint: None,
+    },
+    Binding {
+        action: Action::Harmonic(1),
+        name: "harmonic_1",
+        keys: &["1"],
+        help: "Harmonics view: show / hide the fundamental",
+        hint: None,
+    },
+    Binding {
+        action: Action::Harmonic(2),
+        name: "harmonic_2",
+        keys: &["2"],
+        help: "Harmonics view: show / hide the order 2",
+        hint: None,
+    },
+    Binding {
+        action: Action::Harmonic(3),
+        name: "harmonic_3",
+        keys: &["3"],
+        help: "Harmonics view: show / hide the order 3",
+        hint: None,
+    },
+    Binding {
+        action: Action::Harmonic(4),
+        name: "harmonic_4",
+        keys: &["4"],
+        help: "Harmonics view: show / hide the order 4",
+        hint: None,
+    },
+    Binding {
+        action: Action::Harmonic(5),
+        name: "harmonic_5",
+        keys: &["5"],
+        help: "Harmonics view: show / hide the order 5",
+        hint: None,
+    },
+    Binding {
+        action: Action::Harmonic(6),
+        name: "harmonic_6",
+        keys: &["6"],
+        help: "Harmonics view: show / hide the order 6",
+        hint: None,
+    },
+    Binding {
+        action: Action::Harmonic(7),
+        name: "harmonic_7",
+        keys: &["7"],
+        help: "Harmonics view: show / hide the order 7",
+        hint: None,
+    },
+    Binding {
+        action: Action::Harmonic(8),
+        name: "harmonic_8",
+        keys: &["8"],
+        help: "Harmonics view: show / hide the order 8",
+        hint: None,
+    },
+    Binding {
+        action: Action::Harmonic(9),
+        name: "harmonic_9",
+        keys: &["9"],
+        help: "Harmonics view: show / hide the order 9",
         hint: None,
     },
     Binding {
