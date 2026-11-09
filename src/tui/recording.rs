@@ -8,6 +8,7 @@ use crate::analysis::frequency::Track;
 use crate::analysis::harmonics;
 use crate::analysis::impedance::{Loops, Pair, find_pair};
 use crate::analysis::phasor::Window;
+use crate::analysis::sequence;
 use crate::comtrade::{Comtrade, RecordingPath};
 
 /// A loaded recording and its view state.
@@ -32,6 +33,8 @@ pub struct Recording {
     track: OnceCell<Option<Track>>,
     /// Voltage and current groups for the impedance view, found once.
     pair: OnceCell<Option<Pair>>,
+    /// Analog channels drawn in one row when grouped, found once.
+    groups: OnceCell<Vec<Vec<usize>>>,
 }
 
 /// Default number of analog channels shown after loading.
@@ -67,6 +70,7 @@ impl Recording {
             cursor,
             track: OnceCell::new(),
             pair: OnceCell::new(),
+            groups: OnceCell::new(),
         }
     }
 
@@ -96,6 +100,45 @@ impl Recording {
             })
             .as_ref()?;
         Loops::new(&self.data, pair)
+    }
+
+    /// Groups of analog channels for one plot row: the three-phase groups
+    /// (phases A, B, C of a circuit and unit) and their neutral, in phase order.
+    pub fn groups(&self) -> &[Vec<usize>] {
+        self.groups.get_or_init(|| {
+            let infos: Vec<_> = self.data.analog_channels().map(|ch| &ch.info).collect();
+            sequence::groups(&infos)
+                .iter()
+                .map(|g| {
+                    let mut members = g.phases.to_vec();
+                    members.extend(sequence::neutral(&infos, g));
+                    members
+                })
+                .collect()
+        })
+    }
+
+    /// The analog plot rows: each shown channel alone, or with `grouped` the
+    /// shown members of a group together, where its first shown member is.
+    pub fn analog_rows(&self, grouped: bool) -> Vec<Vec<usize>> {
+        let shown = |i: usize| self.visible_analog.get(i).copied().unwrap_or(false);
+        let mut done = vec![false; self.visible_analog.len()];
+        let mut rows = Vec::new();
+        for i in (0..self.visible_analog.len()).filter(|&i| shown(i)) {
+            if done[i] {
+                continue;
+            }
+            let group = grouped.then(|| self.groups().iter().find(|g| g.contains(&i))).flatten();
+            let members: Vec<usize> = match group {
+                Some(g) => g.iter().copied().filter(|&k| shown(k)).collect(),
+                None => vec![i],
+            };
+            for &k in &members {
+                done[k] = true;
+            }
+            rows.push(members);
+        }
+        rows
     }
 
     /// Length in s of the sliding RMS window ending at sample `i`: one cycle,

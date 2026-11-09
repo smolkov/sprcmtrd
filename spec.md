@@ -1076,6 +1076,21 @@ runs the event loop and always restores the terminal, also on panic
   at its end (lower case) and at the cursor (reversed), and phase colors.
   Without a line frequency or the groups, the view can't be opened (footer);
   opening another recording without them goes back to the waveform.
+- Grouping (`g`, binding `group_view`; off after start, kept when another file
+  is opened): the analog rows become groups. A group is a three-phase group
+  (`sequence::groups`: phases A, B, C of one circuit and unit) and its neutral
+  (`sequence::neutral`: phase `N`, `E` or `G` of that circuit and unit), in that
+  order; each other channel keeps its own row. A group row holds the group's
+  shown channels (one shown: a normal row) and sits where its first shown
+  member would be. All traces share the plot and its y range, each in its
+  phase color and named (its phase, else its id) at its right end and at the
+  cursor (reversed), moved sideways where names would share a cell. Gutter:
+  the name (the common start of the ids and the phases, `I ABCN [A]`; ids when
+  there is no common start), one line per trace with its value at the cursor
+  (`B ▸ -3.226k`), and the range. A group row is at least 3 + members rows high
+  (5 at least). Works in the waveform, RMS and harmonics views (`I ABCN h3
+  [%]`); the block title gets ` · grouped`. Footer: `grouped: 2 groups`, `one
+  plot per channel`.
 - The channel selected in the sidebar is marked in the plot area: its gutter
   name starts with `▶` and has the selection style (all its rows in the
   harmonics view; binary strips too).
@@ -1145,6 +1160,7 @@ runs the event loop and always restores the terminal, also on panic
 | `f`                 | Toggle waveform / harmonics over time    |
 | `1` … `9`           | Harmonics view: show / hide order 1 … 9  |
 | `z`                 | Toggle waveform / impedance trajectories |
+| `g`                 | Group phases / one plot per channel      |
 | `T`                 | Toggle dark / light theme                |
 | `Ctrl+,`, `c`       | Open configuration overlay               |
 | `Esc`               | Close overlay                            |

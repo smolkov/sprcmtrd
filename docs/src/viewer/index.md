@@ -27,6 +27,12 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
   its value at the cursor and the visible value range. The channel selected in
   the sidebar is marked with `▶` in its plots. Binary states that differ from the
   channel's normal state are highlighted.
+- **Grouping:** `g` draws the phases of a circuit and its neutral in one plot,
+  for example IA, IB, IC and IN as `I ABCN [A]`, with one value line per trace in
+  the gutter (`B ▸ -3.226k`). The traces share the y range; besides their phase
+  color they are named at their right end and at the cursor. Only shown channels
+  are grouped; the sidebar still shows and hides them one by one. Grouping works
+  in the RMS and harmonics views too; `g` again gives one plot per channel.
 - **RMS view:** `r` shows the sliding RMS instead of the samples, over one cycle
   ending at each sample, so a step shows up over the following cycle. The cycle is
   fitted to the measured frequency of the strongest voltage or current. `d` removes
@@ -87,6 +93,7 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
 | `f`                 | Waveform / harmonics over time                |
 | `1` … `9`           | Harmonics view: show / hide order 1 … 9       |
 | `z`                 | Waveform / impedance trajectories (R-X)       |
+| `g`                 | Group phases in one plot / one plot per channel |
 | `m`                 | Relative / absolute time                      |
 | `s`                 | Show / hide sidebar                           |
 | `T`                 | Dark / light theme (not saved)                |

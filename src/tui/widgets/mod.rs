@@ -187,7 +187,7 @@ mod tests {
         assert!(screen.contains("Recording info"));
         assert!(screen.contains("SUBSTATION A"));
         app.on_key(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::SHIFT));
-        let help = render(&app, 100, 44);
+        let help = render(&app, 100, 48);
         assert!(help.contains("Toggle dark / light theme"), "{help}");
         // The nine harmonic order keys share one line.
         assert!(
@@ -884,6 +884,108 @@ mod tests {
         app.set_recording(Comtrade::open(path).unwrap());
         assert_eq!(app.plot_view, PlotView::Waveform);
         assert!(app.status.as_ref().unwrap().text.contains("no impedance view"));
+    }
+
+    /// `fault_2013` around the fault, cursor at 40 ms.
+    fn app_at_the_fault() -> App {
+        let mut app = app_with_loops();
+        let rec = app.recording.as_mut().unwrap();
+        rec.view = (-0.02, 0.06);
+        rec.set_cursor(0.04);
+        app
+    }
+
+    #[test]
+    fn grouped_phases_share_a_plot() {
+        let mut app = app_at_the_fault();
+        let single = render(&app, 110, 32);
+        assert!(single.contains("▸ -3.226k"), "{single}");
+        press(&mut app, KeyCode::Char('g'), KeyModifiers::NONE);
+        assert!(app.grouped);
+        let screen = render(&app, 110, 32);
+        assert!(screen.contains(" Plot · grouped "), "{screen}");
+        assert!(screen.contains("grouped: 2 groups"), "{screen}");
+        // IA is selected, so its group's row is marked.
+        assert!(screen.contains("▶ I ABCN [A]"), "{screen}");
+        // The same values as in the single rows. VC and VN are hidden.
+        for line in [
+            "A ▸ 0.000",
+            "B ▸ -3.226k",
+            "C ▸ 389.7",
+            "N ▸ -2.837k",
+            "V AB [kV]",
+            "B ▸ -21.65",
+        ] {
+            assert!(screen.contains(line), "{line}\n{screen}");
+        }
+        assert!(!screen.contains("IB [A]"), "{screen}");
+        // Without colors the traces are named in the plot.
+        let plot: String = screen
+            .lines()
+            .skip_while(|l| !l.contains("I ABCN"))
+            .take(11)
+            .filter_map(|l| l.split("││").nth(1))
+            .map(|l| l.chars().skip(16).collect::<String>())
+            .collect();
+        for name in ['A', 'B', 'C', 'N'] {
+            assert!(plot.contains(name), "{name}\n{screen}");
+        }
+
+        // g again: one row per channel.
+        press(&mut app, KeyCode::Char('g'), KeyModifiers::NONE);
+        app.status = None;
+        let body = |s: &str| s.lines().rev().skip(1).map(str::to_owned).collect::<Vec<_>>();
+        assert_eq!(body(&render(&app, 110, 32)), body(&single));
+    }
+
+    #[test]
+    fn grouped_rows_hold_only_shown_channels() {
+        let mut app = app_at_the_fault();
+        press(&mut app, KeyCode::Char('g'), KeyModifiers::NONE);
+        // Hide IB.
+        press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        press(&mut app, KeyCode::Char(' '), KeyModifiers::NONE);
+        let screen = render(&app, 110, 32);
+        assert!(screen.contains("I ACN [A]"), "{screen}");
+        assert!(!screen.contains("B ▸ -3.226k"), "{screen}");
+        // IC selected: the group row is marked.
+        press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        assert!(render(&app, 110, 32).contains("▶ I ACN [A]"));
+    }
+
+    #[test]
+    fn grouping_works_in_the_rms_and_harmonics_views() {
+        let mut app = app_at_the_fault();
+        press(&mut app, KeyCode::Char('r'), KeyModifiers::NONE);
+        // The true RMS with DC, as in the single row of IB.
+        assert!(render(&app, 110, 40).contains("▸ 3.742k"));
+        press(&mut app, KeyCode::Char('g'), KeyModifiers::NONE);
+        let screen = render(&app, 110, 32);
+        assert!(screen.contains(" RMS · grouped "), "{screen}");
+        assert!(screen.contains("▶ I ABCN [A]"), "{screen}");
+        assert!(screen.contains("B ▸ 3.742k"), "{screen}");
+        press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
+        press(&mut app, KeyCode::Char('3'), KeyModifiers::NONE);
+        let screen = render(&app, 110, 40);
+        assert!(screen.contains("I ABCN h1 [A]"), "{screen}");
+        assert!(screen.contains("I ABCN h3 [%]"), "{screen}");
+    }
+
+    #[test]
+    fn grouping_without_a_full_group_and_at_the_smallest_size() {
+        // fault_1999: IA IB IC are a group, VA stays alone.
+        let mut app = app();
+        press(&mut app, KeyCode::Char('g'), KeyModifiers::NONE);
+        let screen = render(&app, 110, 32);
+        assert!(screen.contains("I ABC [A]") && screen.contains("VA [kV]"), "{screen}");
+        assert!(screen.contains("grouped: 1 group"), "{screen}");
+        // 80×24 with fault_2013: both group rows with all their value lines.
+        let mut app = app_at_the_fault();
+        press(&mut app, KeyCode::Char('g'), KeyModifiers::NONE);
+        let screen = render(&app, 80, 24);
+        for line in ["I ABCN [A]", "N ▸ -2.837k", "V AB [kV]", "B ▸ -21.65"] {
+            assert!(screen.contains(line), "{line}\n{screen}");
+        }
     }
 
     #[test]

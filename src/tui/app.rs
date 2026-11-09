@@ -136,6 +136,8 @@ pub struct App {
     pub rms_dc: Dc,
     /// Orders 1 … 9 shown in the harmonics view.
     pub harmonics: [bool; 9],
+    /// The phases of a circuit (and its neutral) share one plot row.
+    pub grouped: bool,
     /// First channel row drawn in the plot area (index into the shown
     /// channels). The plot widget clamps it to the area when drawing.
     pub plot_scroll: Cell<usize>,
@@ -225,6 +227,7 @@ impl App {
             plot_view: PlotView::Waveform,
             rms_dc: Dc::Keep,
             harmonics: [true, false, false, false, false, false, false, false, false],
+            grouped: false,
             plot_scroll: Cell::new(0),
             plot_page: Cell::new(0),
             plot_follow: Cell::new(true),
@@ -467,6 +470,17 @@ impl App {
             Action::RmsView => self.toggle_rms_view(),
             Action::HarmonicsView => self.toggle_harmonics_view(),
             Action::ImpedanceView => self.toggle_impedance_view(),
+            Action::GroupView => {
+                self.grouped = !self.grouped;
+                let n = self.recording.as_ref().map_or(0, |r| r.groups().len());
+                let text = match (self.grouped, n) {
+                    (false, _) => "one plot per channel".to_owned(),
+                    (true, 0) => "grouped: the recording has no A/B/C groups".to_owned(),
+                    (true, 1) => "grouped: 1 group".to_owned(),
+                    (true, n) => format!("grouped: {n} groups"),
+                };
+                self.set_status(text, StatusKind::Info);
+            }
             Action::Harmonic(order) => {
                 if self.plot_view == PlotView::Harmonics {
                     self.toggle_order(usize::from(order));
