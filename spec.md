@@ -619,17 +619,21 @@ Values over time, cycle by cycle: the phasors command for a series of moments.
 - Columns: time, frequency, per channel the fundamental magnitude (RMS), with
   `--angles` its angle relative to the reference at the same step, with `--rms`
   the true RMS of all window samples (including harmonics and DC). Per
-  three-phase group (as in `phasors`) the positive `1`, negative `2` and zero
-  `0` sequence magnitudes and the unbalance `2/1` in %; the column label is the
-  common start of the group's channel ids (`I1` for IA, IB, IC), else `G1`, ….
+  three-phase group (as in `phasors`) the positive `+`, negative `-` and zero
+  `0` sequence magnitudes and the unbalance `-/+` in %; the column label is the
+  common start of the group's channel ids (`I+` for IA, IB, IC, `iL+` for iL1,
+  iL2, iL3), else `G1 +`, … (with a space, so `G1 0` isn't read as `G10`).
+  `+` / `-` keep them apart from phase ids such as iL1, iL2.
 - Frequency: from the turn of the reference phasor between consecutive steps,
   f = f₀ + Δφ / (2π Δt); missing for the first row and where the reference is
   zero or missing. Valid while |f − f₀| · Δt < ½ (±25 Hz at a 1-cycle step).
 - A sequence component below 1e-6 of the group's largest is shown as 0 (residue
   of integer samples). Missing values: `-` (text), empty (CSV), `null` (JSON).
 - Text: header lines (window, step, rows, reference, side) and an aligned
-  table. CSV: header `time_ms,frequency_hz,IA_A,IA_deg,IA_rms_A,…,I1_A,…,
-  I_unbalance_pct`. JSON: `channels`, `groups`, `steps[]` with `time_s`,
+  table. CSV: header `time_ms,frequency_hz,IA_A,IA_deg,IA_rms_A,…,I_pos_A,
+  I_neg_A,I_zero_A,I_unbalance_pct` (words, as some tools don't allow `+` /
+  `-` in column names). Until 0.6 the columns were `I1`, `I2`, `I0`, `I2/1`
+  (CSV `I1_A`, …), which clashed with phase ids like iL1. JSON: `channels`, `groups`, `steps[]` with `time_s`,
   `frequency`, `phasors`, `rms`, `sequences`.
 - Library: `analysis::trend::trend`.
 

@@ -63,8 +63,8 @@ Three channels with phases A, B and C (also written L1/L2/L3 or R/S/T) of the
 - negative sequence: (A + a²·B + a·C) / 3
 
 with a = 1∠120°. The **unbalance** is negative / positive sequence in %. In the
-`trend` columns they are written `I1`, `I2`, `I0` and `I2/1` (the label is the
-common start of the channel ids: IA, IB, IC → `I`).
+`trend` columns they are written `I+`, `I-`, `I0` and `I-/+` (the label is the
+common start of the channel ids: IA, IB, IC → `I`; iL1, iL2, iL3 → `iL`).
 
 A phase to ground fault shows as **equal negative and zero sequence current**;
 a phase to phase fault as negative sequence without zero sequence.

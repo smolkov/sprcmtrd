@@ -154,8 +154,9 @@ impl TrendArgs {
     }
 }
 
-/// Name of a group's sequence columns: the common start of its channel ids
-/// (`I` for IA, IB, IC), else `G1`, `G2`, …
+/// Start of a group's sequence column names: the common start of its channel
+/// ids (`I` for IA, IB, IC), else `G1 `, `G2 `, … (with a space, so the
+/// zero sequence of group 1 doesn't read `G10`).
 fn label(channels: &[&AnalogChannel], g: &Group, n: usize) -> String {
     let ids = g.phases.map(|i| channels[i].info.id.as_str());
     let common: String = ids[0]
@@ -167,7 +168,7 @@ fn label(channels: &[&AnalogChannel], g: &Group, n: usize) -> String {
         .collect();
     let common = common.trim_end_matches([' ', '_', '-']).to_owned();
     if common.is_empty() {
-        format!("G{}", n + 1)
+        format!("G{} ", n + 1)
     } else {
         common
     }
@@ -209,13 +210,16 @@ impl Table<'_> {
             }
         }
         for (g, label) in self.groups.iter().zip(&self.labels) {
-            for n in ["1", "2", "0"] {
+            // `+`, `-` and `0` can't be mistaken for a phase (iL1, iL2);
+            // words in CSV, which some tools don't allow `+` / `-` in.
+            let csv = label.trim();
+            for (n, word) in [("+", "pos"), ("-", "neg"), ("0", "zero")] {
                 h.push((
                     format!("{label}{n} [{}]", g.unit),
-                    csv_name(&format!("{label}{n}_{}", g.unit)),
+                    csv_name(&format!("{csv}_{word}_{}", g.unit)),
                 ));
             }
-            h.push((format!("{label}2/1"), csv_name(&format!("{label}_unbalance_pct"))));
+            h.push((format!("{label}-/+"), csv_name(&format!("{csv}_unbalance_pct"))));
         }
         h
     }
@@ -333,7 +337,7 @@ impl Table<'_> {
                 .iter()
                 .zip(&self.labels)
                 .map(|(g, label)| JsonGroup {
-                    label: label.clone(),
+                    label: label.trim().to_owned(),
                     circuit: g.circuit.clone(),
                     unit: g.unit.clone(),
                     channels: g.phases.map(|i| self.channels[i].info.id.clone()),
@@ -419,4 +423,68 @@ struct JsonSequence {
     positive: Polar,
     negative: Polar,
     unbalance: Option<f64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::sequence;
+    use crate::comtrade::AnalogInfo;
+
+    /// A recording with one current channel per id, phases A, B, C.
+    fn recording(ids: [&str; 3]) -> Comtrade {
+        let mut cfg = String::from("S,D,1999\n3,3A,0D\n");
+        for (i, (id, p)) in ids.iter().zip(["A", "B", "C"]).enumerate() {
+            cfg += &format!("{},{id},{p},LINE,A,1,0,0,-1e9,1e9,1,1,P\n", i + 1);
+        }
+        cfg += "50\n1\n1000,2\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+        Comtrade::from_readers(cfg.as_bytes(), "1,0,1,2,3\n2,1000,1,2,3\n".as_bytes()).unwrap()
+    }
+
+    fn headers(ids: [&str; 3]) -> Vec<(String, String)> {
+        let c = recording(ids);
+        let channels: Vec<&AnalogChannel> = c.analog_channels().collect();
+        let infos: Vec<&AnalogInfo> = channels.iter().map(|ch| &ch.info).collect();
+        let groups = sequence::groups(&infos);
+        let table = Table {
+            channels: &channels,
+            groups: &groups,
+            labels: groups.iter().enumerate().map(|(n, g)| label(&channels, g, n)).collect(),
+            angles: false,
+            rms: false,
+        };
+        table.headers().split_off(5)
+    }
+
+    fn pairs(v: &[(&str, &str)]) -> Vec<(String, String)> {
+        v.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect()
+    }
+
+    #[test]
+    fn sequence_columns_differ_from_the_phases() {
+        // iL1 iL2 iL3 used to give iL1 iL2 iL0, the names of the phases.
+        assert_eq!(
+            headers(["iL1", "iL2", "iL3"]),
+            pairs(&[
+                ("iL+ [A]", "iL_pos_A"),
+                ("iL- [A]", "iL_neg_A"),
+                ("iL0 [A]", "iL_zero_A"),
+                ("iL-/+", "iL_unbalance_pct"),
+            ])
+        );
+        assert_eq!(
+            headers(["IA", "IB", "IC"])[0],
+            ("I+ [A]".to_owned(), "I_pos_A".to_owned())
+        );
+        // No common start: G1 with a space, so the zero sequence isn't G10.
+        assert_eq!(
+            headers(["X", "Y", "Z"]),
+            pairs(&[
+                ("G1 + [A]", "G1_pos_A"),
+                ("G1 - [A]", "G1_neg_A"),
+                ("G1 0 [A]", "G1_zero_A"),
+                ("G1 -/+", "G1_unbalance_pct"),
+            ])
+        );
+    }
 }
