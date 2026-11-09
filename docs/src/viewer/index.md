@@ -24,8 +24,9 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
 - **Sidebar:** channel list; `●` shown, `○` hidden. The first six analog channels
   and up to eight binary channels that change state are shown after loading.
 - **Plots:** one shared time axis for all channels. The gutter shows the channel,
-  its value at the cursor and the visible value range. Binary states that differ
-  from the channel's normal state are highlighted.
+  its value at the cursor and the visible value range. The channel selected in
+  the sidebar is marked with `▶` in its plots. Binary states that differ from the
+  channel's normal state are highlighted.
 - **RMS view:** `r` shows the sliding RMS instead of the samples, over one cycle
   ending at each sample, so a step shows up over the following cycle. The cycle is
   fitted to the measured frequency of the strongest voltage or current. `d` removes
@@ -36,7 +37,9 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
   the same moment (`IA h3 [%]`). The window is one cycle of the measured
   frequency, as in the RMS view, so the harmonics stay at whole multiples when
   the system runs off nominal (with a fixed 50 Hz window, a 55 Hz signal shows a
-  false 2nd harmonic). Orders at or above half the sample rate can't be shown.
+  false 2nd harmonic). The title lists the orders, the shown ones in brackets
+  (`Harmonics [1] 2 [3] 4 …`; on a narrow terminal only the shown ones,
+  `Harmonics 1 3`). Orders at or above half the sample rate can't be shown.
 - **Scrolling:** analog plots are at least 5 rows high. When the shown channels
   don't fit, the plots scroll (`PgUp` / `PgDn`, or select a channel in the
   sidebar); a scrollbar on the right border and `channels 4–9 of 18` in the

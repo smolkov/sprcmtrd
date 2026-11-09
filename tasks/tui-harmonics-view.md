@@ -106,3 +106,35 @@ cycle, that's about 80 000 operations per channel and frame.
 `cargo test --locked`, `cargo +1.88 check --locked --all-targets`,
 `mdbook build docs`. `list_content_filters` needs `55Hz.cfg` out of
 `tests/data/`.
+
+## Follow-up: the selected channel and the shown orders
+
+- **Status:** built as planned; binary strips get the `▶` too. At 80 columns
+  even the short title with the scroll position doesn't fit beside the right
+  title, so the position is cut (as for long RMS titles).
+
+In the harmonics view a channel has one row per order, so with several
+channels and orders you can't tell which rows belong to the channel
+selected in the sidebar. The orders that are on show only in the footer, for
+5 s after a key press.
+
+| Decision | Proposed | Alternative |
+|---|---|---|
+| Selected channel | In every view, the gutter name of the selected channel's rows starts with `▶` and gets the sidebar's selection style (background and bold; reversed without colors). With the marker it reads without color too. In the harmonics view all rows of that channel get it | Only in the harmonics view: the waveform view has the same problem with many channels |
+| Shown orders | The plot title lists all nine orders, the ones that are on in brackets: ` Harmonics [1] 2 [3] 4 [5] 6 7 8 9 `. Orders above half the sample rate are left out of the list | The footer, always: it competes with the key hints |
+| Narrow terminal | When the title doesn't fit next to `cursor … · window …` (80 columns, with `channels 1–3 of 7`), only the orders that are on: ` Harmonics 1 3 5 ` | Always the short form: then the orders that can still be switched on aren't visible |
+
+### Implementation
+
+- `tui/widgets/plot.rs`:
+  - `analog_plot` gets `selected: bool`; the name line gets `▶ ` and
+    `theme.selection()`.
+  - The block title in the harmonics view comes from `App::harmonics` and
+    `Recording::max_order`, with the short form when it is too wide.
+- Tests (`tui/widgets/mod.rs`):
+  - The selected channel's rows start with `▶`, the others don't, in the
+    waveform and in the harmonics view (two channels, two orders: 2 marked
+    rows).
+  - The title shows `Harmonics [1] 2 [3]` after `3`.
+  - At 80×24 the short form.
+- Docs: viewer index (plots and harmonics view), spec TUI section, README.

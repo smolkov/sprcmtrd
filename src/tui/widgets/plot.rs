@@ -34,16 +34,11 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         (PlotView::Rms, Dc::Remove) => "RMS-DC",
         (PlotView::Harmonics, _) => "Harmonics",
     };
-    // Built late: the title shows the scroll position once it is known.
-    let block = |title: &str| {
-        Block::bordered()
-            .title(format!(" {name}{title} "))
-            .title_style(if focused { theme.accent() } else { theme.base() })
-            .border_style(theme.border(focused))
-    };
-
     let Some(rec) = &app.recording else {
-        let block = block("");
+        let block = Block::bordered()
+            .title(format!(" {name} "))
+            .title_style(theme.base())
+            .border_style(theme.border(false));
         let inner = block.inner(area);
         f.render_widget(block, area);
         empty_message(f, inner, app);
@@ -52,15 +47,37 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
 
     let (t0, t1) = rec.view;
     let span = t1 - t0;
-    let block = |title: &str| {
-        block(title).title(
-            Line::from(format!(
-                " cursor {} · window {} ",
-                cursor_label(app, rec),
-                time(span, span)
-            ))
-            .alignment(Alignment::Right),
-        )
+    let right = format!(" cursor {} · window {} ", cursor_label(app, rec), time(span, span));
+    // Built late: the title shows the scroll position once it is known. The
+    // harmonics view lists the orders, the shown ones in brackets, or only
+    // the shown ones when that doesn't fit beside the right title.
+    let block = |position: &str| {
+        let fits = |left: &str| left.chars().count() + right.chars().count() + 2 <= area.width as usize;
+        let mut left = format!(" {name}{position} ");
+        if app.plot_view == PlotView::Harmonics {
+            let shown = app.shown_orders();
+            let all: Vec<String> = (1..=rec.max_order().min(9))
+                .map(|h| {
+                    if shown.contains(&h) {
+                        format!("[{h}]")
+                    } else {
+                        h.to_string()
+                    }
+                })
+                .collect();
+            let long = format!(" {name} {}{position} ", all.join(" "));
+            let short: Vec<String> = shown.iter().map(ToString::to_string).collect();
+            left = if fits(&long) {
+                long
+            } else {
+                format!(" {name} {}{position} ", short.join(" "))
+            };
+        }
+        Block::bordered()
+            .title(left)
+            .title_style(if focused { theme.accent() } else { theme.base() })
+            .border_style(theme.border(focused))
+            .title(Line::from(right.clone()).alignment(Alignment::Right))
     };
     let inner = Block::bordered().inner(area);
     if inner.width <= GUTTER + 4 || inner.height < 2 {
@@ -122,9 +139,13 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
         let item = layout.offset + k;
         if let Some(&(i, order)) = analog.get(item) {
             // Shade by row position, so shades don't swap while scrolling.
-            analog_plot(f, row, app, rec, (i, order), cursor_idx, theme.plot_background(item));
+            let selected = app.selected == i;
+            let style = (cursor_idx, theme.plot_background(item), selected);
+            analog_plot(f, row, app, rec, (i, order), style);
         } else {
-            binary_strip(f, row, app, rec, binary[item - analog.len()], cursor_idx);
+            let b = binary[item - analog.len()];
+            let selected = app.selected == rec.visible_analog.len() + b;
+            binary_strip(f, row, app, rec, b, (cursor_idx, selected));
         }
     }
 
@@ -287,15 +308,15 @@ fn centered_text(f: &mut Frame, area: Rect, text: &str, style: Style) {
 }
 
 /// Draws analog channel `i` into `area` (gutter and plot) on `background`;
-/// with `order`, that harmonic order over time.
+/// with `order`, that harmonic order over time. The name of the channel
+/// selected in the sidebar is marked with `▶`.
 fn analog_plot(
     f: &mut Frame,
     area: Rect,
     app: &App,
     rec: &Recording,
     (i, order): (usize, Option<usize>),
-    cursor_idx: Option<usize>,
-    background: Color,
+    (cursor_idx, background, selected): (Option<usize>, Color, bool),
 ) {
     let theme = &app.theme;
     // Shade the whole row, so gutter and plot read as one band.
@@ -368,8 +389,13 @@ fn analog_plot(
         Some(h) => format!("{} h{h} [%]", ch.info.id),
         None => format!("{} [{}]", ch.info.id, ch.info.unit),
     };
+    let name_style = Style::new().fg(color).add_modifier(Modifier::BOLD);
     let mut lines = vec![
-        Line::styled(name, Style::new().fg(color).add_modifier(Modifier::BOLD)),
+        if selected {
+            Line::styled(format!("▶ {name}"), name_style.patch(theme.selection()))
+        } else {
+            Line::styled(name, name_style)
+        },
         Line::from(format!("▸ {}", value.map_or_else(|| "-".into(), si))),
     ];
     if area.height >= 4 {
@@ -445,14 +471,30 @@ fn point_segments(time: &[f64], points: &[usize], values: &[Option<f64>]) -> Vec
     segments
 }
 
-fn binary_strip(f: &mut Frame, area: Rect, app: &App, rec: &Recording, i: usize, cursor_idx: Option<usize>) {
+/// Draws binary channel `i`; the one selected in the sidebar is marked with `▶`.
+fn binary_strip(
+    f: &mut Frame,
+    area: Rect,
+    app: &App,
+    rec: &Recording,
+    i: usize,
+    (cursor_idx, selected): (Option<usize>, bool),
+) {
     let theme = &app.theme;
     let ch = rec.data.binary(i).expect("visible channel exists");
     let color = Style::new().fg(theme.channel("", i + 4));
     let state = cursor_idx.map(|k| ch.get(k));
-    let label = format!("{:<w$.w$}", ch.info.id, w = (GUTTER - 3) as usize);
+    let w = (GUTTER - 3) as usize;
+    let (label, style) = if selected {
+        (
+            format!("▶ {:<w$.w$}", ch.info.id, w = w - 2),
+            color.patch(theme.selection()),
+        )
+    } else {
+        (format!("{:<w$.w$}", ch.info.id), color)
+    };
     let gutter = Line::from(vec![
-        Span::styled(label, color),
+        Span::styled(label, style),
         Span::styled(
             state.map_or(" -".into(), |s| format!(" {}", u8::from(s))),
             if state.is_some_and(|s| s != ch.info.normal_state) {

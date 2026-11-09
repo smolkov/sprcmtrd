@@ -1056,6 +1056,9 @@ runs the event loop and always restores the terminal, also on panic
   window) stay fixed; a scrollbar on the right border and
   `channels 4–9 of 18` in the title show the position.
 - Cursor: shows time and value of every visible channel at the cursor position.
+- The channel selected in the sidebar is marked in the plot area: its gutter
+  name starts with `▶` and has the selection style (all its rows in the
+  harmonics view; binary strips too).
 - RMS view (`r`): analog plots show the sliding RMS instead of the samples, the
   block title says `RMS`, or `RMS-DC` with the DC part removed (`d`). The window is
   one cycle and ends at the sample, like `phasors` and `trend`, so a step shows up
@@ -1083,7 +1086,11 @@ runs the event loop and always restores the terminal, also on panic
   Only the drawn points are computed: one per braille dot column, every sample
   when fewer. Orders at or above half the sample rate (`harmonics::max_order`
   at the line frequency) are not shown and can't be switched on (footer note).
-  No orders shown: a hint in the plot area. The y axis starts at 0. `r` and `f`
+  No orders shown: a hint in the plot area. The block title lists the orders
+  up to 9 below half the sample rate, the shown ones in brackets
+  (` Harmonics [1] 2 [3] 4 5 6 7 8 9 `); when that doesn't fit beside the
+  cursor / window title, only the shown ones (` Harmonics 1 3 `). The y axis
+  starts at 0. `r` and `f`
   each toggle between their view and the waveform; the order choice applies to
   all channels and stays when another file is opened. Without a line frequency
   the view can't be opened.

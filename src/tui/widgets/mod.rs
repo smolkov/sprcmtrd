@@ -313,7 +313,9 @@ mod tests {
         t.draw(|f| draw(f, &app)).unwrap();
         let buf = t.backend().buffer();
 
-        // Background in the middle of the plot, on the row of each channel label.
+        // Background in the middle of the plot on the row of each channel
+        // label, and in the gutter on the value line below it (the label of
+        // the selected channel has the selection background).
         let bg_of = |label: &str| {
             let y = (0..buf.area.height)
                 .find(|&y| {
@@ -321,7 +323,7 @@ mod tests {
                     row.contains(label)
                 })
                 .unwrap_or_else(|| panic!("{label} not drawn"));
-            (buf[(80, y)].bg, buf[(25, y)].bg)
+            (buf[(80, y)].bg, buf[(25, y + 1)].bg)
         };
         let [light, dark] = Theme::dark().plot_shades;
         assert_ne!(light, dark);
@@ -719,6 +721,41 @@ mod tests {
         // f again: the waveform.
         press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
         assert_eq!(app.plot_view, PlotView::Waveform);
+    }
+
+    #[test]
+    fn selected_channel_is_marked_in_the_plots() {
+        let marked = |screen: &str| -> Vec<String> {
+            screen
+                .lines()
+                .filter_map(|l| l.split("││").nth(1))
+                .filter(|r| r.starts_with('▶'))
+                .map(|r| r.split("  ").next().unwrap_or("").trim().to_owned())
+                .collect()
+        };
+        let mut app = app();
+        let screen = render(&app, 110, 40);
+        assert_eq!(marked(&screen), ["▶ IA [A]"], "{screen}");
+        // The next channel in the sidebar.
+        press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+        assert_eq!(marked(&render(&app, 110, 40)), ["▶ IB [A]"]);
+
+        // Harmonics view: every row of the selected channel.
+        press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
+        press(&mut app, KeyCode::Char('3'), KeyModifiers::NONE);
+        let screen = render(&app, 110, 40);
+        assert_eq!(marked(&screen), ["▶ IB h1 [A]", "▶ IB h3 [%]"], "{screen}");
+        assert!(screen.contains(" Harmonics [1] 2 [3] 4 5 6 7 8 9 "), "{screen}");
+    }
+
+    #[test]
+    fn harmonics_title_is_short_when_narrow() {
+        let mut app = app();
+        press(&mut app, KeyCode::Char('f'), KeyModifiers::NONE);
+        press(&mut app, KeyCode::Char('3'), KeyModifiers::NONE);
+        let screen = render(&app, 80, 24);
+        assert!(screen.contains(" Harmonics 1 3 · "), "{screen}");
+        assert!(!screen.contains("[3]"), "{screen}");
     }
 
     #[test]
