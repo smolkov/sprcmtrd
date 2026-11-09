@@ -54,7 +54,8 @@ own and changes no behaviour.
 | Versions | `[workspace.package]` with one shared version, edition, license, authors; each crate inherits them. Workspace `[workspace.dependencies]` for shared ones (`chrono`, `serde`, `thiserror`) | Independent versions per crate: only needed once a crate is published |
 | GUI MSRV | `rust-version = "1.90"` for the two GUI crates only; the CLI, TUI and libraries stay at 1.88. CI's MSRV job checks the non-GUI packages | Raise the whole project to 1.90 |
 | Default build | `default-members` leaves out the GUI, so `cargo build`, `cargo test`, `cargo clippy` and CI behave as today and don't need WebKitGTK. The GUI builds with `cargo tauri dev` / `build` and its own CI job | GUI in every build: every developer and CI runner needs the WebKit packages |
-| GUI app | Its own binary `sprcmtrd-gui` with its own package (`.deb`, AppImage, `.msi`, `.dmg` from `cargo tauri build`) | A `sprcmtrd gui` subcommand: one binary, but the CLI `.deb` would depend on WebKitGTK |
+| GUI app | Its own binary `sprcmtrd-gui` with its own package (`.deb`, AppImage, `.msi`, `.dmg` from `cargo tauri build`) | Tauri built into `sprcmtrd` (`sprcmtrd gui` directly, or a cargo feature `gui`): one binary, but the CLI `.deb` would depend on WebKitGTK, and a feature means two builds to package and test |
+| Starting the GUI | `sprcmtrd gui [PATH]` (alias `ui`) is a launcher: it looks for `sprcmtrd-gui` next to its own executable, then on `PATH`, and starts it with the same arguments and global options, then exits with its exit code. Without the GUI installed: "the desktop GUI (sprcmtrd-gui) is not installed; …" with the install hint, exit 1. The CLI links no WebKit and stays at Rust 1.88 | Only `sprcmtrd-gui`: nothing to remember in the CLI, but two commands for one tool |
 | Data flow | The backend holds the open recordings and does all the work, the frontend only gets what it draws: decimated min/max per pixel column (`AnalogChannel::plot_segments`, `BinaryChannel::strip`), as the TUI does. O(columns) per channel, works for large files | Send the samples to the frontend once: simpler drawing, but megabytes per channel over IPC and in wasm memory |
 | Plot drawing | Canvas 2D through `web-sys`, our own code like the TUI widgets: axes, min/max bands, binary strips, cursor | SVG elements from Leptos: easy to style, slow with many channels × 2 000 columns. Or a plotting crate (`plotters-canvas`): more dependencies, less control |
 | Frontend build | Leptos 0.8 in CSR mode (client side only, Tauri has no server) built by `trunk`, which `tauri.conf.json` runs (`beforeDevCommand: trunk serve`) | Leptos 0.9 (only rc now) |
@@ -136,11 +137,21 @@ Dependencies: `comtrade` ← `core` ← `sprcmtrd`, `sprcmtrd-gui`; `api` ←
    and a value readout, primary / secondary switch, light / dark from
    `prefers-color-scheme`. A redraw asks the backend for the new window at
    the canvas width in device pixels; requests are debounced while zooming.
-5. **Docs:** `spec.md` section "Desktop GUI" with these decisions,
-   `docs/src/gui/index.md` + `SUMMARY.md`, README (install / run),
+5. **Launcher in the CLI:** `Command::Gui(GuiArgs)` with `#[command(visible_alias
+   = "ui")]`, `[PATH]` and trailing arguments passed on; `command/gui.rs`
+   finds the binary (`std::env::current_exe()` directory, then `PATH`, also
+   `sprcmtrd-gui.exe` on Windows) and runs it with `std::process::Command`.
+   On Linux and macOS it waits for the GUI and returns its exit code, so a
+   script sees failures. Tests in `tests/cli.rs` with a fake `sprcmtrd-gui`
+   script in a temporary directory (on `PATH` for the test only): the
+   arguments arrive, the exit code is passed on, and a missing GUI gives the
+   message and exit 1. No GUI build is needed for these tests.
+6. **Docs:** `spec.md` section "Desktop GUI" with these decisions,
+   `docs/src/gui/index.md` + `SUMMARY.md`, `docs/src/commands/gui.md` for
+   the launcher, README (install / run, `sprcmtrd gui`),
    `agent.md` (GUI layout, `cargo tauri dev`, the frontend-can't-use-comtrade
    rule).
-6. **Checks:** the CI commands (unchanged scope), plus `cargo clippy -p
+7. **Checks:** the CI commands (unchanged scope), plus `cargo clippy -p
    sprcmtrd-gui -p sprcmtrd-gui-ui --target …`, `cargo test -p sprcmtrd-api
    -p sprcmtrd-gui`, `trunk build`, and a manual run of `cargo tauri dev`
    with `tests/data` (open each sample, zoom, pan, cursor).
@@ -166,7 +177,8 @@ Dependencies: `comtrade` ← `core` ← `sprcmtrd`, `sprcmtrd-gui`; `api` ←
 ## Open questions
 
 - **Name:** `sprcmtrd-gui` as the binary and app name, or a product name for
-  the window title and installers?
+  the window title and installers? (The launcher `sprcmtrd gui` / `ui` works
+  with either; it only needs to know the binary name.)
 - **Scope of stage 2:** are several recordings open at once (tabs), or one
   at a time like the TUI? The plan does one, with the backend ready for more.
 - **Web server UI** (`todo.md`, "Webserver ui ideas"): the same Leptos
