@@ -9,7 +9,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::symbols::Marker;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::canvas::{Canvas, Line as CanvasLine, Points};
-use ratatui::widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
+use ratatui::widgets::{Block, Paragraph};
 
 use super::time_axis::{self, column_of, cursor_label};
 use crate::analysis::harmonics;
@@ -175,16 +175,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
             width: 1,
             height: rows,
         };
-        let mut state = ScrollbarState::new(n - layout.rows.len() + 1)
-            .position(layout.offset)
-            .viewport_content_length(layout.rows.len());
-        let bar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(None)
-            .end_symbol(None)
-            .track_symbol(Some(ratatui::symbols::line::VERTICAL))
-            .track_style(theme.border(focused))
-            .thumb_style(theme.accent());
-        f.render_stateful_widget(bar, track, &mut state);
+        super::scrollbar(f, track, (n, layout.rows.len(), layout.offset), theme, focused);
     }
 
     let axis = Rect {

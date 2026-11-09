@@ -1060,7 +1060,10 @@ runs the event loop and always restores the terminal, also on panic
 - **Header:** left: app name and version (big text only if terminal is ≥ 100 columns,
   otherwise one line); right: current file, station, revision, sample rate.
 - **Sidebar:** channel list (analog, then binary) with unit; selected channels
-  are drawn in the plot area. Can be hidden.
+  are drawn in the plot area. Can be hidden. When the channels don't fit, a
+  scrollbar on the right border (as in the plot area) and the selected
+  channel's position on the bottom border (` 12 / 40 `, channels only, the
+  ` binary ` separator not counted).
 - **Plot area:** analog line plots stacked vertically, binary status strips below,
   one shared time axis with a vertical cursor and trigger marker. Scrolls when
   the shown channels don't fit (see Plots).
@@ -1241,6 +1244,12 @@ help overlay are generated from it.
 - `↑`/`↓` select, `Ctrl+↑`/`Ctrl+↓` or `PgUp`/`PgDn` move 10 entries, `Home`/`End`
   go to the first and last entry, `Enter` open, `Backspace` on empty input goes to
   parent directory, `Esc` close. `J`/`K` type into the filter here.
+- Bottom line: the selected entry's position, `12 / 512 entries`, or
+  `12 / 340 · 512 entries` when the filter hides some (`none of 512 entries
+  match` when it hides all). When the entries don't fit, a scrollbar in the
+  table's rightmost column. Scrollbars (plot area, sidebar, picker) share
+  `widgets::scrollbar`: track `│` in the border style, thumb `█` in the
+  accent.
 - Directory scan runs in the background; results appear as they arrive. Changing
   directory, toggling `Ctrl+r` / `Ctrl+b` or closing the picker cancels a running scan.
 - Recursive search in subdirectories.

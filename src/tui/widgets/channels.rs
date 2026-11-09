@@ -1,7 +1,7 @@
 //! Sidebar with the channel list.
 
 use ratatui::Frame;
-use ratatui::layout::Rect;
+use ratatui::layout::{Alignment, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState};
@@ -74,9 +74,30 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     } else {
         app.selected
     };
+    // When the list doesn't fit: the selected channel's position on the
+    // bottom border, counting channels only (not the separator).
+    let total = items.len();
+    let inner_height = area.height.saturating_sub(2) as usize;
+    let scrolls = total > inner_height && inner_height > 0;
+    let channels = rec.visible_analog.len() + rec.visible_binary.len();
+    let block = if scrolls {
+        block.title_bottom(Line::from(format!(" {} / {channels} ", app.selected + 1)).alignment(Alignment::Right))
+    } else {
+        block
+    };
     let mut state = ListState::default().with_selected(Some(row));
     let list = List::new(items)
         .block(block)
         .highlight_style(if focused { theme.selection() } else { Style::new() });
     f.render_stateful_widget(list, area, &mut state);
+    if scrolls {
+        // On the right border, beside the rows: the sidebar is narrow.
+        let track = Rect {
+            x: area.x + area.width - 1,
+            y: area.y + 1,
+            width: 1,
+            height: inner_height as u16,
+        };
+        super::scrollbar(f, track, (total, inner_height, state.offset()), theme, focused);
+    }
 }

@@ -2,7 +2,15 @@
 
 - **Issue:** none, from `todo.md` ("Show the scroll position in the long
   lists too")
-- **Status:** planned, waiting for approval
+- **Status:** in progress, on branch `tui-list-scroll-position` (branched
+  from `cli-refactoring`). Built as planned, except:
+  - The picker's bottom line always shows the position (`1 / 3 entries`),
+    also for a short list: it already showed a count there. The scrollbar
+    only shows when the list doesn't fit.
+  - A filter that hides every entry gives `none of 512 entries match`; no
+    entries at all (still scanning) `0 entries`.
+  - The sidebar test uses a recording of 40 channels built in the test:
+    `fault_2013`'s 20 channels fit at 24 rows.
 
 ## Problem
 

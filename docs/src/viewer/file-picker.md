@@ -11,6 +11,9 @@ Opens at start when no file is given, and with `o`.
   expression, e.g. `/^station_b/.*2026`.
 - `↑`/`↓` select, `Ctrl+↑`/`Ctrl+↓` or `PgUp`/`PgDn` move 10 entries, `Home`/`End`
   go to the first and last entry.
+- The bottom line shows the selected entry's position (`12 / 512 entries`;
+  `12 / 340 · 512 entries` when the filter hides some); a long list has a
+  scrollbar.
 - `Enter` opens a recording or directory, `Backspace` on an empty filter goes to
   the parent directory, `Esc` closes.
 - The search runs in the background and results appear as they are found.

@@ -74,7 +74,7 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 * [ ] More light themes (`solarized-light`, `tokyonight-day`).
 * [ ] `power` with phase-to-phase voltages only (no neutral): two-wattmeter (Aron) method.
 * [ ] Scroll the plot area with the mouse wheel. Needs mouse capture, which stops normal text selection in the terminal, so it should be optional.
-* [ ] Show the scroll position in the long lists too: the sidebar channel list and the file picker already scroll with the selection, but nothing shows that more entries are above or below. Add a scrollbar or `12 / 340` to both.
+* [x] Show the scroll position in the long lists too: a scrollbar and the selected position (`12 / 40`) in the sidebar channel list and the file picker. See `tasks/tui-list-scroll-position.md`.
 * [ ] Allow more than one key per action in the configuration overlay (rebinding currently replaces all keys).
 
 ## Webserver ui ideas

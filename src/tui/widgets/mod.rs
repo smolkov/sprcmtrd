@@ -13,9 +13,10 @@ mod time_axis;
 
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
-use ratatui::widgets::{Block, Clear, Paragraph, Wrap};
+use ratatui::widgets::{Block, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 
 use super::app::{App, Overlay};
+use super::theme::Theme;
 
 /// Smallest supported terminal size.
 pub const MIN_SIZE: (u16, u16) = (80, 24);
@@ -86,6 +87,28 @@ fn centered(area: Rect, width_pct: u16, height_pct: u16) -> Rect {
         width,
         height,
     }
+}
+
+/// A vertical scrollbar in `track` for `total` rows of which `viewport`
+/// are shown from row `offset`: track `│` in the border style, thumb in the
+/// accent (ratatui's `█`, so it shows without colors too), no arrows.
+fn scrollbar(
+    f: &mut Frame,
+    track: Rect,
+    (total, viewport, offset): (usize, usize, usize),
+    theme: &Theme,
+    focused: bool,
+) {
+    let mut state = ScrollbarState::new(total.saturating_sub(viewport) + 1)
+        .position(offset)
+        .viewport_content_length(viewport);
+    let bar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(None)
+        .end_symbol(None)
+        .track_symbol(Some(ratatui::symbols::line::VERTICAL))
+        .track_style(theme.border(focused))
+        .thumb_style(theme.accent());
+    f.render_stateful_widget(bar, track, &mut state);
 }
 
 /// Draws an overlay frame (cleared background, bordered block) and returns its inner area.
@@ -748,6 +771,95 @@ mod tests {
             Some(Overlay::Picker(p)) => p.selected,
             _ => panic!("no picker open"),
         }
+    }
+
+    /// The symbols of column `x` from row `y0` on, `n` rows.
+    fn column(buf: &Buffer, x: u16, y0: u16, n: u16) -> String {
+        (y0..y0 + n).map(|y| buf[(x, y)].symbol()).collect()
+    }
+
+    /// App with a recording of `n` analog channels, all shown in the sidebar.
+    fn app_with_channels(n: usize) -> App {
+        let mut cfg = format!("S,D,1999\n{n},{n}A,0D\n");
+        for i in 1..=n {
+            cfg += &format!("{i},CH{i},,,A,1,0,0,-1e9,1e9,1,1,P\n");
+        }
+        cfg += "50\n1\n1000,10\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+        let dat: String = (0..10)
+            .map(|k| format!("{},{}{}\n", k + 1, k * 1000, ",1".repeat(n)))
+            .collect();
+        let mut app = app();
+        app.set_recording(Comtrade::from_readers(cfg.as_bytes(), dat.as_bytes()).unwrap());
+        app
+    }
+
+    #[test]
+    fn sidebar_shows_its_scroll_position() {
+        let draw_at = |app: &App, h: u16| {
+            let mut t = Terminal::new(TestBackend::new(80, h)).unwrap();
+            t.draw(|f| draw(f, app)).unwrap();
+            t.backend().buffer().clone()
+        };
+        let mut app = app_with_channels(40);
+        let buf = draw_at(&app, 24);
+        let screen = text(&buf);
+        assert!(screen.contains(" 1 / 40 ┘"), "{screen}");
+        // The sidebar's right border: the thumb at the top, the track below.
+        let (x, y) = cell_of(&buf, "┌ Channels");
+        let right = x + crate::tui::widgets::channels::width(app.recording.as_ref().unwrap()) - 1;
+        let bottom = (y..buf.area.height).find(|&r| buf[(right, r)].symbol() == "┘").unwrap();
+        let bar = column(&buf, right, y + 1, bottom - y - 1);
+        assert!(bar.starts_with('█') && bar.ends_with('│'), "{bar:?}\n{screen}");
+
+        // The last channel: the thumb at the bottom.
+        press(&mut app, KeyCode::End, KeyModifiers::NONE);
+        let buf = draw_at(&app, 24);
+        let screen = text(&buf);
+        assert!(screen.contains(" 40 / 40 ┘"), "{screen}");
+        let bar = column(&buf, right, y + 1, bottom - y - 1);
+        assert!(bar.starts_with('│') && bar.ends_with('█'), "{bar:?}\n{screen}");
+
+        // Everything fits: neither.
+        let app = app_with_channels(10);
+        let buf = draw_at(&app, 24);
+        let screen = text(&buf);
+        assert!(!screen.contains("/ 10 ┘"), "{screen}");
+        let right = x + crate::tui::widgets::channels::width(app.recording.as_ref().unwrap()) - 1;
+        assert!(!column(&buf, right, y + 1, 10).contains('█'));
+    }
+
+    #[test]
+    fn picker_shows_its_scroll_position() {
+        // The scrollbar in the column left of the overlay's right border.
+        let bar = |app: &App| {
+            let mut t = Terminal::new(TestBackend::new(80, 24)).unwrap();
+            t.draw(|f| draw(f, app)).unwrap();
+            let buf = t.backend().buffer().clone();
+            let (x, y) = cell_of(&buf, "┌ Open recording");
+            let right = (x..buf.area.width).find(|&c| buf[(c, y)].symbol() == "┐").unwrap();
+            column(&buf, right - 1, y + 3, 10)
+        };
+        let mut app = app_with_picker(100);
+        let screen = render(&app, 80, 24);
+        assert!(screen.contains("1 / 100 entries"), "{screen}");
+        assert!(bar(&app).starts_with('█'), "{:?}\n{screen}", bar(&app));
+        press(&mut app, KeyCode::End, KeyModifiers::NONE);
+        assert!(render(&app, 80, 24).contains("100 / 100 entries"));
+        // A filter that hides some.
+        for c in "dir1".chars() {
+            press(&mut app, KeyCode::Char(c), KeyModifiers::NONE);
+        }
+        let screen = render(&app, 80, 24);
+        assert!(screen.contains(" / 11 · 100 entries"), "{screen}");
+        for c in "x".chars() {
+            press(&mut app, KeyCode::Char(c), KeyModifiers::NONE);
+        }
+        assert!(render(&app, 80, 24).contains("none of 100 entries match"));
+        // A short list: no scrollbar.
+        let app = app_with_picker(3);
+        let screen = render(&app, 80, 24);
+        assert!(screen.contains("1 / 3 entries"), "{screen}");
+        assert!(!bar(&app).contains('█'), "{screen}");
     }
 
     #[test]

@@ -59,6 +59,15 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, p: &Picker) {
         })
         .collect();
     let empty = rows.is_empty();
+    let total = rows.len();
+    // A column for the scrollbar when the rows don't fit.
+    let scrolls = total > list.height as usize && list.height > 0;
+    let (list, track) = if scrolls {
+        let [list, track] = Layout::horizontal([Constraint::Min(0), Constraint::Length(1)]).areas(list);
+        (list, Some(track))
+    } else {
+        (list, None)
+    };
     let table = Table::new(
         rows,
         [
@@ -71,6 +80,9 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, p: &Picker) {
     .row_highlight_style(theme.selection());
     let mut state = TableState::default().with_selected((!empty).then_some(p.selected));
     f.render_stateful_widget(table, list, &mut state);
+    if let Some(track) = track {
+        super::scrollbar(f, track, (total, list.height as usize, state.offset()), theme, true);
+    }
 
     let message = if let Some(e) = &p.error {
         Line::styled(e.clone(), theme.error())
@@ -89,10 +101,19 @@ pub fn render(f: &mut Frame, area: Rect, app: &App, p: &Picker) {
             theme.muted(),
         )
     } else {
-        Line::styled(
-            format!("{} of {} entries", p.filtered.len(), p.entries.len()),
-            Style::new().patch(theme.muted()),
-        )
+        // The selected entry's position; the number found when a filter
+        // hides some.
+        let position = format!("{} / {}", p.selected + 1, p.filtered.len());
+        let text = if p.entries.is_empty() {
+            "0 entries".to_owned()
+        } else if p.filtered.is_empty() {
+            format!("none of {} entries match", p.entries.len())
+        } else if p.filtered.len() == p.entries.len() {
+            format!("{position} entries")
+        } else {
+            format!("{position} · {} entries", p.entries.len())
+        };
+        Line::styled(text, Style::new().patch(theme.muted()))
     };
     f.render_widget(Paragraph::new(message), bottom);
 }

@@ -772,6 +772,8 @@ q quit  o open  i info  ? help  Space toggle  + zoom  ← cursor  Shift+← pan 
   samples.
 - **Sidebar:** channel list; `●` shown, `○` hidden. The first six analog channels
   and up to eight binary channels that change state are shown after loading.
+  A long list shows a scrollbar and the selected channel's position
+  (`12 / 40`) on the bottom border.
 - **Plots:** one shared time axis for all channels. The gutter shows the channel,
   its value at the cursor and the visible value range. The channel selected in
   the sidebar is marked with `▶` in its plots. Binary states that differ from the
@@ -874,6 +876,9 @@ Opens at start when no file is given, and with `o`.
   expression, e.g. `/^station_b/.*2026`.
 - `↑`/`↓` select, `Ctrl+↑`/`Ctrl+↓` or `PgUp`/`PgDn` move 10 entries, `Home`/`End`
   go to the first and last entry.
+- The bottom line shows the selected entry's position (`12 / 512 entries`;
+  `12 / 340 · 512 entries` when the filter hides some); a long list has a
+  scrollbar.
 - `Enter` opens a recording or directory, `Backspace` on an empty filter goes to
   the parent directory, `Esc` closes.
 - The search runs in the background and results appear as they are found.
