@@ -215,8 +215,8 @@ pub enum Command {
     /// symmetrical components per three-phase group and the system frequency.
     ///
     /// Each row is a window of --cycles cycles ending at that time, like the
-    /// phasors command at one moment. Group columns: 1 positive, 2 negative,
-    /// 0 zero sequence, 2/1 unbalance in %.
+    /// phasors command at one moment. Group columns: + positive, - negative,
+    /// 0 zero sequence, -/+ unbalance in %.
     ///
     /// Examples:
     ///   sprcmtrd trend fault.cfg --from -40 --to 120 --channels IA,IB,IC

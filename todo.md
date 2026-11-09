@@ -28,6 +28,7 @@
 These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `analysis::sequence` and `analysis::stats`.
 
 * [x] `trend <FILE>`: cycle-by-cycle values over time instead of at one moment: RMS, fundamental magnitude and angle, symmetrical components and frequency per channel or group, as a table or CSV (`--step` in cycles or ms, `--channels`, `--from`/`--to`). Shows how the fault develops and clears; the base for several commands below.
+* [x] `trend`: sequence columns `I+ I- I0 I-/+` (CSV `I_pos_A`, …) instead of `I1 I2 I0 I2/1`, which clashed with phase ids like iL1, iL2 (#1). See `tasks/trend-sequence-names.md`.
 * [x] `harmonics <FILE> --at <ms>`: harmonic spectrum (2nd … 50th, magnitude in % of the fundamental and angle) and THD per channel, over `--cycles` cycles. Typical uses: transformer inrush (high 2nd harmonic), CT saturation, power quality.
 * [x] `impedance <FILE> --at <ms>`: apparent impedance of the six fault loops (A-N, B-N, C-N with residual compensation `--k0`, A-B, B-C, C-A) from the voltage and current phasors, in Ω primary or secondary, as R + jX and |Z| ∠ φ. With `--trend`, the trajectory over time for comparing with distance relay zones.
 * [x] `power <FILE>`: active, reactive and apparent power and power factor per three-phase group (from phasors; per phase and total), at `--at` or cycle by cycle. Shows load before the fault and power flow direction.
@@ -76,6 +77,7 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 
 ### Command line
 
+* [ ] Broken pipe: `sprcmtrd trend big.cfg | head` (or quitting `less` early) panics with "failed printing to stdout: Broken pipe". `print!` panics on EPIPE; write through a locked stdout and end quietly (exit 0) on `BrokenPipe`, in every command.
 * [ ] Shared clap argument groups: `--channels`, `--from` / `--to` are defined five times (view, stats, events, export, cut). One `#[command(flatten)] Selection` struct with `channels()` and `window()` methods instead of passing `select_channels` / `time_window` results around.
 * [x] One `Args` struct per subcommand (`Stats(StatsArgs)`) with its own `run(self, ctx)`, instead of the big `match` in `command/mod.rs` that destructures every variant into separate parameters.
 * [ ] Small helpers for repeated code: `GlobalOpts::side()` (the `if secondary { Side::Secondary } else { Side::Primary }` in view, stats, export and the TUI), `Comtrade::name()` (main file name, in view, stats, events), `Comtrade::absolute_time(t)` (trigger time + offset, in export, events, cut and the plot widget), and a serde name for `Side` (`primary` / `secondary`) instead of hand-written matches.

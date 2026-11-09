@@ -901,6 +901,60 @@ fn phasors_before_and_during_the_fault() {
 }
 
 #[test]
+fn trend_sequence_names_differ_from_the_phases() {
+    // Relays often name the phases iL1, iL2, iL3: the positive and negative
+    // sequence used to be iL1 and iL2 too.
+    let dir = tempfile::tempdir().unwrap();
+    let mut cfg = String::from("S,D,1999\n3,3A,0D\n");
+    for (i, p) in ["1", "2", "3"].iter().enumerate() {
+        let phase = ["A", "B", "C"][i];
+        cfg += &format!("{},iL{p},{phase},LINE,A,0.01,0,0,-1e9,1e9,1,1,P\n", i + 1);
+    }
+    cfg += "50\n1\n1000,100\n01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+    let mut dat = String::new();
+    for k in 0..100 {
+        let t = k as f64 / 1000.0;
+        dat += &format!("{},{}", k + 1, k * 1000);
+        for p in 0..3 {
+            let v = 100.0 * (std::f64::consts::TAU * (50.0 * t - p as f64 / 3.0)).cos();
+            dat += &format!(",{}", (v * 100.0).round());
+        }
+        dat += "\n";
+    }
+    let path = dir.path().join("il.cfg");
+    std::fs::write(&path, cfg).unwrap();
+    std::fs::write(dir.path().join("il.dat"), dat).unwrap();
+
+    cmd().arg("trend").arg(&path).assert().success().stdout(
+        predicate::str::is_match(r"iL1 \[A\] +iL2 \[A\] +iL3 \[A\] +iL\+ \[A\] +iL- \[A\] +iL0 \[A\] +iL-/\+\n")
+            .unwrap(),
+    );
+    let out = cmd()
+        .arg("trend")
+        .arg(&path)
+        .args(["--format", "csv"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let text = String::from_utf8(out.stdout).unwrap();
+    let header: Vec<&str> = text.lines().next().unwrap().split(',').collect();
+    assert_eq!(
+        header,
+        [
+            "time_ms",
+            "frequency_hz",
+            "iL1_A",
+            "iL2_A",
+            "iL3_A",
+            "iL_pos_A",
+            "iL_neg_A",
+            "iL_zero_A",
+            "iL_unbalance_pct"
+        ]
+    );
+}
+
+#[test]
 fn trend_through_the_fault() {
     cmd()
         .args(["trend", "tests/data/fault_2013.cfg", "--from", "-40", "--to", "140"])

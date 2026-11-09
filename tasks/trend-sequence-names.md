@@ -1,7 +1,7 @@
 # `trend`: clearer names for the symmetrical components
 
 - **Issue:** #1 (GitLab, branch `1-symmetrische-komponenten-bei-sprcmtrd-trend-besser-anzeigen`)
-- **Status:** plan, waiting for approval
+- **Status:** built as planned. The JSON `label` stays without the space of `G1 `. The header unit test lives in `command/trend.rs`.
 
 ## Problem
 

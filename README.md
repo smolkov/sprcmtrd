@@ -488,7 +488,7 @@ Window     1 cycle (40 samples) at 50 Hz, every 1 cycle (5 rows)
 Reference  A1 IA
 Values     primary, RMS of the fundamental
 
-time       f [Hz]  IA [A]  IB [A]  IC [A]  I1 [A]  I2 [A]  I0 [A]  I2/1
+time       f [Hz]  IA [A]  IB [A]  IC [A]  I+ [A]  I- [A]  I0 [A]  I-/+
 -20.00 ms  -       318.2   318.2   318.2   318.2   0.000   0.000   0.0 %
 0.00 ms    50.000  318.2   347.4   318.2   327.8   11.08   11.08   3.4 %
 20.00 ms   50.000  318.2   3.411k  318.2   1.349k  1.031k  1.031k  76.5 %
@@ -500,7 +500,10 @@ time       f [Hz]  IA [A]  IB [A]  IC [A]  I1 [A]  I2 [A]  I0 [A]  I2/1
   of `--cycles` cycles ending there, like `phasors` at one moment.
 - Columns: frequency, the fundamental (RMS) of each channel (`--angles` adds
   angles, `--rms` the true RMS with harmonics and DC), and for each A/B/C group
-  the positive `1`, negative `2` and zero `0` sequence and the unbalance `2/1`.
+  the positive `+`, negative `-` and zero `0` sequence and the unbalance `-/+`
+  (negative / positive in %), named after the common start of the group's ids
+  (`iL1 iL2 iL3` → `iL+ iL- iL0 iL-/+`). In CSV: `iL_pos_A`, `iL_neg_A`,
+  `iL_zero_A`, `iL_unbalance_pct`.
 - `--format csv` or `json` for spreadsheets and scripts.
 
 ### `frequency`
