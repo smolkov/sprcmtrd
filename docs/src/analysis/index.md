@@ -71,11 +71,25 @@ a phase to phase fault as negative sequence without zero sequence.
 
 ## Frequency
 
-`trend` estimates the system frequency from how far the reference channel's
-phasor **turns** between two steps Δt apart: a signal at f₀ + Δf turns by
-2π·Δf·Δt, so f = f₀ + Δφ / (2π·Δt). This is valid while |Δf|·Δt < ½, that is
-within ±25 Hz at the default step of one cycle. The first row and rows where
-the reference is zero (breaker open) have no frequency.
+`trend` estimates the system frequency from how far a phasor **turns**
+between the window ending at the row and the one before it: a signal at
+f₀ + Δf turns by 2π·Δf·Δt, so f = f₀ + Δφ / (2π·Δt). This is valid while
+|Δf|·Δt < ½, that is within ±25 Hz for one-cycle windows.
+
+The windows are whole cycles of the nominal frequency. Off nominal, the DFT
+of a single phase has an **image**: the negative-frequency half of the cosine
+no longer cancels, turns the other way and makes the angle ripple at twice
+the line frequency. In the **positive sequence** of a three-phase group the
+images of the three phases form a negative sequence and drop out, so `trend`
+measures, in this order, the first source with a signal in both windows (at
+least 5 % of its largest value): the positive sequence of the strongest
+voltage group, of the strongest current group, then the strongest single
+voltage, the strongest single current. Voltages come first because they are
+less disturbed than currents (DC offset, CT saturation). Each measurement is
+repeated twice with windows of whole cycles of the frequency found (frequency
+tracking), which removes what is left of the image. A recording at 55 Hz
+measured this way gives 55.000 Hz; from one phase without tracking it ripples
+by about ±0.5 Hz. Rows without a usable source have no frequency.
 
 The `frequency` command measures one channel over `--cycles` cycles N ending
 at each row, with one of two methods:

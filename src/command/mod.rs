@@ -285,6 +285,6 @@ pub fn trend_steps(
     side: Side,
 ) -> anyhow::Result<(Window, Trend)> {
     let (window, range, step) = step_grid(c, from_ms, to_ms, step, cycles, frequency)?;
-    let result = crate::analysis::trend::trend(channels, c.time(), range, window.samples, step, frequency, 0, side);
+    let result = crate::analysis::trend::trend(channels, c.time(), range, window.samples, step, frequency, side);
     Ok((window, result))
 }

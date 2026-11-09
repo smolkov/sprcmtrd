@@ -611,7 +611,8 @@ Values over time, cycle by cycle: the phasors command for a series of moments.
   default the whole recording), `--step <S>` (distance between rows: a bare
   number is cycles, default 1; with a unit a time, `10ms`), `--cycles <N>`
   (window length, default 1), `--reference <CH>` (one of the shown channels;
-  angles and frequency refer to it; default the first), `--frequency <Hz>`,
+  angles refer to it; default the first), `--frequency-from <CH>` (any
+  analog channel; default automatic, see below), `--frequency <Hz>`,
   `--angles`, `--rms`, `--format text|csv|json`; global `--secondary`.
 - Each row is the window of `N` cycles ending at the row's time (same method as
   `phasors`); the first row is the first window that fits in the range. The
@@ -624,18 +625,30 @@ Values over time, cycle by cycle: the phasors command for a series of moments.
   common start of the group's channel ids (`I+` for IA, IB, IC, `iL+` for iL1,
   iL2, iL3), else `G1 +`, … (with a space, so `G1 0` isn't read as `G10`).
   `+` / `-` keep them apart from phase ids such as iL1, iL2.
-- Frequency: from the turn of the reference phasor between consecutive steps,
-  f = f₀ + Δφ / (2π Δt); missing for the first row and where the reference is
-  zero or missing. Valid while |f − f₀| · Δt < ½ (±25 Hz at a 1-cycle step).
+- Frequency: from the turn of a phasor between the window ending at the row
+  and the one before it (`samples` earlier), f = f₀ + Δφ / (2π Δt), measured
+  again twice with windows of whole cycles of the frequency found (tracking,
+  as `frequency --method phasor`). Valid while |f − f₀| · Δt < ½. The source
+  is chosen per row from all analog channels of the recording (not only the
+  shown ones): the first with a phasor of at least 5 % of its largest sample
+  in both windows, in the order positive sequence of the voltage groups,
+  positive sequence of the current groups, single voltages, single currents,
+  each by its largest value in V or A (`analysis::frequency::sources`, `at`).
+  The positive sequence has no image off nominal (55 Hz with 50 Hz windows:
+  55.000 Hz). `--frequency-from <CH>` uses only that channel. No source: the
+  row's frequency is missing; the first row has none (no window before it).
 - A sequence component below 1e-6 of the group's largest is shown as 0 (residue
   of integer samples). Missing values: `-` (text), empty (CSV), `null` (JSON).
-- Text: header lines (window, step, rows, reference, side) and an aligned
-  table. CSV: header `time_ms,frequency_hz,IA_A,IA_deg,IA_rms_A,…,I_pos_A,
+- Text: header lines (window, step, rows, `Reference` for the angles,
+  `Frequency` with the sources used, `uL+ (uL1E uL2E uL3E), else A9 uNEcalc`,
+  or "no voltage or current with a signal", side) and an aligned table; a
+  column `f from` (source names `uL+`, `uL1E`) after `f [Hz]` when more than
+  one source is used. CSV: header `time_ms,frequency_hz,frequency_source,IA_A,IA_deg,IA_rms_A,…,I_pos_A,
   I_neg_A,I_zero_A,I_unbalance_pct` (words, as some tools don't allow `+` /
   `-` in column names). Until 0.6 the columns were `I1`, `I2`, `I0`, `I2/1`
   (CSV `I1_A`, …), which clashed with phase ids like iL1. JSON: `channels`, `groups`, `steps[]` with `time_s`,
-  `frequency`, `phasors`, `rms`, `sequences`.
-- Library: `analysis::trend::trend`.
+  `frequency`, `frequency_source`, `phasors`, `rms`, `sequences`.
+- Library: `analysis::trend::trend`, `analysis::frequency::{sources, at}`.
 
 ### `phasors` command
 

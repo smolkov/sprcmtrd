@@ -216,7 +216,8 @@ pub enum Command {
     ///
     /// Each row is a window of --cycles cycles ending at that time, like the
     /// phasors command at one moment. Group columns: + positive, - negative,
-    /// 0 zero sequence, -/+ unbalance in %.
+    /// 0 zero sequence, -/+ unbalance in %. The frequency comes from the
+    /// voltages (positive sequence) if they have a signal, else the currents.
     ///
     /// Examples:
     ///   sprcmtrd trend fault.cfg --from -40 --to 120 --channels IA,IB,IC
@@ -854,10 +855,16 @@ pub struct TrendArgs {
     /// Window length in cycles of the fundamental frequency.
     #[arg(long, default_value_t = 1.0)]
     pub cycles: f64,
-    /// Channel the angles and the frequency refer to (one of the shown
-    /// channels). Default: the first channel.
+    /// Channel the angles refer to (one of the shown channels). Default: the
+    /// first channel.
     #[arg(long)]
     pub reference: Option<String>,
+    /// Channel to measure the frequency from (index or id, any analog
+    /// channel). Default: the positive sequence of the strongest voltage
+    /// group with a signal, else of the strongest current group, else the
+    /// strongest single voltage or current.
+    #[arg(long)]
+    pub frequency_from: Option<String>,
     /// Fundamental frequency in Hz. Default: the line frequency of the recording.
     #[arg(long)]
     pub frequency: Option<f64>,
