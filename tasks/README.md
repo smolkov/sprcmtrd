@@ -25,6 +25,7 @@ differently from it. Open ideas without a plan are in `todo.md`.
 | [`compare --plot --difference`: B − A per pair](compare-difference-plot.md) | - | done, unreleased |
 | [Command line refactoring: broken pipe, shared options, helpers, exit codes, JSON](cli-refactoring.md) | - | in progress (steps 1–5 of 6) |
 | [TUI: scroll position in the channel list and the file picker](tui-list-scroll-position.md) | - | in progress |
+| [`comtrade` as its own crate in a workspace](comtrade-crate.md) | - | planned, waiting for approval |
 | [Desktop GUI with Tauri and Leptos, workspace with shared crates](gui-tauri-leptos.md) | - | planned, waiting for approval; open questions: app name, tabs |
 
 Status values:
