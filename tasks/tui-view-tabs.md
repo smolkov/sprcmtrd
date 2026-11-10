@@ -1,7 +1,7 @@
 # TUI: show the plot views as tabs
 
 - **Issue:** none, from the user ("it is not visible which different views the plot has")
-- **Status:** done, unreleased. Built as planned, except:
+- **Status:** done, 1.0.0. Built as planned, except:
   - Two more fallback levels after the planned ones: first the inactive
     tabs go (only the current view and the group key), then the group
     toggle. At 80 columns with the sidebar the planned levels don't fit

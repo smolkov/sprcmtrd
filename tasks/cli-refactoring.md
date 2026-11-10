@@ -2,8 +2,8 @@
 
 - **Issue:** none, from `todo.md` ("Refactoring ideas → Command line", the six
   open items)
-- **Status:** in progress, on branch `cli-refactoring`. Steps 1–5 are
-  built and committed; step 6 (JSON) is not started. Built differently:
+- **Status:** in progress. Steps 1–5 are in 1.0.0 (merged into `main`);
+  step 6 (JSON) is not started. Built differently:
   - Step 1: the JSON form of `Side` (`"primary"`, lowercase) moves to step 6:
     `Side` is already serialized as `"Primary"` in `info --json`, so it
     changes the output.

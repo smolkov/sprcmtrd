@@ -4,7 +4,7 @@
   defined with a config file, e.g. in the config directory in
   `themes/theme.toml`; implement atom-one-dark, nord, solarized-dark,
   nord-night, tokyonight")
-- **Status:** done, unreleased. Built as proposed,
+- **Status:** done, 1.0.0. Built as proposed,
   except:
   - The theme files, `Catalog` and `ThemeSpec` are in `src/term/themes/`
     (built-in files `src/term/themes/*.toml`), not in `src/tui/theme/`. The

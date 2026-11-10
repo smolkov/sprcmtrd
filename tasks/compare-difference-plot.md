@@ -2,7 +2,7 @@
 
 - **Issue:** none, from `todo.md` (follow-up of `compare --plot`, see
   `tasks/compare-trend-plot.md`)
-- **Status:** done, unreleased. Built as
+- **Status:** done, 1.0.0. Built as
   planned, except:
   - `--invert-b` turns only B's currents (found by unit) in `--plot`, not its
     voltages: the option says B's currents are measured out of the line.

@@ -30,6 +30,6 @@ It has two faces:
 
 ## About this book
 
-The book describes version 0.8.0. Example outputs come from the
+The book describes version 1.0.0. Example outputs come from the
 synthetic sample recordings in `tests/data/` of the repository, so you can run
 every example yourself in a checkout.

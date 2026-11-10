@@ -20,11 +20,11 @@ differently from it. Open ideas without a plan are in `todo.md`.
 | [TUI: a harmonics view over time](tui-harmonics-view.md) | [#4](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/4) | done, 0.7.0 |
 | [TUI: impedance trajectories](6-tui-impedance-view.md) | [#6](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/6) | done, 0.8.0 |
 | [TUI: optional grouping of the analog traces](5-tui-analog-groups.md) | [#5](https://gitlab.fe.sprecher-automation.com/smo/sprcmtrd/-/issues/5) | done, 0.8.0 |
-| [TUI: show the plot views as tabs](tui-view-tabs.md) | - | done, unreleased |
-| [TUI: named color themes from TOML files, text styles](tui-themes.md) | - | done, unreleased |
-| [`compare --plot --difference`: B − A per pair](compare-difference-plot.md) | - | done, unreleased |
-| [Command line refactoring: broken pipe, shared options, helpers, exit codes, JSON](cli-refactoring.md) | - | in progress (steps 1–5 of 6) |
-| [TUI: scroll position in the channel list and the file picker](tui-list-scroll-position.md) | - | in progress |
+| [TUI: show the plot views as tabs](tui-view-tabs.md) | - | done, 1.0.0 |
+| [TUI: named color themes from TOML files, text styles](tui-themes.md) | - | done, 1.0.0 |
+| [`compare --plot --difference`: B − A per pair](compare-difference-plot.md) | - | done, 1.0.0 |
+| [Command line refactoring: broken pipe, shared options, helpers, exit codes, JSON](cli-refactoring.md) | - | in progress (steps 1–5 of 6 in 1.0.0) |
+| [TUI: scroll position in the channel list and the file picker](tui-list-scroll-position.md) | - | done, 1.0.0 |
 | [`comtrade` as its own crate in a workspace](comtrade-crate.md) | - | planned, waiting for approval |
 | [Desktop GUI with Tauri and Leptos, workspace with shared crates](gui-tauri-leptos.md) | - | planned, waiting for approval; open questions: app name, tabs |
 

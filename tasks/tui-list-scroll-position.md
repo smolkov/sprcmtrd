@@ -2,8 +2,7 @@
 
 - **Issue:** none, from `todo.md` ("Show the scroll position in the long
   lists too")
-- **Status:** in progress, on branch `tui-list-scroll-position` (branched
-  from `cli-refactoring`). Built as planned, except:
+- **Status:** done, 1.0.0. Built as planned, except:
   - The picker's bottom line always shows the position (`1 / 3 entries`),
     also for a short list: it already showed a count there. The scrollbar
     only shows when the list doesn't fit.
