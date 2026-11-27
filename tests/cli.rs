@@ -35,6 +35,33 @@ fn info_no_extra_skips_header() {
 }
 
 #[test]
+fn info_and_check_keep_escape_sequences_from_the_terminal() {
+    let dir = tempfile::tempdir().unwrap();
+    let cfg = "EVIL\x1b]0;title\x07,D,1999\n1,1A,0D\n1,IA\x1b[2J,A,,A,1,0,0,-100,100,1,1,P\n50\n1\n1000,1\n\
+01/01/2020,00:00:00.000000\n01/01/2020,00:00:00.000000\nASCII\n1\n";
+    std::fs::write(dir.path().join("esc.cfg"), cfg).unwrap();
+    std::fs::write(dir.path().join("esc.dat"), "1,0,1\n").unwrap();
+    std::fs::write(dir.path().join("esc.hdr"), "note\x1b[31m red\r\n").unwrap();
+    let no_escape = || predicate::str::contains("\x1b").not();
+    cmd()
+        .arg("info")
+        .arg(dir.path().join("esc.cfg"))
+        .assert()
+        .success()
+        .stdout(no_escape())
+        .stdout(predicate::str::contains("EVIL\u{FFFD}]0;title\u{FFFD}"))
+        .stdout(predicate::str::contains("note\u{FFFD}[31m red"));
+    cmd()
+        .arg("check")
+        .arg(dir.path().join("esc.cfg"))
+        .assert()
+        .stdout(no_escape())
+        .stdout(predicate::str::contains(
+            "control characters in names, ids or units were replaced",
+        ));
+}
+
+#[test]
 fn info_json_is_valid() {
     let out = cmd()
         .args(["info", "--json", "tests/data/combined_2013.cff"])

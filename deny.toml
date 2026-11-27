@@ -1,0 +1,19 @@
+# cargo-deny configuration: `cargo deny check advisories`.
+
+[advisories]
+ignore = [
+    # chrono is unmaintained, with no known vulnerability. A move to jiff is
+    # in todo.md; remove this entry then.
+    { id = "RUSTSEC-2026-0543", reason = "unmaintained only, no vulnerability; move to jiff planned (todo.md)" },
+]
+
+[bans]
+# Two versions of a crate are common in a tree this size; not an error.
+multiple-versions = "allow"
+wildcards = "deny"
+
+[sources]
+# Only crates.io: no git dependencies, no other registries.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

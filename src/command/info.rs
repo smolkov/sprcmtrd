@@ -55,12 +55,32 @@ impl InfoArgs {
         }
         for (title, text) in [("Header (.hdr)", header), ("Information (.inf)", info)] {
             if let Some(text) = text.filter(|t| !t.trim().is_empty()) {
-                out += &format!("\n{title}\n{}\n", text.trim_end());
+                out += &format!("\n{title}\n{}\n", printable(text.trim_end()));
             }
         }
         out!("{out}")?;
         Ok(())
     }
+}
+
+/// Free text with control characters other than newline and tab replaced
+/// with U+FFFD, so a `.hdr` or `.inf` file can't send escape sequences to the
+/// terminal. JSON output escapes them anyway.
+fn printable(text: &str) -> String {
+    text.lines()
+        .map(|l| {
+            l.chars()
+                .map(|c| {
+                    if c.is_control() && c != '\t' {
+                        char::REPLACEMENT_CHARACTER
+                    } else {
+                        c
+                    }
+                })
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Reads `.hdr` and `.inf` content (from files or the `.cff`).
@@ -77,4 +97,14 @@ fn extras(rec: &RecordingPath) -> anyhow::Result<(Option<String>, Option<String>
         p.as_ref().map(|p| Ok(decode_text(&read_bytes(p)?))).transpose()
     };
     Ok((read(&rec.hdr)?, read(&rec.inf)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn printable_replaces_escape_sequences() {
+        assert_eq!(printable("a\tb\r\nc\x1b]0;x\x07"), "a\tb\nc\u{FFFD}]0;x\u{FFFD}");
+    }
 }

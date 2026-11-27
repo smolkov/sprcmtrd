@@ -102,6 +102,13 @@ fn issue(severity: Severity, channel: Option<String>, message: impl Into<String>
 /// Checks that only need the configuration.
 fn check_config(c: &Config, issues: &mut Vec<Issue>) {
     use Severity::*;
+    if c.control_chars_replaced {
+        issues.push(issue(
+            Warning,
+            None,
+            "control characters in names, ids or units were replaced with \u{FFFD}",
+        ));
+    }
     let analog_numbers: Vec<usize> = c.analog.iter().map(|a| a.index).collect();
     if analog_numbers != (1..=c.analog.len()).collect::<Vec<_>>() {
         issues.push(issue(Warning, None, "analog channel numbers are not 1..n in order"));

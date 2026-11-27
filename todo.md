@@ -84,6 +84,8 @@ These build on `analysis::phasor` (DFT over whole cycles ending at a sample), `a
 
 ## Refactoring ideas
 
+* [ ] Replace `chrono` with `jiff`: chrono is flagged unmaintained (RUSTSEC-2026-0543, no vulnerability). Used for cfg dates and times, absolute times, `list --since/--until` and export. Remove the ignore in `deny.toml` afterwards.
+
 * [x] Separate TUI and CLI logic more cleanly to reduce coupling and improve testability.
 * [x] App module is too large separate into smaller modules for better maintainability. Move key handling into its own module.
   `tui/app.rs` has 1500 lines. Natural cuts: `Action`, `Binding`, `BINDINGS`, `KeySpec`, `KeyMap` → `tui/keys.rs`; `Picker`, `PickerEntry`, `Matcher` and `scan` → `tui/picker.rs`; `Recording` (channel visibility, zoom, cursor) → `tui/recording.rs`. `App` keeps state and dispatch.

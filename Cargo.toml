@@ -14,7 +14,24 @@ categories = ["command-line-utilities", "science", "visualization", "parser-impl
 # Only what building and testing the crate needs: no CI, sandbox or notes.
 include = [
     "/src/**",
-    "/tests/**",
+    "/tests/*.rs",
+    # The sample recordings by name: other files in tests/data (your own
+    # recordings) must never be published. Add a new sample here too.
+    "/tests/data/broken.cfg",
+    "/tests/data/combined_2013.cff",
+    "/tests/data/fault_1999.cfg",
+    "/tests/data/fault_1999.dat",
+    "/tests/data/fault_1999.hdr",
+    "/tests/data/fault_2013.cfg",
+    "/tests/data/fault_2013.dat",
+    "/tests/data/fault_2013_uppercase.cfg",
+    "/tests/data/fault_2013_uppercase.dat",
+    "/tests/data/old_1991.cfg",
+    "/tests/data/old_1991.dat",
+    "/tests/data/reclose_1999_ascii.cfg",
+    "/tests/data/reclose_1999_ascii.dat",
+    "/tests/data/test_ascii.cff",
+    "/tests/data/test_ascii_uppercase.CFF",
     "/packaging/**",
     "/README.md",
     "/LICENSE-MIT",

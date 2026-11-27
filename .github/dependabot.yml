@@ -1,0 +1,25 @@
+# Weekly update pull requests for the Rust dependencies (Cargo.lock) and the
+# GitHub Actions (their commit SHA pins). Minor and patch updates come as one
+# pull request per ecosystem; major updates one by one.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    # New versions wait a week before Dependabot proposes them: a hijacked
+    # release is usually found and yanked within days.
+    cooldown:
+      default-days: 7
+    groups:
+      cargo-minor:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions-minor:
+        update-types: [minor, patch]

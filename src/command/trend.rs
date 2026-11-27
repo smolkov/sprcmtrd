@@ -428,9 +428,10 @@ impl Table<'_> {
     }
 }
 
-/// A CSV header name without separators or quotes.
+/// A CSV header name without separators or quotes, and not read as a
+/// spreadsheet formula.
 pub(super) fn csv_name(s: &str) -> String {
-    s.replace([',', '"', ' '], "_")
+    crate::comtrade::export::defuse_formula(s).replace([',', '"', ' '], "_")
 }
 
 #[derive(Serialize)]
@@ -484,6 +485,13 @@ mod tests {
     use super::*;
     use crate::analysis::sequence;
     use crate::comtrade::AnalogInfo;
+
+    #[test]
+    fn csv_names_are_not_formulas() {
+        assert_eq!(csv_name("I A,\"x\""), "I_A__x_");
+        assert_eq!(csv_name("=1+1_A"), "'=1+1_A");
+        assert_eq!(csv_name("-IA_A"), "-IA_A");
+    }
 
     /// A recording with one current channel per id, phases A, B, C.
     fn recording(ids: [&str; 3]) -> Comtrade {

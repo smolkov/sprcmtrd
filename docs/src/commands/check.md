@@ -30,7 +30,8 @@ status     file                      channel  finding
 - **error**: can't be read correctly (configuration, missing or wrong-sized
   data file, sample count). **warning**: missing values, values at or beyond
   the declared min/max (clipped?), times out of order, missing units, unusable
-  ratios, channel numbering, duplicate ids, trigger outside the recording.
+  ratios, channel numbering, duplicate ids, trigger outside the recording,
+  control characters in names (replaced with `�`).
   **note**: unusual unit or line frequency.
 - Exit code **4** when a recording has an error (`--strict`: also a warning),
   otherwise 0, so it can guard scripts and CI jobs. `--json` for details.

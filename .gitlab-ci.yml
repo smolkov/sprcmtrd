@@ -31,8 +31,13 @@ stages:
 variables:
   CARGO_HOME: $CI_PROJECT_DIR/.cargo
   CARGO_TERM_COLOR: always
-  # Stable toolchain; `rust:1` follows the latest 1.x release.
-  RUST_IMAGE: rust:1-bookworm
+  # Images are pinned by digest (the tag is kept for reading), so a changed
+  # image on Docker Hub can't change a build unnoticed. To update: look up
+  # the digest of the tag (`podman manifest inspect` or the Docker Hub page)
+  # and replace it here and below.
+  # Stable toolchain, `rust:1` from 2026-11-27.
+  RUST_IMAGE: rust:1-bookworm@sha256:75d26c23c24cc6ea1cdabf0714a6bff8fd7bf3248716043fd7ae86dac7f41b94
+  ALPINE_IMAGE: alpine:3@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
 
 default:
   image: $RUST_IMAGE
@@ -73,14 +78,14 @@ test:
 msrv:
   stage: check
   extends: .cargo-cache
-  image: rust:1.88-bookworm
+  image: rust:1.88-bookworm@sha256:af306cfa71d987911a781c37b59d7d67d934f49684058f96cf72079c3626bfe0
   script:
     - cargo check --locked --all-targets
 
 verify-tag:
   stage: check
   extends: .release-only
-  image: alpine:3
+  image: $ALPINE_IMAGE
   script:
     - version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
     - |
@@ -93,10 +98,10 @@ verify-tag:
 
 build:
   stage: build
-  extends: [.cargo-cache, .release-only]
+  extends: .release-only
   # Debian bullseye links against glibc 2.31, so the Linux binaries run on
   # more distributions.
-  image: rust:1-bullseye
+  image: rust:1-bullseye@sha256:4730e387a220a08a365c77da3096544dde214f9d796c16284d4be45438cad4a9
   needs: [verify-tag, test, format-clippy, msrv]
   parallel:
     matrix:
@@ -104,15 +109,9 @@ build:
           - x86_64-unknown-linux-gnu
           - aarch64-unknown-linux-gnu
           - x86_64-pc-windows-gnu
-  cache:
-    key:
-      files: [Cargo.lock]
-      prefix: build-$TARGET
-    paths:
-      - .cargo/registry/index/
-      - .cargo/registry/cache/
-      - .cargo/git/db/
-      - target/
+  # No cache in release builds: a poisoned cache would end up in the
+  # published binaries.
+  cache: []
   variables:
     CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
   script:
@@ -124,7 +123,7 @@ build:
 release:
   stage: release
   extends: .release-only
-  image: alpine:3
+  image: $ALPINE_IMAGE
   needs: [build]
   script:
     - apk add --no-cache curl

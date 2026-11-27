@@ -5,6 +5,14 @@ prebuilt binaries for Linux (x86_64, aarch64), macOS (Intel, Apple Silicon) and
 Windows (x86_64), Debian packages for Linux, and a `SHA256SUMS` file to verify
 them (`sha256sum --check --ignore-missing SHA256SUMS`).
 
+The checksums only show that a download is complete. To check that a file
+was built by this repository's release workflow, verify its build
+provenance with the GitHub CLI (releases from 1.0.1 on):
+
+```sh
+gh attestation verify sprcmtrd_1.0.1-1_amd64.deb --repo smolkov/sprcmtrd
+```
+
 **Debian / Ubuntu:** the package installs the binary, the documentation and
 tab completion for bash, zsh and fish:
 

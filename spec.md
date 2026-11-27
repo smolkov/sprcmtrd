@@ -239,7 +239,8 @@ Validates recordings, for scripts and CI.
     (clipped?), time not increasing (timestamps out of order), channel numbers
     not 1..n, duplicate or empty channel ids, no unit, multiplier `a` = 0,
     transformer ratio 0 (1999+), min above max, no declared sample count,
-    trigger outside the recording.
+    trigger outside the recording, control characters replaced in names, ids
+    or units.
   - **note** (doesn't affect the status): unusual unit, line frequency other
     than 50 / 60 / 16.7 Hz.
 - Text output: a table `status | file | channel | finding` with one row per
@@ -746,7 +747,10 @@ gnuplot).
   sample; `sample` is the 1-based sample number, `time_ms` the time relative to
   the trigger. With `--absolute` the column is `time` with date and time of day
   (`2024-03-15T08:30:00.060000`). Missing values are empty fields; fields with
-  commas or quotes are quoted.
+  commas or quotes are quoted. A header field starting with `=`, `+`, `@`, tab
+  or CR gets a leading `'`, so a spreadsheet doesn't read the channel id as a
+  formula (`-` is kept). The same applies to channel names in the CSV of
+  `trend` and `compare`.
 - JSON: one object with `station`, `device`, `revision`, `start_time`,
   `trigger_time`, `side`, then one array per column: `time_ms` (or `time`),
   `sample`, `analog[]` (`index`, `id`, `phase`, `circuit`, `unit`, `values` with
@@ -1018,6 +1022,15 @@ computed on demand (`AnalogChannel::value(i) -> Option<f64>`,
   match `#samples × record size` produce an error with file name and line number.
 - `.dat` files are read with a buffered reader or memory map (`memmap2`) to
   handle large files.
+- Files are untrusted input. A count from the `.cfg` (channels, sample rates,
+  samples) never decides on its own how much memory is reserved: the parser
+  reserves at most what the remaining cfg lines or the `.dat` can hold, so a
+  huge count is reported as an error, not an aborted process.
+- Control characters (C0 including tab, DEL, C1) in cfg text fields (station,
+  device, ids, phase, circuit, unit, time codes) are replaced with U+FFFD, so
+  a file can't send escape sequences to the terminal; `check` warns about it.
+  `info` prints `.hdr` / `.inf` text with the same replacement (newlines and
+  tabs kept); JSON output escapes them anyway.
 
 ### Errors
 

@@ -1,7 +1,9 @@
 # Sandbox image for running Claude Code on this project; see sbx/README.md.
 # Few steps on purpose: start.sh builds with --layers=false, and with podman's
 # vfs storage every committed step would be a full copy of the image.
-FROM docker.io/library/debian:trixie-slim
+# Pinned by digest (tag kept for reading); `start.sh --pull` doesn't change
+# it, update the digest here for a newer base image.
+FROM docker.io/library/debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0
 
 COPY --chmod=644 settings.json /etc/sbx/settings.json
 COPY --chmod=755 entrypoint.sh /usr/local/bin/sbx-entrypoint
@@ -25,7 +27,19 @@ ENV PATH=/home/agent/.local/bin:/home/agent/.cargo/bin:$PATH \
 
 # Rust (stable with clippy and rustfmt, and the minimum supported version
 # from agent.md) and Claude Code (native installer, to ~/.local/bin).
-RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --component clippy,rustfmt \
+# rustup-init is a fixed version, checked against its SHA-256 before it runs.
+# Claude Code comes from Anthropic's installer, which is trusted as is.
+ARG RUSTUP_VERSION=1.29.3
+RUN case "$(uname -m)" in \
+        x86_64) target=x86_64-unknown-linux-gnu sha=b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55 ;; \
+        aarch64) target=aarch64-unknown-linux-gnu sha=9f608c142e0e38a78957d0661ba1dfaf0b6fb37184cfaa4b9a0aa57af6184282 ;; \
+        *) echo "unsupported architecture $(uname -m)" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSLo /tmp/rustup-init "https://static.rust-lang.org/rustup/archive/$RUSTUP_VERSION/$target/rustup-init" \
+    && echo "$sha  /tmp/rustup-init" | sha256sum -c - \
+    && chmod +x /tmp/rustup-init \
+    && /tmp/rustup-init -y --profile minimal --component clippy,rustfmt \
+    && rm /tmp/rustup-init \
     && rustup toolchain install 1.88 --profile minimal \
     && rm -rf /home/agent/.rustup/downloads /home/agent/.rustup/tmp \
     && mkdir -p /home/agent/.cargo/registry /home/agent/.claude \

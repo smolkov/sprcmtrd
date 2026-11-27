@@ -46,7 +46,8 @@ cd ..
 
 case "$target" in
     *linux*)
-        command -v cargo-deb > /dev/null || cargo install cargo-deb --locked --quiet
+        # A fixed version, so a new release of cargo-deb can't change the build.
+        command -v cargo-deb > /dev/null || cargo install cargo-deb --version 3.8.0 --locked --quiet
         cargo deb --no-build --no-strip --target "$target" --output dist/
         ;;
 esac

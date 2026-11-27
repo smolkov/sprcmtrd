@@ -236,7 +236,10 @@ fn parse_ascii(cfg: &Config, data: &[u8]) -> Result<DatData> {
     let n_binary = cfg.binary.len();
     // 1991/1999 mark missing ASCII values with 99999, 2013 with an empty field.
     let legacy_missing = cfg.revision != Revision::Rev2013;
-    let mut out = new_columns(cfg, cfg.total_samples());
+    // The sample count comes from the cfg: reserve no more than the data
+    // has lines, so a huge count is reported as a mismatch, not an abort.
+    let lines = data.iter().filter(|&&b| b == b'\n').count() + 1;
+    let mut out = new_columns(cfg, cfg.total_samples().min(lines));
 
     let rows = text
         .lines()
@@ -373,5 +376,12 @@ mod tests {
         assert!(b.any(90..101));
         assert!(b.all(100..130));
         assert!(!b.get(500));
+    }
+
+    #[test]
+    fn huge_ascii_sample_count_is_a_mismatch_not_an_abort() {
+        let c = cfg("ASCII", 1, 0, 1_000_000_000_000_000);
+        let e = parse(&c, b"1,0,1\n").unwrap_err().to_string();
+        assert!(e.contains("configuration declares 1000000000000000"), "{e}");
     }
 }

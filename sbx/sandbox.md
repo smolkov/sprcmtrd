@@ -31,7 +31,9 @@ All sandbox files live in `sbx/`:
 ## Container image
 
 - Base: `debian:trixie-slim` (same Debian release as the host, so binaries
-  built inside run on the host and the other way round).
+  built inside run on the host and the other way round), pinned by digest.
+- Rust from a fixed `rustup-init` version, checked against its SHA-256;
+  Claude Code from Anthropic's installer.
 - Tools:
   - Rust via rustup: stable with `clippy` and `rustfmt`, plus `1.88` (MSRV
     check from `agent.md`).
@@ -54,7 +56,8 @@ sbx/start.sh [--rebuild] [--pull] [shell | claude-args...]
 - Builds the image (`sprcmtrd-sbx`) when it doesn't exist, or when the hash of
   `Containerfile` / `settings.json` differs from the image label.
 - `--rebuild` rebuilds anyway (new Claude Code / Rust versions); `--pull` also
-  fetches a newer `debian:trixie-slim`.
+  fetches the base image again (it is pinned by digest, so a newer one needs
+  a new digest in `Containerfile`).
 - Starts a fresh container for every run (`podman run --rm -it`); state that
   must survive lives in named volumes (below), so updating the image never
   loses it and a broken container is gone after exit.
@@ -69,6 +72,8 @@ sbx/start.sh [--rebuild] [--pull] [shell | claude-args...]
 | Host                          | Container                     | Mode       |
 |-------------------------------|-------------------------------|------------|
 | repository root               | same absolute path            | read-write |
+| `.git` of the repository      | same absolute path            | read-write, own mount point |
+| `.git/hooks`, `.git/config`   | same absolute path            | read-only  |
 | volume `sprcmtrd-sbx-claude`  | `/home/agent/.claude`         | read-write |
 | volume `sprcmtrd-sbx-cargo`   | `/home/agent/.cargo/registry` | read-write |
 
@@ -78,6 +83,12 @@ sbx/start.sh [--rebuild] [--pull] [shell | claude-args...]
 - Nothing else from the host is mounted: no home directory, no `~/.ssh`, no
   host `~/.claude`, no podman/docker socket.
 - SELinux hosts: mount with `:Z`.
+- Git on the host runs hooks and commands named in `.git/config`
+  (`core.hooksPath`, `core.fsmonitor`, `include.path`, filters), so the agent
+  must not change them: they are mounted read-only. `.git` is bind-mounted
+  onto itself, so it is a mount point that can't be renamed or replaced by a
+  directory with another config. `start.sh` refuses to start when `.git` is
+  not a plain directory (worktree, submodule).
 
 ## Network
 
@@ -120,7 +131,9 @@ settings; the project's `.claude/settings.json` still applies on top):
   permission prompts.
 - `permissions.deny` as a safety net for actions that reach outside the
   project even in a sandbox, e.g. `git push --force`, `git push * --delete`,
-  `gh repo delete`, `glab repo delete`.
+  `+` refspecs, `git -C … push`, `gh repo delete`, `glab repo delete`,
+  `gh api … DELETE`. The rules match patterns, so they don't stop a
+  determined agent; branch protection on GitHub and GitLab is the boundary.
 - No other allow lists needed: shell, file system, write and network access are
   limited by the container, not by the agent.
 - The Claude config volume keeps login state, sessions and memory between

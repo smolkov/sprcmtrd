@@ -173,8 +173,21 @@ impl<'a> Export<'a> {
     }
 }
 
-/// Quotes a CSV field when it contains a separator, quote or line break.
+/// Starts a CSV field from the file (a channel id) with `'` when a
+/// spreadsheet would read it as a formula (`=`, `+`, `@`, tab, CR; OWASP).
+/// `-` is left alone: negative numbers are data.
+pub fn defuse_formula(s: &str) -> std::borrow::Cow<'_, str> {
+    if s.starts_with(['=', '+', '@', '\t', '\r']) {
+        format!("'{s}").into()
+    } else {
+        s.into()
+    }
+}
+
+/// Quotes a CSV field when it contains a separator, quote or line break;
+/// see also [`defuse_formula`].
 fn csv_field(s: &str) -> String {
+    let s = &*defuse_formula(s);
     if s.contains([',', '"', '\n', '\r']) {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {
@@ -230,6 +243,10 @@ mod tests {
         assert_eq!(round(1e-9).to_string(), "0.000000001");
         assert_eq!(csv_field("IA [A]"), "IA [A]");
         assert_eq!(csv_field("a,b"), "\"a,b\"");
+        assert_eq!(csv_field("=HYPERLINK(1)"), "'=HYPERLINK(1)");
+        assert_eq!(csv_field("@SUM(A1) [A]"), "'@SUM(A1) [A]");
+        assert_eq!(csv_field("+1,2"), "\"'+1,2\"");
+        assert_eq!(csv_field("-IA [A]"), "-IA [A]");
         assert_eq!(csv_field("say \"hi\""), "\"say \"\"hi\"\"\"");
     }
 

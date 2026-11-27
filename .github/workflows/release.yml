@@ -21,7 +21,7 @@ jobs:
     name: Verify tag and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Tag matches Cargo.toml version
         run: |
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
@@ -29,8 +29,11 @@ jobs:
             echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $version"
             exit 1
           fi
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
+        with:
+          toolchain: stable
+      # No caches in release runs: a poisoned cache would end up in the
+      # published binaries.
       - run: cargo test --locked
 
   build:
@@ -49,13 +52,11 @@ jobs:
           - { target: x86_64-pc-windows-msvc, os: windows-latest }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
       - run: cargo build --release --locked --target ${{ matrix.target }}
       - name: Package
         shell: bash
@@ -72,12 +73,12 @@ jobs:
           fi
       # Debian packages for the Linux targets (settings in Cargo.toml).
       - if: runner.os == 'Linux'
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@073e1fd0bc889c9aee68dbaaa927cde1b5653a83 # v2.90.11
         with:
-          tool: cargo-deb
+          tool: cargo-deb@3.8.0
       - if: runner.os == 'Linux'
         run: cargo deb --no-build --no-strip --target ${{ matrix.target }} --output out/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dist-${{ matrix.target }}
           path: out/*
@@ -87,16 +88,26 @@ jobs:
     name: Publish release
     needs: build
     runs-on: ubuntu-latest
+    # Waits for the approval of a required reviewer (repository settings,
+    # environment `release`, deployments only from `v*` tags), so a pushed
+    # tag alone can't publish a release.
+    environment: release
     permissions:
       contents: write
+      # Build provenance attestations (`gh attestation verify`).
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: dist-*
           merge-multiple: true
           path: dist
       - name: Checksums
         run: cd dist && sha256sum * > SHA256SUMS
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-path: dist/*
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

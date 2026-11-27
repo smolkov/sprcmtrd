@@ -33,6 +33,9 @@ Values are scaled (primary side, `--secondary` for secondary), binary channels
 (`time_ms`, `sample`, and `values` of each channel), which loads directly into
 pandas or numpy.
 
+A channel id starting with `=`, `+` or `@` gets a leading `'` in the CSV
+header, so a spreadsheet doesn't run it as a formula.
+
 ## Arguments and options
 
 | Argument / option | Meaning |

@@ -19,7 +19,8 @@ usage() {
     cat <<'EOF'
 
   --rebuild   build the image again (newer Claude Code, Rust, packages)
-  --pull      also fetch a newer debian:trixie-slim (implies --rebuild)
+  --pull      fetch the base image again (implies --rebuild); it is pinned
+              by digest in Containerfile, update the digest there for a newer one
   shell       open bash in the sandbox instead of Claude (`shell -c CMD` runs CMD)
   other args  passed to claude, e.g. `sbx/start.sh --resume`
 EOF
@@ -47,6 +48,8 @@ else
 fi
 
 command -v podman >/dev/null || die "podman is not installed (apt install podman)"
+[[ -d $repo/.git && -d $repo/.git/hooks && -f $repo/.git/config ]] ||
+    die "$repo/.git is not a plain git directory (worktree or submodule?): its hooks and config can't be protected"
 [[ -f $env_file ]] || die "missing $env_file: copy sbx/env.example to sbx/.env and fill in the tokens"
 grep -Eq '^(CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY)=.+' "$env_file" ||
     die "$env_file needs CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY"
@@ -73,6 +76,13 @@ run=(
     --userns=keep-id:uid=1000,gid=1000
     # The project at its host path; nothing else from the host.
     --volume "$repo:$repo:Z"
+    # Git runs hooks and config commands (core.hooksPath, core.fsmonitor,
+    # include.path) on the host, so the agent must not change them: `.git`
+    # becomes a mount point of its own (it can't be renamed or replaced),
+    # with its hooks and config read-only.
+    --volume "$repo/.git:$repo/.git"
+    --volume "$repo/.git/hooks:$repo/.git/hooks:ro"
+    --volume "$repo/.git/config:$repo/.git/config:ro"
     --workdir "$repo"
     --volume "$image-claude:/home/agent/.claude"
     --volume "$image-cargo:/home/agent/.cargo/registry"

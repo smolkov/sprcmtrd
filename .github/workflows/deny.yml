@@ -1,0 +1,30 @@
+# Checks the dependencies with cargo-deny (settings in deny.toml): known
+# advisories, banned crates and sources other than crates.io. Runs on every
+# push to main and pull request that changes dependencies, and weekly, so a
+# new advisory shows up without a push.
+name: Dependencies
+
+on:
+  push:
+    branches: [main]
+    paths: [Cargo.toml, Cargo.lock, deny.toml, .github/workflows/deny.yml]
+  pull_request:
+    paths: [Cargo.toml, Cargo.lock, deny.toml, .github/workflows/deny.yml]
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deny:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # A version that has been out for a while; Dependabot doesn't update it.
+      - uses: taiki-e/install-action@073e1fd0bc889c9aee68dbaaa927cde1b5653a83 # v2.90.11
+        with:
+          tool: cargo-deny@0.20.2
+      - run: cargo deny --locked check advisories bans sources

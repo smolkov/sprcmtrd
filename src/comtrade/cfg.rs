@@ -193,6 +193,10 @@ pub struct Config {
     pub analog: Vec<AnalogInfo>,
     /// Binary channels.
     pub binary: Vec<BinaryInfo>,
+    /// `true` when control characters in text fields (names, ids, units)
+    /// were replaced with U+FFFD, so they can't reach a terminal.
+    #[serde(skip)]
+    pub control_chars_replaced: bool,
 }
 
 impl Config {
@@ -245,6 +249,9 @@ impl Config {
 struct Parser<'a> {
     lines: std::iter::Peekable<std::iter::Enumerate<std::str::Lines<'a>>>,
     line_no: usize,
+    /// Lines not read yet; an upper bound for counts that need one line each.
+    remaining: usize,
+    control_chars_replaced: std::cell::Cell<bool>,
 }
 
 impl<'a> Parser<'a> {
@@ -252,6 +259,8 @@ impl<'a> Parser<'a> {
         Self {
             lines: text.lines().enumerate().peekable(),
             line_no: 0,
+            remaining: text.lines().count(),
+            control_chars_replaced: std::cell::Cell::new(false),
         }
     }
 
@@ -266,6 +275,7 @@ impl<'a> Parser<'a> {
         match self.lines.next() {
             Some((i, line)) => {
                 self.line_no = i + 1;
+                self.remaining -= 1;
                 Ok(split_fields(line))
             }
             None => {
@@ -279,13 +289,14 @@ impl<'a> Parser<'a> {
     fn optional_line(&mut self) -> Option<Vec<&'a str>> {
         let (i, line) = self.lines.next()?;
         self.line_no = i + 1;
+        self.remaining -= 1;
         (!line.trim().is_empty()).then(|| split_fields(line))
     }
 
     fn parse(mut self) -> Result<Config> {
         let f = self.next_line("station line")?;
-        let station_name = field(&f, 0).to_owned();
-        let device_id = field(&f, 1).to_owned();
+        let station_name = self.text(field(&f, 0));
+        let device_id = self.text(field(&f, 1));
         let revision = match field(&f, 2) {
             "" => Revision::Rev1991,
             y => match y.parse::<u32>() {
@@ -306,12 +317,14 @@ impl<'a> Parser<'a> {
             )));
         }
 
-        let mut analog = Vec::with_capacity(n_analog);
+        // Counts come from the file: reserve no more than the lines left can
+        // hold, so a huge count fails at the end of the file, not in malloc.
+        let mut analog = Vec::with_capacity(n_analog.min(self.remaining));
         for _ in 0..n_analog {
             let f = self.next_line("analog channel line")?;
             analog.push(self.analog(&f)?);
         }
-        let mut binary = Vec::with_capacity(n_digital);
+        let mut binary = Vec::with_capacity(n_digital.min(self.remaining));
         for _ in 0..n_digital {
             let f = self.next_line("binary channel line")?;
             binary.push(self.binary(&f)?);
@@ -322,7 +335,7 @@ impl<'a> Parser<'a> {
 
         let f = self.next_line("number of sample rates")?;
         let nrates: usize = self.num(field(&f, 0), "number of sample rates")?;
-        let mut sample_rates = Vec::with_capacity(nrates.max(1));
+        let mut sample_rates = Vec::with_capacity(nrates.clamp(1, self.remaining.max(1)));
         for _ in 0..nrates.max(1) {
             let f = self.next_line("sample rate line")?;
             let rate = self.num_or(field(&f, 0), 0.0, "sample rate")?;
@@ -358,12 +371,12 @@ impl<'a> Parser<'a> {
             }
         }
         if let Some(f) = self.optional_line() {
-            time_code = non_empty(field(&f, 0));
-            local_code = non_empty(field(&f, 1));
+            time_code = self.non_empty(field(&f, 0));
+            local_code = self.non_empty(field(&f, 1));
         }
         if let Some(f) = self.optional_line() {
-            tmq_code = non_empty(field(&f, 0));
-            leap_second = non_empty(field(&f, 1));
+            tmq_code = self.non_empty(field(&f, 0));
+            leap_second = self.non_empty(field(&f, 1));
         }
 
         Ok(Config {
@@ -382,7 +395,21 @@ impl<'a> Parser<'a> {
             leap_second,
             analog,
             binary,
+            control_chars_replaced: self.control_chars_replaced.get(),
         })
+    }
+
+    /// Text field with control characters replaced, see [`clean_text`].
+    fn text(&self, s: &str) -> String {
+        let (text, replaced) = clean_text(s);
+        if replaced {
+            self.control_chars_replaced.set(true);
+        }
+        text
+    }
+
+    fn non_empty(&self, s: &str) -> Option<String> {
+        (!s.is_empty()).then(|| self.text(s))
     }
 
     fn analog(&self, f: &[&str]) -> Result<AnalogInfo> {
@@ -395,10 +422,10 @@ impl<'a> Parser<'a> {
         };
         Ok(AnalogInfo {
             index: self.num(field(f, 0), "analog channel index")?,
-            id: field(f, 1).to_owned(),
-            phase: field(f, 2).to_owned(),
-            circuit: field(f, 3).to_owned(),
-            unit: field(f, 4).to_owned(),
+            id: self.text(field(f, 1)),
+            phase: self.text(field(f, 2)),
+            circuit: self.text(field(f, 3)),
+            unit: self.text(field(f, 4)),
             a: self.num_or(field(f, 5), 1.0, "multiplier a")?,
             b: self.num_or(field(f, 6), 0.0, "offset b")?,
             skew: self.num_or(field(f, 7), 0.0, "skew")?,
@@ -420,9 +447,9 @@ impl<'a> Parser<'a> {
         };
         Ok(BinaryInfo {
             index: self.num(field(f, 0), "binary channel index")?,
-            id: id.to_owned(),
-            phase: phase.to_owned(),
-            circuit: circuit.to_owned(),
+            id: self.text(id),
+            phase: self.text(phase),
+            circuit: self.text(circuit),
             normal_state: state == "1",
         })
     }
@@ -484,8 +511,18 @@ fn field<'a>(f: &[&'a str], i: usize) -> &'a str {
     f.get(i).copied().unwrap_or("")
 }
 
-fn non_empty(s: &str) -> Option<String> {
-    (!s.is_empty()).then(|| s.to_owned())
+/// Replaces control characters (C0 including tab, DEL, C1) with U+FFFD, so
+/// text from a file can't send escape sequences to a terminal. Returns the
+/// text and whether anything was replaced.
+pub fn clean_text(s: &str) -> (String, bool) {
+    if !s.chars().any(char::is_control) {
+        return (s.to_owned(), false);
+    }
+    let text = s
+        .chars()
+        .map(|c| if c.is_control() { char::REPLACEMENT_CHARACTER } else { c })
+        .collect();
+    (text, true)
 }
 
 /// Parses `hh:mm:ss[.fffffffff]`.
@@ -597,5 +634,29 @@ ASCII
         assert_eq!(c.analog[0].side_factor(Side::Primary), 1.0);
         assert!((c.analog[0].side_factor(Side::Secondary) - 1.0 / 600.0).abs() < 1e-12);
         assert!((c.analog[1].side_factor(Side::Primary) - 1100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn huge_counts_fail_without_reserving_memory() {
+        // Each count would abort the process if it were reserved up front.
+        let channels = "S,D,1999\n1000000000000000,1000000000000000A,0D\n";
+        assert!(Config::parse(channels).unwrap_err().to_string().contains("end of file"));
+        let rates = "S,D,1999\n1,1A,0D\n1,IA,A,,A,1,0,0,-1,1,1,1,P\n50\n1000000000000000\n";
+        assert!(Config::parse(rates).unwrap_err().to_string().contains("end of file"));
+    }
+
+    #[test]
+    fn control_characters_in_text_fields_are_replaced() {
+        let text = CFG_1999
+            .replace("STATION A", "EVIL\x1b]0;title\x07")
+            .replace("IA,A,LINE", "IA\x1b[2J,A,LI\u{9b}NE")
+            .replace("TRIP", "TR\tIP");
+        let c = Config::parse(&text).unwrap();
+        assert!(c.control_chars_replaced);
+        assert_eq!(c.station_name, "EVIL\u{FFFD}]0;title\u{FFFD}");
+        assert_eq!(c.analog[0].id, "IA\u{FFFD}[2J");
+        assert_eq!(c.analog[0].circuit, "LI\u{FFFD}NE");
+        assert_eq!(c.binary[0].id, "TR\u{FFFD}IP");
+        assert!(!Config::parse(CFG_1999).unwrap().control_chars_replaced);
     }
 }

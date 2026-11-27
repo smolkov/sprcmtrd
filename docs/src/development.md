@@ -14,15 +14,31 @@ Windows, and a build with the minimum Rust version.
 
 1. Set the new version in `Cargo.toml` and commit.
 2. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`
+3. Approve the deployment: the `Publish release` job of the run waits in
+   GitHub Actions ("Review deployments", environment `release`).
 
 `.github/workflows/release.yml` checks that the tag matches the `Cargo.toml`
 version, runs the tests, builds the binaries for all platforms and publishes a
 GitHub release with the archives (binary, README, licenses), Debian packages
-for the Linux targets, `SHA256SUMS` and generated release notes.
+for the Linux targets, `SHA256SUMS`, build provenance attestations and
+generated release notes.
+
+Supply chain of a release:
+
+- A pushed tag alone can't publish: the environment `release` needs your
+  approval, and accepts only `v*` tags. A ruleset keeps published `v*` tags
+  from being moved or deleted; `main` can't be force-pushed or deleted.
+- Release builds use no CI caches, and tools are fixed versions: actions by
+  commit SHA, `cargo-deb` 3.8.0, GitLab images by digest.
+- Dependabot proposes dependency and action updates weekly, after a 7-day
+  cooldown. `.github/workflows/deny.yml` runs `cargo deny` (advisories, bans,
+  sources; settings in `deny.toml`) on dependency changes and weekly.
 
 Packaging settings live in `Cargo.toml`: the release profile (LTO, one codegen
 unit, stripped symbols), the crate metadata for crates.io (`include` keeps CI,
-sandbox and notes out of the package; check with `cargo package --list`), and
+sandbox, notes and your own recordings in `tests/data` out of the package: it
+lists the sample recordings by name, so add a new sample there; check with
+`cargo package --list`), and
 `[package.metadata.deb]` for `cargo deb` (binary, README, licenses and the
 completion stubs from `packaging/completions/`). To publish on crates.io:
 `cargo publish --dry-run`, then `cargo publish` (needs a crates.io token).
@@ -35,7 +51,8 @@ version. For a version tag pushed to GitLab (`git push gitlab v0.2.0`) it also
 checks the tag against `Cargo.toml` and builds release binaries with
 `ci/build-release.sh`. `ci/gitlab-release.sh` uploads the binaries and
 `SHA256SUMS` to the project's generic package registry and creates a GitLab
-release linking to them.
+release linking to them. `v*` tags are protected: only Maintainers can create
+them.
 
 | Platform        | GitHub                    | GitLab                           |
 |-----------------|---------------------------|----------------------------------|
@@ -87,15 +104,31 @@ project (`sbx/README.md`).
 
 1. Set the new version in `Cargo.toml` and commit.
 2. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`
+3. Approve the deployment: the `Publish release` job of the run waits in
+   GitHub Actions ("Review deployments", environment `release`).
 
 `.github/workflows/release.yml` checks that the tag matches the `Cargo.toml`
 version, runs the tests, builds the binaries for all platforms and publishes a
 GitHub release with the archives (binary, README, licenses), Debian packages
-for the Linux targets, `SHA256SUMS` and generated release notes.
+for the Linux targets, `SHA256SUMS`, build provenance attestations and
+generated release notes.
+
+Supply chain of a release:
+
+- A pushed tag alone can't publish: the environment `release` needs your
+  approval, and accepts only `v*` tags. A ruleset keeps published `v*` tags
+  from being moved or deleted; `main` can't be force-pushed or deleted.
+- Release builds use no CI caches, and tools are fixed versions: actions by
+  commit SHA, `cargo-deb` 3.8.0, GitLab images by digest.
+- Dependabot proposes dependency and action updates weekly, after a 7-day
+  cooldown. `.github/workflows/deny.yml` runs `cargo deny` (advisories, bans,
+  sources; settings in `deny.toml`) on dependency changes and weekly.
 
 Packaging settings live in `Cargo.toml`: the release profile (LTO, one codegen
 unit, stripped symbols), the crate metadata for crates.io (`include` keeps CI,
-sandbox and notes out of the package; check with `cargo package --list`), and
+sandbox, notes and your own recordings in `tests/data` out of the package: it
+lists the sample recordings by name, so add a new sample there; check with
+`cargo package --list`), and
 `[package.metadata.deb]` for `cargo deb` (binary, README, licenses and the
 completion stubs from `packaging/completions/`). To publish on crates.io:
 `cargo publish --dry-run`, then `cargo publish` (needs a crates.io token).
@@ -108,7 +141,8 @@ version. For a version tag pushed to GitLab (`git push gitlab v0.2.0`) it also
 checks the tag against `Cargo.toml` and builds release binaries with
 `ci/build-release.sh`. `ci/gitlab-release.sh` uploads the binaries and
 `SHA256SUMS` to the project's generic package registry and creates a GitLab
-release linking to them.
+release linking to them. `v*` tags are protected: only Maintainers can create
+them.
 
 | Platform        | GitHub                    | GitLab                           |
 |-----------------|---------------------------|----------------------------------|

@@ -31,8 +31,17 @@ the answer is kept.
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude subscription: run `claude setup-token` on the host and paste |
 | `ANTHROPIC_API_KEY`       | Instead of the above: an API key (billed per use)                    |
 | `GH_TOKEN`                | GitHub: fine-grained token, only this repository (contents read/write, pull requests, actions read) |
-| `GITLAB_TOKEN`            | GitLab: project access token (`api`, `write_repository`)            |
+| `GITLAB_TOKEN`            | GitLab: project access token (`api`, `write_repository`), role **Developer**: it can't create the protected `v*` release tags |
 | `GITLAB_HOST`             | `gitlab.fe.sprecher-automation.com`                                 |
+
+Releases can't come from the sandbox. A `v*` tag pushed with `GH_TOKEN`
+builds on GitHub, but the publishing job waits for your approval in the
+browser (environment `release`). On GitLab, a Developer token can't create
+`v*` tags (protected tags).
+
+Rust comes from a fixed `rustup-init` version that is checked against its
+SHA-256. Claude Code comes from Anthropic's installer
+(`https://claude.ai/install.sh`), which is trusted as is.
 
 `sbx/.env` is gitignored and never copied into the image. Give the tokens the
 smallest scope and an expiry date: they are what the agent can push and
@@ -46,7 +55,7 @@ sbx/start.sh --resume           # arguments go to claude
 sbx/start.sh shell              # bash in the sandbox
 sbx/start.sh shell -c 'cargo test --locked'
 sbx/start.sh --rebuild          # newer Claude Code, Rust and packages
-sbx/start.sh --pull             # also a newer debian:trixie-slim
+sbx/start.sh --pull             # fetch the base image again (pinned by digest in Containerfile)
 ```
 
 The image is rebuilt automatically when `Containerfile`, `settings.json` or
@@ -60,8 +69,22 @@ The image is rebuilt automatically when `Containerfile`, `settings.json` or
 | Build and test (shares `target/` with the host)            | Your host `~/.claude` (it has its own)      |
 | The network (Claude API, GitHub, crates.io, GitLab on VPN) | Listen for connections (no ports published) |
 | Push to GitHub / GitLab with the tokens in `sbx/.env`      | Use your SSH keys                           |
-|                                                            | Force-push or delete branches, repositories and releases (denied in `settings.json`) |
+|                                                            | Change git hooks or `.git/config` (mounted read-only), which would run on the host |
+|                                                            | Force-push or delete branches, repositories and releases (denied in `settings.json`, see below) |
 
+- `.git/hooks` and `.git/config` are read-only inside: commit, branch, fetch
+  and push work, but `git remote add`, `git branch -u` and `git push -u`
+  can't write the config (the push itself succeeds). Set upstreams and
+  remotes on the host.
+- The deny rules in `settings.json` match command prefixes and patterns; a
+  differently written command gets past them. They are a safety net, not a
+  boundary: protect `main` (and release tags) on GitHub and GitLab, so the
+  tokens can't force-push or delete them.
+- Everything else the agent writes in the project runs on the host the next
+  time you build or test there. Before running `cargo` on the host after a
+  session, check `git status` and the diff, especially for new
+  `.cargo/config.toml`, `rust-toolchain.toml`, `build.rs` or `.envrc` files,
+  and for changes in `target/` you didn't build (it is shared).
 - Git remotes stay as they are (`git@github.com:…`); inside the sandbox they
   are rewritten to HTTPS and authenticated with the tokens.
 - Files the agent writes belong to you (the host user is mapped to `agent`).
