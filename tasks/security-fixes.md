@@ -1,7 +1,7 @@
 # Security fixes from the review
 
 - **Issue:** none, from a security review of 1.0.0
-- **Status:** done, unreleased. Built with the proposed decisions. Differences from the plan:
+- **Status:** done, released in 1.0.1. Built with the proposed decisions. Differences from the plan:
   - 2: `info` also filters `.hdr` / `.inf` text when printing (newlines and
     tabs kept). It isn't filtered in the parser, because `convert` writes it back.
   - 3: `.git` is also bind-mounted onto itself. With only `hooks` and

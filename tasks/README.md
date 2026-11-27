@@ -27,7 +27,7 @@ differently from it. Open ideas without a plan are in `todo.md`.
 | [TUI: scroll position in the channel list and the file picker](tui-list-scroll-position.md) | - | done, 1.0.0 |
 | [`comtrade` as its own crate in a workspace](comtrade-crate.md) | - | planned, waiting for approval |
 | [Desktop GUI with Tauri and Leptos, workspace with shared crates](gui-tauri-leptos.md) | - | planned, waiting for approval; open questions: app name, tabs |
-| [Security fixes from the review](security-fixes.md) | - | done, unreleased; follow-up release supply chain in progress (GitLab tags, SHA pinning open); follow-up shell completion escaping planned, waiting for approval |
+| [Security fixes from the review](security-fixes.md) | - | done, 1.0.1; follow-up release supply chain in progress (GitLab tags, SHA pinning open); follow-up shell completion escaping planned, waiting for approval |
 
 Status values:
 
